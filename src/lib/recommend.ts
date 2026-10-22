@@ -1,4 +1,3 @@
-import { CATALOG } from '../data/catalog';
 import type { Game, PlatformId } from '../types';
 import type { LibraryGame } from './library';
 import { normalizeTitle } from './match';
@@ -85,7 +84,8 @@ function overlap(a: Game, b: Game) {
 
 export function recommend(
   lib: LibraryGame[],
-  opts: { owned: PlatformId[]; exclude: Set<string>; extra?: Game[] },
+  // pool: the live suggestion pool (lib/suggestions.ts), the only source of candidates.
+  opts: { owned: PlatformId[]; exclude: Set<string>; pool: Game[] },
 ): Recommendation[] {
   const fit = tasteMatcher(tasteProfile(lib));
   const played = new Set(lib.map((l) => l.game.id));
@@ -95,7 +95,7 @@ export function recommend(
 
   const recs: Recommendation[] = [];
   const seen = new Set<string>();
-  for (const game of [...CATALOG, ...(opts.extra ?? [])]) {
+  for (const game of opts.pool) {
     if (played.has(game.id) || opts.exclude.has(game.id) || seen.has(game.id)) continue;
     if (game.steamAppId && playedApps.has(game.steamAppId)) continue;
     if (playedTitles.has(normalizeTitle(game.title))) continue;

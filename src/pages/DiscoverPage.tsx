@@ -12,45 +12,16 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconMessageCircle, IconX } from '@tabler/icons-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GameCard } from '../components/GameCard';
-import { fetchDiscoverPool } from '../lib/api';
 import { formatPlaytime } from '../lib/format';
 import { ownedPlatforms, useLibrary } from '../lib/library';
 import { recommend, tasteProfile } from '../lib/recommend';
 import { useStore } from '../lib/store';
+import { useSuggestionPool } from '../lib/suggestions';
 
 const PAGE = 24;
-const POOL_TTL = 24 * 3600 * 1000;
-
-/** Keeps the Steam suggestion pool in step with your taste; refreshed daily. */
-function useSuggestionPool(subgenres: string[], genres: string[]) {
-  const suggested = useStore((s) => s.suggested);
-  const [failed, setFailed] = useState('');
-  // Bump the leading version when the server's pool changes shape (v2: Switch games).
-  const key = ['v2', ...subgenres, '|', ...genres].join(',');
-  const stale =
-    !!subgenres.length && (suggested.key !== key || Date.now() - new Date(suggested.fetchedAt).getTime() > POOL_TTL);
-
-  useEffect(() => {
-    if (!stale || failed === key) return;
-    let cancelled = false;
-    fetchDiscoverPool(subgenres, genres)
-      .then((found) => !cancelled && useStore.getState().setSuggested(key, found))
-      .catch(() => !cancelled && setFailed(key));
-    return () => {
-      cancelled = true;
-    };
-    // The key stands in for both lists.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, stale, failed]);
-
-  return {
-    games: useMemo(() => Object.values(suggested.games), [suggested.games]),
-    loading: stale && failed !== key,
-  };
-}
 
 export function DiscoverPage() {
   const lib = useLibrary();
@@ -62,13 +33,10 @@ export function DiscoverPage() {
 
   const profile = useMemo(() => tasteProfile(lib), [lib]);
   const owned = useMemo(() => ownedPlatforms(lib), [lib]);
-  const pool = useSuggestionPool(
-    profile.subgenres.slice(0, 6).map((x) => x.name),
-    profile.genres.slice(0, 4).map((x) => x.name),
-  );
+  const pool = useSuggestionPool(lib);
   const [shown, setShown] = useState(PAGE);
   const recs = useMemo(
-    () => recommend(lib, { owned, exclude: new Set(dismissed), extra: pool.games }),
+    () => recommend(lib, { owned, exclude: new Set(dismissed), pool: pool.games }),
     [lib, owned, dismissed, pool.games],
   );
 

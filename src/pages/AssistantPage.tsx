@@ -30,7 +30,8 @@ import {
 import { ownedPlatforms, useLibrary, type LibraryGame } from '../lib/library';
 import { recommend } from '../lib/recommend';
 import { useGameResolver, useStore } from '../lib/store';
-import type { ChatMessage } from '../types';
+import { useSuggestionPool } from '../lib/suggestions';
+import type { ChatMessage, Game } from '../types';
 
 const STARTERS = [
   'What should I play next on Switch?',
@@ -41,6 +42,7 @@ const STARTERS = [
 
 export function AssistantPage() {
   const lib = useLibrary();
+  const pool = useSuggestionPool(lib);
   const resolve = useGameResolver();
   const wishlist = useStore((s) => s.wishlist);
   const dismissedIds = useStore((s) => s.dismissed);
@@ -72,14 +74,18 @@ export function AssistantPage() {
 
     if (!live) {
       const exclude = new Set([...played, ...dismissedIds]);
-      setChat([...history, { role: 'assistant', content: offlineReply(question, lib, exclude) }]);
+      setChat([...history, { role: 'assistant', content: offlineReply(question, lib, exclude, pool.games) }]);
       return;
     }
 
     setBusy(true);
     const controller = new AbortController();
     abortRef.current = controller;
-    const candidates = recommend(lib, { owned: ownedPlatforms(lib), exclude: new Set(dismissedIds) }).slice(0, 30);
+    const candidates = recommend(lib, {
+      owned: ownedPlatforms(lib),
+      exclude: new Set(dismissedIds),
+      pool: pool.games,
+    }).slice(0, 30);
     const context = buildContext(
       lib,
       wishlistGames(wishlist, resolve),
@@ -213,6 +219,7 @@ export function AssistantPage() {
               pending={busy && i === chat.length - 1}
               exclude={played}
               library={lib}
+              pool={pool.games}
             />
           ),
         )}
@@ -286,14 +293,22 @@ function AssistantMessage({
   pending,
   exclude,
   library,
+  pool,
 }: {
   text: string;
   pending: boolean;
   exclude: Set<string>;
   library: LibraryGame[];
+  pool: Game[];
 }) {
-  const mentioned = useMemo(() => (pending ? [] : findMentionedGames(text, exclude)), [text, pending, exclude]);
-  const offCatalog = useMemo(() => (pending ? [] : findOffCatalogTitles(text, library)), [text, pending, library]);
+  const mentioned = useMemo(
+    () => (pending ? [] : findMentionedGames(text, exclude, pool)),
+    [text, pending, exclude, pool],
+  );
+  const offCatalog = useMemo(
+    () => (pending ? [] : findOffCatalogTitles(text, library, pool)),
+    [text, pending, library, pool],
+  );
   return (
     <Stack gap="sm" style={{ maxWidth: '100%' }}>
       {text ? (
@@ -333,7 +348,7 @@ function AssistantMessage({
       )}
       {offCatalog.length > 0 && (
         <Text size="xs" c="dimmed">
-          Not in Savepoint's catalog, so platforms and prices aren't checked: {offCatalog.join(', ')}.
+          Not in Savepoint's suggestions, so platforms and prices aren't checked: {offCatalog.join(', ')}.
         </Text>
       )}
     </Stack>

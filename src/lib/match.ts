@@ -1,4 +1,3 @@
-import { CATALOG } from '../data/catalog';
 import type { Game } from '../types';
 
 // Edition and platform suffixes that stores tack onto titles.
@@ -24,13 +23,28 @@ export function normalizeTitle(title: string): string {
   return t.replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-const byNorm = new Map(CATALOG.map((g) => [normalizeTitle(g.title), g]));
-const bySteam = new Map(CATALOG.filter((g) => g.steamAppId).map((g) => [g.steamAppId!, g]));
+export const slug = (t: string) =>
+  t
+    .toLowerCase()
+    .replace(/['’:]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 
-export function findCatalogMatch(name: string, steamAppId?: number): Game | undefined {
-  if (steamAppId && bySteam.has(steamAppId)) return bySteam.get(steamAppId);
-  // Exact match after stripping edition/platform noise. Looser prefix matching
-  // would merge sequels and spin-offs ("Elden Ring Nightreign"), which is worse
-  // than leaving a game unmatched.
-  return byNorm.get(normalizeTitle(name));
+/**
+ * Finds the saved game an import or search result belongs to, among games
+ * that came from the old built-in catalog (their ids have no "x-" prefix).
+ * Those were matched by Steam app id or title before, so re-syncing keeps
+ * using their ids and their ratings, progress and history stay attached.
+ */
+export function legacyMatcher(customGames: Record<string, Game>) {
+  const legacy = Object.values(customGames).filter((g) => !g.id.startsWith('x-'));
+  const byNorm = new Map(legacy.map((g) => [normalizeTitle(g.title), g]));
+  const bySteam = new Map(legacy.filter((g) => g.steamAppId).map((g) => [g.steamAppId!, g]));
+  return (name: string, steamAppId?: number): Game | undefined => {
+    if (steamAppId && bySteam.has(steamAppId)) return bySteam.get(steamAppId);
+    // Exact match after stripping edition/platform noise. Looser prefix matching
+    // would merge sequels and spin-offs ("Elden Ring Nightreign"), which is worse
+    // than leaving a game unmatched.
+    return byNorm.get(normalizeTitle(name));
+  };
 }

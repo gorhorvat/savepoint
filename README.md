@@ -9,7 +9,7 @@ Every game you've played on Steam, Epic Games, PlayStation and Nintendo Switch i
 - **Achievements**: Steam achievements and PlayStation trophies per game, fetched in the background after a sync (Steam is one request per game, so only games with new play time are re-checked).
 - **My Stats**: genres, platforms, play depth, eras and more. Savepoint records play time history from the change between syncs, starting the first time you import, so hours per month this year fill in from then on.
 - **Genres** are looked up on Steam first, then IGDB (covers console exclusives), then Wikidata.
-- **Discover**: recommendations scored against your taste profile, which is built from the genres you spend the most hours in. Candidates come from the built-in catalog plus well-reviewed Steam games and popular Switch games in your favourite genres.
+- **Discover**: recommendations scored against your taste profile, which is built from the genres you spend the most hours in (weighted by your ratings and drops). Candidates are always live: well-reviewed Steam games and popular Nintendo eShop games in your favourite genres, never a fixed list. "More like this" on game pages and the assistant use the same pool.
 - **Assistant**: ask for suggestions in plain language, answered by a free local model through Ollama. Falls back to the built-in recommender when Ollama isn't running.
 - **Wishlist**: best price across trusted stores, with a target price for each game.
 - **Stores**: official storefronts and authorized resellers only, with a price comparison.
@@ -26,7 +26,7 @@ copy .env.example .env   # Windows; use cp on macOS/Linux. Optional.
 npm run dev              # web on http://localhost:5173, API on :8787
 ```
 
-The app works without any keys. It starts with a sample library, and live PC prices need no key.
+The app works without any keys; live PC prices need none. Suggestions need `STEAM_API_KEY` for Steam games (Switch suggestions need no key).
 
 ## Platforms
 
@@ -54,7 +54,7 @@ Two free ways to run the assistant:
 
 With Gemini, the assistant can also look games up while answering: release date and platforms (from the store searches), Steam's player review score, and Wikipedia's reception summary. So questions like "Is Control Resonant good?" get current facts rather than the model's training-cutoff knowledge. (Gemini's own Google Search isn't included in the free tier, so Savepoint does the lookups itself.) The local Ollama option doesn't have this.
 
-Either way, each question includes your library, your taste profile, and about 30 candidate games from Savepoint's recommender with their real platforms. The model picks from those and explains why, and any game it names outside the catalog is marked as not checked. Without either, answers come from the built-in recommender.
+Either way, each question includes your library, your taste profile, and about 30 candidate games from the live suggestion pool with their real platforms. The model picks from those and explains why, and any game it names outside the suggestions is marked as not checked. Without either, answers come from the built-in recommender.
 
 ## Keeping data fresh
 
@@ -62,7 +62,7 @@ When the app opens, it re-syncs each connected source whose last sync is more th
 
 ## Data
 
-You log in with your VerBuddy account, and your library, wishlist and chat history are saved in VerBuddy's database, so every device sees the same data. Disconnecting a platform removes the games imported from it. Remove the sample library from the Platforms page.
+You log in with your VerBuddy account, and your library, wishlist and chat history are saved in VerBuddy's database, so every device sees the same data. Disconnecting a platform removes the games imported from it.
 
 ## Deploy (Vercel)
 

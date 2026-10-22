@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { Cover } from '../components/Cover';
 import { GameSearch } from '../components/GameSearch';
 import { PriceTable } from '../components/PriceTable';
-import { CATALOG_BY_ID } from '../data/catalog';
 import { STORE_DELIVERS, STORES, type StoreInfo } from '../data/stores';
 import type { FoundGame } from '../lib/api';
 import { useGameResolver, useStore } from '../lib/store';
@@ -28,7 +27,7 @@ export function StoresPage() {
     [wishlist, resolve],
   );
   const [picked, setPicked] = useState<Game | null>(null);
-  const game = picked ?? wishGames[0] ?? CATALOG_BY_ID['hades-ii'];
+  const game = picked ?? wishGames[0];
 
   const pickFound = (f: FoundGame) =>
     setPicked({ ...f, id: `search-${f.title}`, custom: true });
@@ -56,7 +55,7 @@ export function StoresPage() {
                 <Select
                   label="From your wishlist"
                   data={wishGames.map((g) => ({ value: g.id, label: g.title }))}
-                  value={wishGames.some((g) => g.id === game.id) ? game.id : null}
+                  value={game && wishGames.some((g) => g.id === game.id) ? game.id : null}
                   onChange={(id) => setPicked(wishGames.find((g) => g.id === id) ?? null)}
                   searchable
                   placeholder="Pick a wishlisted game"
@@ -66,13 +65,19 @@ export function StoresPage() {
             </Stack>
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 7 }}>
-            <Group gap="md" wrap="nowrap" mb="md">
-              <Cover game={game} width={140} radius={8} />
-              <Text fw={700} size="lg">
-                {game.title}
-              </Text>
-            </Group>
-            <PriceTable key={game.id} game={game} />
+            {game ? (
+              <>
+                <Group gap="md" wrap="nowrap" mb="md">
+                  <Cover game={game} width={140} radius={8} />
+                  <Text fw={700} size="lg">
+                    {game.title}
+                  </Text>
+                </Group>
+                <PriceTable key={game.id} game={game} />
+              </>
+            ) : (
+              <Text c="dimmed">Pick a wishlisted game or search for one to compare its prices.</Text>
+            )}
           </Grid.Col>
         </Grid>
       </Paper>

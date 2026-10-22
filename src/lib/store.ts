@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CATALOG_BY_ID, slug } from '../data/catalog';
-import { DEMO_ENTRIES } from '../data/demoLibrary';
+import { LEGACY_GAMES_BY_ID } from '../data/legacyCatalog';
 import type {
   AchievementProgress,
   ChatMessage,
@@ -17,7 +16,7 @@ import type {
   WishlistItem,
 } from '../types';
 import type { FoundGame, GameLength, GenreResult } from './api';
-import { findCatalogMatch } from './match';
+import { legacyMatcher, slug } from './match';
 import { hydrationDone, serverStorage } from './serverStorage';
 
 export interface ImportedGame {
@@ -84,7 +83,6 @@ interface State {
   removeEntry: (gameId: string, platform: PlatformId) => void;
   disconnect: (platform: PlatformId) => void;
   removeDemo: () => void;
-  loadDemo: () => void;
   setGenres: (gameId: string, genres: string[], subgenres: string[]) => void;
   toggleWishlist: (gameId: string) => boolean;
   setSuggested: (key: string, found: FoundGame[]) => void;
@@ -117,8 +115,13 @@ interface State {
   removeWant: (id: string) => void;
 }
 
-function ensureGame(customGames: Record<string, Game>, item: ImportedGame, platform: PlatformId): string {
-  const match = findCatalogMatch(item.name, item.steamAppId);
+function ensureGame(
+  customGames: Record<string, Game>,
+  item: ImportedGame,
+  platform: PlatformId,
+  findLegacy = legacyMatcher(customGames),
+): string {
+  const match = findLegacy(item.name, item.steamAppId);
   if (match) return match.id;
   const id = `x-${slug(item.name)}`;
   const prev: Game = customGames[id] ?? {
@@ -142,11 +145,11 @@ function ensureGame(customGames: Record<string, Game>, item: ImportedGame, platf
 }
 
 /**
- * Store a game from search or a wishlist: catalog games keep their catalog
- * entry; anything else becomes (or updates) a custom game. Returns its id.
+ * Store a game from search or a wishlist: games from the old catalog keep
+ * their entry; anything else becomes (or updates) a custom game. Returns its id.
  */
 function upsertFound(customGames: Record<string, Game>, f: FoundGame): string {
-  const match = findCatalogMatch(f.title, f.steamAppId);
+  const match = legacyMatcher(customGames)(f.title, f.steamAppId);
   if (match) return match.id;
   const id = `x-${slug(f.title)}`;
   const prev = customGames[id];
@@ -185,7 +188,7 @@ type PersistedState = Omit<State, 'suggested'>;
 export const useStore = create<State>()(
   persist(
     (set, get) => ({
-      entries: DEMO_ENTRIES,
+      entries: [],
       customGames: {},
       genreOverrides: {},
       details: {},
@@ -208,10 +211,11 @@ export const useStore = create<State>()(
         // Merge duplicates within one import (e.g. PS4 and PS5 versions of a game).
         const merged = new Map<string, PlayEntry>();
         let matched = 0;
+        const findLegacy = legacyMatcher(customGames);
         for (const g of games) {
-          const gameId = ensureGame(customGames, g, platform);
-          // Catalog matches have no image of their own; keep the platform's.
-          if (CATALOG_BY_ID[gameId] && g.imageUrl && !details[gameId]?.imageUrl) {
+          const gameId = ensureGame(customGames, g, platform, findLegacy);
+          // Old catalog games have no image of their own; keep the platform's.
+          if (!customGames[gameId]?.imageUrl && g.imageUrl && !details[gameId]?.imageUrl) {
             details[gameId] = { ...details[gameId], imageUrl: g.imageUrl };
           }
           if (!gameId.startsWith('x-')) matched++;
@@ -276,8 +280,6 @@ export const useStore = create<State>()(
 
       removeDemo: () => set({ entries: get().entries.filter((e) => e.source !== 'demo') }),
 
-      loadDemo: () => set({ entries: [...get().entries.filter((e) => e.source !== 'demo'), ...DEMO_ENTRIES] }),
-
       setGenres: (gameId, genres, subgenres) =>
         set({ genreOverrides: { ...get().genreOverrides, [gameId]: { genres, subgenres } } }),
 
@@ -322,7 +324,7 @@ export const useStore = create<State>()(
         const has = get().wishlist.some((w) => w.gameId === gameId);
         // A Play next suggestion isn't saved anywhere yet; keep it once it's wishlisted.
         const { customGames, suggested } = get();
-        if (!has && !CATALOG_BY_ID[gameId] && !customGames[gameId] && suggested.games[gameId]) {
+        if (!has && !customGames[gameId] && suggested.games[gameId]) {
           set({ customGames: { ...customGames, [gameId]: suggested.games[gameId] } });
         }
         set({
@@ -406,7 +408,6 @@ export const useStore = create<State>()(
 
       setSuggested: (key, found) => {
         const games: Record<string, Game> = {};
-        // Games already in the catalog are candidates anyway, so only new ones are kept.
         for (const f of found) upsertFound(games, f);
         set({ suggested: { key, fetchedAt: new Date().toISOString(), games } });
       },
@@ -494,9 +495,27 @@ export const useStore = create<State>()(
         return saved as PersistedState;
       },
       onRehydrateStorage: () => (_state, error) => hydrationDone(error),
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
         const state = persisted as State;
+        // v5 dropped the built-in catalog: games your data points at by a
+        // catalog id are copied into customGames under the same id.
+        if (version < 5) {
+          state.customGames ??= {};
+          const ids = new Set<string>([
+            ...[state.entries, state.physical, state.physicalWants, state.wishlist]
+              .flatMap((list): { gameId?: string }[] => (Array.isArray(list) ? list : []))
+              .map((x) => x.gameId)
+              .filter((id): id is string => !!id),
+            ...(state.dismissed ?? []),
+            ...[state.progress, state.achievements, state.details, state.lengths, state.genreOverrides, state.history?.base]
+              .flatMap((map) => Object.keys(map ?? {})),
+          ]);
+          for (const id of ids) {
+            const legacy = LEGACY_GAMES_BY_ID[id];
+            if (legacy && !state.customGames[id]) state.customGames[id] = legacy;
+          }
+        }
         // v3 added IGDB, and v4 fixed Wikidata and IGDB lookups that wrongly
         // came back empty: games no source had genres for get another look.
         if (version < 4 && state.customGames) {
@@ -529,7 +548,7 @@ type GenreOverride = State['genreOverrides'][string];
 const resolved = new WeakMap<Game, { override?: GenreOverride; detail?: GameDetails; game: Game }>();
 
 /**
- * Resolve a game id to catalog or imported game data, with user genre edits
+ * Resolve a game id to saved or suggested game data, with user genre edits
  * and looked-up details (cover, release date) applied. Returns the same object
  * until any of those change, so it is safe to use as a hook dependency.
  */
@@ -539,7 +558,7 @@ export function resolveGame(
   overrides: State['genreOverrides'],
   details: State['details'] = {},
 ): Game | undefined {
-  const base = CATALOG_BY_ID[id] ?? customGames[id] ?? useStore.getState().suggested.games[id];
+  const base = customGames[id] ?? useStore.getState().suggested.games[id];
   if (!base) return undefined;
   const override = overrides[id];
   const detail = details[id];

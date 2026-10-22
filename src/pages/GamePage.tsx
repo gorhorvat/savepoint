@@ -30,13 +30,14 @@ import { WishlistButton } from '../components/WishlistButton';
 import { ProgressPanel } from '../components/ProgressPanel';
 import { GameFacts, Screenshots } from '../components/GameInfo';
 import { useGameInfo } from '../lib/gameInfo';
-import { CATALOG } from '../data/catalog';
 import { PLATFORMS } from '../data/platforms';
 import { formatHoursNumber, formatLastPlayed, formatPlaytime, upcomingLabel } from '../lib/format';
 import { isApp } from '../lib/apps';
 import { lookupOne } from '../lib/genreLookup';
 import { useLibrary } from '../lib/library';
+import { normalizeTitle } from '../lib/match';
 import { resolveGame, useStore } from '../lib/store';
+import { useSuggestionPool } from '../lib/suggestions';
 import type { AchievementProgress, EntrySource, Game, PlatformId } from '../types';
 
 const SOURCE_LABEL: Record<EntrySource, string> = {
@@ -98,15 +99,18 @@ function EditGenres({ game, onDone }: { game: Game; onDone: () => void }) {
   const setGenres = useStore((s) => s.setGenres);
   const [genres, setG] = useState(game.genres);
   const [subgenres, setS] = useState(game.subgenres);
+  const customGames = useStore((st) => st.customGames);
+  const suggested = useStore((st) => st.suggested.games);
+  // Every genre and sub-genre already used by your games or the suggestions.
   const all = useMemo(() => {
     const g = new Set<string>();
     const s = new Set<string>();
-    CATALOG.forEach((c) => {
+    [...Object.values(customGames), ...Object.values(suggested)].forEach((c) => {
       c.genres.forEach((x) => g.add(x));
       c.subgenres.forEach((x) => s.add(x));
     });
     return { g: [...g].sort(), s: [...s].sort() };
-  }, []);
+  }, [customGames, suggested]);
   return (
     <Stack gap="sm">
       <TagsInput label="Genres" data={all.g} value={genres} onChange={setG} placeholder="Add a genre" />
@@ -209,23 +213,26 @@ export function GamePage() {
   const info = useGameInfo(game && !isApp(game) ? game : undefined);
   const [editing, setEditing] = useState(false);
 
+  // Same library as Play next, so both share one suggestion pool.
+  const pool = useSuggestionPool(useLibrary());
   const similar = useMemo(() => {
     if (!game) return [];
-    const played = new Set(lib.map((l) => l.game.id));
-    return CATALOG.filter((c) => c.id !== game.id)
+    // Suggestions have their own ids, so games you have are skipped by title.
+    const played = new Set([game, ...lib.map((l) => l.game)].map((g) => normalizeTitle(g.title)));
+    return pool.games
+      .filter((c) => !played.has(normalizeTitle(c.title)))
       .map((c) => ({
         c,
         s:
           c.subgenres.filter((x) => game.subgenres.includes(x)).length * 2 +
           c.genres.filter((x) => game.genres.includes(x)).length +
-          c.tags.filter((x) => game.tags.includes(x)).length * 0.5 -
-          (played.has(c.id) ? 1.5 : 0),
+          c.tags.filter((x) => game.tags.includes(x)).length * 0.5,
       }))
       .filter((x) => x.s >= 3)
       .sort((a, b) => b.s - a.s)
       .slice(0, 4)
       .map((x) => x.c);
-  }, [game, lib]);
+  }, [game, lib, pool.games]);
 
   if (!game) {
     return (

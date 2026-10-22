@@ -1,4 +1,3 @@
-import { CATALOG } from '../data/catalog';
 import { PLATFORM_BY_ID, PLATFORMS } from '../data/platforms';
 import type { Game, PlatformId, WishlistItem } from '../types';
 import { formatPlaytime } from './format';
@@ -61,7 +60,7 @@ export function buildContext(
   lines.push(`Wishlist: ${wishlist.map((w) => w.title).join(', ') || 'empty'}`);
   if (dismissed.length) lines.push(`Marked "not interested": ${dismissed.map((d) => d.title).join(', ')}`);
   lines.push('');
-  lines.push("Candidate games from Savepoint's catalog, best match first:");
+  lines.push('Candidate games from live Steam and Nintendo eShop suggestions, best match first:');
   for (const r of candidates) {
     const g = r.game;
     const on = g.availableOn.map((p) => PLATFORM_BY_ID[p].name).join(', ');
@@ -76,12 +75,12 @@ export function buildContext(
 }
 
 /**
- * Bold list-item titles in a reply that aren't in the catalog or the player's
- * library, so the UI can mark them as unchecked.
+ * Bold list-item titles in a reply that aren't in the suggestion pool or the
+ * player's library, so the UI can mark them as unchecked.
  */
-export function findOffCatalogTitles(text: string, library: LibraryGame[]): string[] {
+export function findOffCatalogTitles(text: string, library: LibraryGame[], pool: Game[]): string[] {
   const known = new Set([
-    ...CATALOG.map((g) => normalizeTitle(g.title)),
+    ...pool.map((g) => normalizeTitle(g.title)),
     ...library.map((l) => normalizeTitle(l.game.title)),
   ]);
   const out: string[] = [];
@@ -92,10 +91,10 @@ export function findOffCatalogTitles(text: string, library: LibraryGame[]): stri
   return out.slice(0, 6);
 }
 
-/** Catalog games named in a reply, so the UI can offer quick links. */
-export function findMentionedGames(text: string, exclude: Set<string>): Game[] {
+/** Suggested games named in a reply, so the UI can offer quick links. */
+export function findMentionedGames(text: string, exclude: Set<string>, pool: Game[]): Game[] {
   const norm = ` ${normalizeTitle(text)} `;
-  return CATALOG.filter((g) => !exclude.has(g.id) && norm.includes(` ${normalizeTitle(g.title)} `)).slice(0, 6);
+  return pool.filter((g) => !exclude.has(g.id) && norm.includes(` ${normalizeTitle(g.title)} `)).slice(0, 6);
 }
 
 // ---------------------------------------------------------------- offline replies
@@ -121,15 +120,17 @@ const MOOD_TAGS: [RegExp, string[]][] = [
  * Built-in reply used when Ollama isn't reachable: reads platform, genre
  * and mood words from the question and filters the recommender's list.
  */
-export function offlineReply(question: string, lib: LibraryGame[], exclude: Set<string>): string {
+export function offlineReply(question: string, lib: LibraryGame[], exclude: Set<string>, pool: Game[]): string {
   const owned = ownedPlatforms(lib);
-  let recs: Recommendation[] = recommend(lib, { owned, exclude });
+  let recs: Recommendation[] = recommend(lib, { owned, exclude, pool });
 
   const platform = PLATFORM_WORDS.find(([re]) => re.test(question))?.[1];
   if (platform) recs = recs.filter((r) => r.game.availableOn.includes(platform));
 
   const q = question.toLowerCase();
-  const genreWords = new Set(CATALOG.flatMap((g) => [...g.genres, ...g.subgenres]).map((x) => x.toLowerCase()));
+  const genreWords = new Set(
+    [...pool, ...lib.map((l) => l.game)].flatMap((g) => [...g.genres, ...g.subgenres]).map((x) => x.toLowerCase()),
+  );
   const named = [...genreWords].filter((g) => q.includes(g.replace(/-/g, ' ')) || q.includes(g));
   if (named.length) {
     recs = recs.filter((r) => [...r.game.genres, ...r.game.subgenres].some((x) => named.includes(x.toLowerCase())));

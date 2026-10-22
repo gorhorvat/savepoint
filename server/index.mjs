@@ -576,7 +576,7 @@ function assistantProvider() {
 
 const SYSTEM_PROMPT = `You are the assistant inside Savepoint, an app that tracks the games one player has played across Steam, Epic Games, PlayStation and Nintendo Switch, plus their wishlist.
 
-Below these instructions you'll find the player's data: platforms, hours per platform, their most-played games with hours and genres, their taste profile, their wishlist, and candidate games from Savepoint's catalog that match their taste (with the platforms each is on).
+Below these instructions you'll find the player's data: platforms, hours per platform, their most-played games with hours and genres, their taste profile, their wishlist, and candidate games from live Steam and Nintendo eShop suggestions that match their taste (with the platforms each is on).
 
 Answer the question the player actually asked.
 - Questions about their own games (hours, most played, what they played on a platform, genres they like): answer from their data, with the numbers. If the data doesn't cover it (only the top 50 played games are included), say so.

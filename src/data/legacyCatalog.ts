@@ -1,7 +1,10 @@
+import { slug } from '../lib/match';
 import type { Game, PlatformId } from '../types';
 
-// Built-in catalog. Imported games are matched against it to pick up genres;
-// games not in your library double as the recommendation pool.
+// The old built-in catalog. Savepoint no longer recommends or matches from a
+// fixed list; this is only read by the store's v5 migration, which copies the
+// entries your saved data refers to into customGames (same ids). Safe to
+// delete once every saved copy has been migrated.
 
 const S: PlatformId = 'steam';
 const E: PlatformId = 'epic';
@@ -9,13 +12,6 @@ const P: PlatformId = 'playstation';
 const N: PlatformId = 'switch';
 
 type Row = Omit<Game, 'id'> & { id?: string };
-
-const slug = (t: string) =>
-  t
-    .toLowerCase()
-    .replace(/['’:]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
 
 const rows: Row[] = [
   // ---- Action RPG / Soulslike
@@ -109,8 +105,6 @@ const rows: Row[] = [
   { title: 'Gran Turismo 7', year: 2022, developer: 'Polyphony Digital', genres: ['Racing', 'Simulation'], subgenres: ['Sim racing'], tags: ['cars', 'competitive'], availableOn: [P], basePrice: 69.99, blurb: 'A loving museum of car culture with a superb driving model.' },
 ];
 
-export const CATALOG: Game[] = rows.map((r) => ({ ...r, id: r.id ?? slug(r.title) }));
-
-export const CATALOG_BY_ID: Record<string, Game> = Object.fromEntries(CATALOG.map((g) => [g.id, g]));
-
-export { slug };
+export const LEGACY_GAMES_BY_ID: Record<string, Game> = Object.fromEntries(
+  rows.map((r) => [r.id ?? slug(r.title), { ...r, id: r.id ?? slug(r.title) }]),
+);

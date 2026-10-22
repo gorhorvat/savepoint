@@ -97,7 +97,7 @@ function SteamPanel({ status }: { status: ServerStatus | null }) {
       const r = importLibrary('steam', 'steam', res.games, profile.trim());
       notifications.show({
         title: 'Steam imported',
-        message: `${r.added} played games, ${r.matched} matched to the catalog.${
+        message: `${r.added} played games.${
           r.removedSample ? ' The sample library was removed.' : ''
         }`,
       });
@@ -158,7 +158,7 @@ function PsnPanel({ status }: { status: ServerStatus | null }) {
       const r = importLibrary('playstation', 'psn', res.games);
       notifications.show({
         title: 'PlayStation imported',
-        message: `${r.added} played games, ${r.matched} matched to the catalog.${
+        message: `${r.added} played games.${
           r.removedSample ? ' The sample library was removed.' : ''
         }`,
       });
@@ -238,7 +238,7 @@ function ManualPanel({ platform, why, where }: { platform: PlatformId; why: stri
     if (!picked?.title.trim()) return;
     add({
       // Search results become a saved game (with cover, genres, prices);
-      // typed titles are matched to the catalog or saved as a new game.
+      // typed titles are matched to a game you already have or saved as a new one.
       gameId: picked.found ? saveFound(picked.found) : undefined,
       title: picked.title.trim(),
       platform,
@@ -321,7 +321,6 @@ export function PlatformsPage() {
   const [status] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
   const removeDemo = useStore((s) => s.removeDemo);
-  const loadDemo = useStore((s) => s.loadDemo);
 
   return (
     <Stack gap="xl">
@@ -333,18 +332,18 @@ export function PlatformsPage() {
         </Text>
       </div>
 
-      <Paper p="md" radius="md" style={{ background: 'transparent', borderStyle: 'dashed' }}>
-        <Group justify="space-between" wrap="wrap" gap="sm">
-          <Text size="sm">
-            {demoCount
-              ? `You're seeing a sample library (${demoCount} entries). Your first Steam or PlayStation import removes it.`
-              : 'Sample library removed. Only your own games are shown.'}
-          </Text>
-          <Button size="xs" variant="default" onClick={demoCount ? removeDemo : loadDemo}>
-            {demoCount ? 'Remove sample library' : 'Load sample library'}
-          </Button>
-        </Group>
-      </Paper>
+      {demoCount > 0 && (
+        <Paper p="md" radius="md" style={{ background: 'transparent', borderStyle: 'dashed' }}>
+          <Group justify="space-between" wrap="wrap" gap="sm">
+            <Text size="sm">
+              {`You're seeing a sample library (${demoCount} entries). Your first Steam or PlayStation import removes it.`}
+            </Text>
+            <Button size="xs" variant="default" onClick={removeDemo}>
+              Remove sample library
+            </Button>
+          </Group>
+        </Paper>
+      )}
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
         <SteamPanel status={status} />
