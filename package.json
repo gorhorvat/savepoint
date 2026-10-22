@@ -1,0 +1,45 @@
+{
+  "name": "savepoint",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"node scripts/dev-server.mjs\" \"vite\"",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "server": "node --env-file-if-exists=.env server/index.mjs",
+    "start": "concurrently -k -n api,web \"node --env-file-if-exists=.env server/index.mjs\" \"vite preview\"",
+    "lint": "oxlint",
+    "predev": "node -e \"require('fs').existsSync('.env')||require('fs').copyFileSync('.env.example','.env')\""
+  },
+  "dependencies": {
+    "@mantine/core": "^9.7.2",
+    "@mantine/hooks": "^9.7.2",
+    "@mantine/notifications": "^9.7.2",
+    "@tabler/icons-react": "^3.49.0",
+    "express": "^5.3.0",
+    "psn-api": "^2.18.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.4",
+    "simple-icons": "^16.35.0",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "oxlint": "^1.87.0",
+    "postcss": "^8.5.29",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

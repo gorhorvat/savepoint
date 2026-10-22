@@ -1,0 +1,287 @@
+/* ------------------------------------------------------------------ tokens */
+
+:root,
+:root[data-mantine-color-scheme='light'] {
+  --sp-shell: #d9d4cc; /* stone */
+  --sp-surface: #ece8e1;
+  --sp-raised: #f7f4ef;
+  --sp-line: #c2bab0;
+  --sp-ink: #2a221c;
+  --sp-muted: #6c6157;
+
+  /* Platform data colours. Neighbouring segments are split by a gap, so
+     lightness differences (Steam light, PS deep) carry the distinction too. */
+  --sp-steam: #2e8bc9;
+  --sp-playstation: #1f3fb0;
+  --sp-switch: #e60012;
+  --sp-epic: #2a221c;
+
+  /* Categorical chart colors (validated: CVD-safe adjacent pairs). Light-mode
+     slots 2-5 are under 3:1 contrast, so charts using them always show a
+     legend with the values. */
+  --sp-c1: #2a78d6;
+  --sp-c2: #eb6834;
+  --sp-c3: #1baf7a;
+  --sp-c4: #eda100;
+  --sp-c5: #e87ba4;
+  --sp-c-other: #a0968b;
+
+  --mantine-color-body: var(--sp-shell);
+  --mantine-color-text: var(--sp-ink);
+  --mantine-color-dimmed: var(--sp-muted);
+  --mantine-color-default-border: var(--sp-line);
+}
+
+:root[data-mantine-color-scheme='dark'] {
+  /* Soot brown around an ember accent: the room a save point's fire lights. */
+  --sp-shell: #241c16;
+  --sp-surface: #2f261f;
+  --sp-raised: #3a3028;
+  --sp-line: #4d4035;
+  --sp-ink: #efe6da;
+  --sp-muted: #ab9f91;
+
+  --sp-steam: #66c0f4;
+  --sp-playstation: #4a6cf0;
+  --sp-switch: #ff3b47;
+  --sp-epic: #ebe3d8;
+
+  --sp-c1: #3987e5;
+  --sp-c2: #d95926;
+  --sp-c3: #199e70;
+  --sp-c4: #c98500;
+  --sp-c5: #d55181;
+  --sp-c-other: #75695d;
+
+  --mantine-color-body: var(--sp-shell);
+  --mantine-color-text: var(--sp-ink);
+  --mantine-color-dimmed: var(--sp-muted);
+  --mantine-color-default-border: var(--sp-line);
+}
+
+body {
+  background: var(--sp-shell);
+  color: var(--sp-ink);
+  font-feature-settings: 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-family: 'Unbounded', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* ------------------------------------------------------------------ time strip
+   The signature element: play time split by platform as one bar. */
+
+.strip {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.strip-seg {
+  min-width: 3px;
+  height: 100%;
+  transition: flex-grow 400ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.strip-track {
+  background: color-mix(in srgb, var(--sp-line) 55%, transparent);
+  border-radius: 4px;
+}
+
+/* The library overview grows its strip in once on load. */
+@media (prefers-reduced-motion: no-preference) {
+  .strip-hero .strip-seg {
+    animation: strip-grow 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    transform-origin: left center;
+  }
+  .strip-hero .strip-seg:nth-child(2) { animation-delay: 80ms; }
+  .strip-hero .strip-seg:nth-child(3) { animation-delay: 160ms; }
+  .strip-hero .strip-seg:nth-child(4) { animation-delay: 240ms; }
+}
+
+@keyframes strip-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* ------------------------------------------------------------------ covers */
+
+.cover {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--sp-raised);
+  border: 1px solid var(--sp-line);
+}
+
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 6px 8px;
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 700;
+  line-height: 1.05;
+  color: #fff;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+}
+
+/* Release date for unreleased games, pinned to the cover's corner. */
+.cover-release {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--mantine-primary-color-filled);
+  color: var(--mantine-primary-color-contrast);
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+/* ------------------------------------------------------------------ library rows */
+
+.game-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) minmax(180px, 30%) 88px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.game-row:hover {
+  background: var(--sp-raised);
+}
+
+.game-row:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+@media (max-width: 48em) {
+  .game-row {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'cover title total'
+      'cover strip strip';
+    gap: 6px 12px;
+    padding: 10px 4px;
+  }
+  .game-row > .gr-cover { grid-area: cover; }
+  .game-row > .gr-title { grid-area: title; }
+  .game-row > .gr-strip { grid-area: strip; }
+  .game-row > .gr-total { grid-area: total; }
+}
+
+/* ------------------------------------------------------------------ card grids */
+
+/* As many columns as fit, so cards stay a sensible size on any screen width. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--card-min)), 1fr));
+}
+
+.card-grid--discover {
+  --card-min: 260px;
+  gap: 32px var(--mantine-spacing-lg);
+}
+
+.card-grid--physical {
+  --card-min: 230px;
+  gap: var(--mantine-spacing-md);
+}
+
+@media (max-width: 48em) {
+  /* Two covers side by side on a phone. */
+  .card-grid--physical {
+    --card-min: 140px;
+    gap: var(--mantine-spacing-sm);
+  }
+}
+
+/* ------------------------------------------------------------------ app chrome */
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  color: var(--sp-muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  color: var(--sp-ink);
+  background: var(--sp-surface);
+}
+
+.nav-link[aria-current='page'] {
+  color: var(--sp-ink);
+  background: var(--sp-surface);
+  box-shadow: inset 3px 0 0 var(--mantine-primary-color-filled);
+}
+
+.bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  height: 100%;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--sp-muted);
+  text-decoration: none;
+}
+
+.bottom-nav a[aria-current='page'] {
+  color: var(--mantine-primary-color-filled);
+}
+
+/* ------------------------------------------------------------------ chat */
+
+.chat-md p {
+  margin: 0 0 0.6em;
+}
+.chat-md p:last-child {
+  margin-bottom: 0;
+}
+.chat-md ul,
+.chat-md ol {
+  margin: 0.2em 0 0.6em;
+  padding-left: 1.2em;
+}
+.chat-md li {
+  margin-bottom: 0.35em;
+}
