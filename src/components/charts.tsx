@@ -1,4 +1,4 @@
-import { Group, Paper, Stack, Text, Tooltip } from '@mantine/core';
+import { Group, Stack, Text, Tooltip } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -8,11 +8,11 @@ import { Link } from 'react-router-dom';
 
 export function StatTile({ label, value, note }: { label: string; value: ReactNode; note?: ReactNode }) {
   return (
-    <Paper p="md" radius="md">
-      <Text size="sm" c="dimmed">
+    <div className="stat">
+      <Text size="sm" c="dimmed" fw={600}>
         {label}
       </Text>
-      <Text className="display num" fw={700} fz={28} lh={1.15} mt={4}>
+      <Text className="display num" fz={40} lh={1.05} mt={2}>
         {value}
       </Text>
       {note && (
@@ -20,7 +20,7 @@ export function StatTile({ label, value, note }: { label: string; value: ReactNo
           {note}
         </Text>
       )}
-    </Paper>
+    </div>
   );
 }
 

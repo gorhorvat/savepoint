@@ -27,15 +27,7 @@ import { formatLastPlayed } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { PlatformId } from '../types';
 
-function PlatformPanel({
-  platform,
-  method,
-  children,
-}: {
-  platform: PlatformId;
-  method: string;
-  children: ReactNode;
-}) {
+function PlatformPanel({ platform, method, children }: { platform: PlatformId; method: string; children: ReactNode }) {
   const conn = useStore((s) => s.connections[platform]);
   const count = useStore((s) => s.entries.filter((e) => e.platform === platform && e.source !== 'demo').length);
   return (
@@ -43,7 +35,7 @@ function PlatformPanel({
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Group gap={10} wrap="nowrap">
           <PlatformIcon platform={platform} size={22} />
-          <Title order={2} fz="lg">
+          <Title order={3} fz="lg">
             {PLATFORM_BY_ID[platform].name}
           </Title>
         </Group>
@@ -97,9 +89,7 @@ function SteamPanel({ status }: { status: ServerStatus | null }) {
       const r = importLibrary('steam', 'steam', res.games, profile.trim());
       notifications.show({
         title: 'Steam imported',
-        message: `${r.added} played games.${
-          r.removedSample ? ' The sample library was removed.' : ''
-        }`,
+        message: `${r.added} played games.${r.removedSample ? ' The sample library was removed.' : ''}`,
       });
     } catch (e) {
       setError((e as Error).message);
@@ -158,9 +148,7 @@ function PsnPanel({ status }: { status: ServerStatus | null }) {
       const r = importLibrary('playstation', 'psn', res.games);
       notifications.show({
         title: 'PlayStation imported',
-        message: `${r.added} played games.${
-          r.removedSample ? ' The sample library was removed.' : ''
-        }`,
+        message: `${r.added} played games.${r.removedSample ? ' The sample library was removed.' : ''}`,
       });
     } catch (e) {
       setError((e as Error).message);
@@ -171,7 +159,12 @@ function PsnPanel({ status }: { status: ServerStatus | null }) {
 
   return (
     <PlatformPanel platform="playstation" method="PSN, unofficial">
-      {status && !status.psn ? (
+      {status?.owner === false ? (
+        <Text size="sm" c="dimmed">
+          PlayStation import signs in with the owner&apos;s PlayStation account, so it&apos;s only available to them.
+          You can still log PlayStation hours by hand on a game&apos;s page.
+        </Text>
+      ) : status && !status.psn ? (
         <>
           <ServerHint status={status} envVar="PSN_NPSSO" />
           {status.online && (
@@ -317,18 +310,19 @@ function ManualPanel({ platform, why, where }: { platform: PlatformId; why: stri
   );
 }
 
-export function PlatformsPage() {
+/** The Platforms section of Settings: connect Steam and PlayStation, add Switch and Epic hours by hand. */
+export function PlatformsSection() {
   const [status] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
   const removeDemo = useStore((s) => s.removeDemo);
 
   return (
-    <Stack gap="xl">
+    <Stack gap="lg" id="platforms">
       <div>
-        <Title order={1}>Platforms</Title>
-        <Text c="dimmed" mt={6} size="lg" maw={640}>
-          Steam and PlayStation import play time automatically. Epic and Nintendo don't offer a way to read it, so
-          add those games by hand.
+        <Title order={2}>Platforms</Title>
+        <Text c="dimmed" mt={6} maw={640}>
+          Steam and PlayStation import play time automatically. Epic and Nintendo don't offer a way to read it, so add
+          those games by hand.
         </Text>
       </div>
 

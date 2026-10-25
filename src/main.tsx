@@ -1,3 +1,6 @@
+// Saira, bundled (width and weight axes, upright and italic).
+import '@fontsource-variable/saira/standard.css';
+import '@fontsource-variable/saira/standard-italic.css';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles.css';
@@ -12,7 +15,7 @@ import { theme } from './theme';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="auto">
+    <MantineProvider theme={theme} defaultColorScheme="dark">
       <Notifications position="top-center" />
       <BrowserRouter>
         <App />

@@ -1,5 +1,5 @@
 import { STEAM_TAGS, steamApi, steamTagNames } from './genres.mjs';
-import { NINTENDO_GENRES, nintendoByGenre, steamResults } from './search.mjs';
+import { NINTENDO_GENRES, nintendoByGenre, searchGames, steamResults } from './search.mjs';
 import { diskCache } from './diskCache.mjs';
 
 // Candidates for Play next: well-reviewed Steam games carrying the Steam tags
@@ -72,16 +72,48 @@ async function switchPool(genres) {
   return out.filter((g) => g.genres.length + g.subgenres.length > 0);
 }
 
-/** subgenres/genres: Savepoint names, strongest first. */
-export async function discoverPool(subgenres, genres) {
-  const key = `${subgenres.join('|')}#${genres.join('|')}`;
+const words = (s) =>
+  ` ${s
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f™®©]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()} `;
+
+/**
+ * Games in your favourite franchises, found by searching the stores for each
+ * name and keeping titles that contain it ("Resident Evil" -> Resident Evil 4,
+ * Village, …). Searched one at a time to go easy on the stores.
+ */
+async function franchisePool(franchises) {
+  const out = [];
+  for (const name of franchises) {
+    const key = words(name);
+    if (key.trim().length < 2) continue;
+    const found = await searchGames(name).catch(() => []);
+    out.push(...found.filter((g) => words(g.title).includes(key)).slice(0, 30));
+  }
+  return out;
+}
+
+/** subgenres/genres: Savepoint names, strongest first. franchises: your favourites. */
+export async function discoverPool(subgenres, genres, franchises = []) {
+  const key = `${subgenres.join('|')}#${genres.join('|')}#${franchises.join('|')}`;
   const hit = await cache.get(key);
   if (hit) return hit;
-  const [steam, nintendo] = await Promise.all([
+  const [series, steam, nintendo] = await Promise.all([
+    franchisePool(franchises).catch(() => []),
     steamPool(subgenres, genres).catch(() => []),
     switchPool(genres).catch(() => []),
   ]);
-  const games = [...steam, ...nintendo];
+  // Franchise games first, so they survive de-duplication with their search details.
+  const seen = new Set();
+  const games = [...series, ...steam, ...nintendo].filter((g) => {
+    const id = g.steamAppId ? `s${g.steamAppId}` : words(g.title);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
   if (games.length) cache.set(key, games); // Don't keep a failed lookup for a day.
   return games;
 }

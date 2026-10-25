@@ -18,9 +18,9 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { IconPlugConnected, IconSearch, IconStarFilled, IconTrophy } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Cover } from '../components/Cover';
+import { Backdrop, Cover } from '../components/Cover';
 import { PhysicalCopyIcon } from '../components/PhysicalPlatformIcon';
-import { GenreChips } from '../components/GenreChips';
+import { FranchiseBadge, GenreChips } from '../components/GenreChips';
 import { PlatformIcon, PlatformLogo } from '../components/PlatformBadge';
 import { TimeStrip } from '../components/TimeStrip';
 import { PLATFORMS } from '../data/platforms';
@@ -35,38 +35,69 @@ import { tasteMatcher, tasteProfile } from '../lib/recommend';
 type Sort = 'hours' | 'recent' | 'title' | 'rating' | 'match' | 'shortest';
 type StatusFilter = 'all' | PlayStatus;
 
-function Overview({ lib }: { lib: LibraryGame[] }) {
+/** The game you played last, over its own art: the home screen's opening tile. */
+function HomeHero({ item }: { item: LibraryGame }) {
+  return (
+    <section className="hero" aria-label="Last played">
+      <Backdrop game={item.game} />
+      <div className="hero-content">
+        <div style={{ minWidth: 0 }}>
+          <Text c="dimmed" fw={600}>
+            {item.lastPlayed ? `Last played ${formatLastPlayed(item.lastPlayed)}` : 'Your most played game'}
+          </Text>
+          <h1 className="hero-title">{item.game.title}</h1>
+          <Group gap="lg" mt="md" align="flex-end" wrap="wrap">
+            <Text className="display num" fz={40} lh={1}>
+              {formatHoursNumber(item.totalMinutes)}
+              <Text span fz="md" c="dimmed" fw={600} ml={6} style={{ fontStyle: 'normal' }}>
+                hours
+              </Text>
+            </Text>
+            <Group gap={14} mb={4}>
+              {item.plays.map((p) => (
+                <Group key={p.platform} gap={6} wrap="nowrap">
+                  <PlatformLogo platform={p.platform} size={15} />
+                  <Text size="sm" className="num">
+                    {formatPlaytime(p.minutes)}
+                  </Text>
+                </Group>
+              ))}
+            </Group>
+          </Group>
+          <Button component={Link} to={`/game/${item.game.id}`} size="md" mt="xl" radius="xl">
+            Open game
+          </Button>
+        </div>
+        <Link to={`/game/${item.game.id}`} className="hero-cover" tabIndex={-1} aria-hidden>
+          <Cover game={item.game} width="100%" radius={0} />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/** Total play time and where it went, as one line under the hero. */
+function Totals({ lib }: { lib: LibraryGame[] }) {
   const totals = platformTotals(lib);
   const total = Object.values(totals).reduce((a, b) => a + b, 0);
   const active = PLATFORMS.filter((p) => totals[p.id] > 0);
   const apps = lib.filter((g) => g.isApp).length;
   const games = lib.length - apps;
-
-  // Just the headline and where the time went; the breakdowns live on My Stats.
   return (
-    <Stack gap="sm">
-      <Group justify="space-between" align="flex-end" gap="xs">
-        <div>
-          <Title order={1} className="num">
-            {formatHoursNumber(total)} hours played
-          </Title>
-          <Text c="dimmed" mt={4}>
-            {games} {games === 1 ? 'game' : 'games'}
-            {apps > 0 && ` and ${apps} ${apps === 1 ? 'app' : 'apps'}`}
+    <Stack gap={10}>
+      <Group justify="space-between" align="baseline" gap="xs">
+        <Text fw={600}>
+          <Text span className="display num" fz={28} mr={8}>
+            {formatHoursNumber(total)}
           </Text>
-        </div>
-        <Anchor component={Link} to="/stats" size="sm">
+          hours across {games} {games === 1 ? 'game' : 'games'}
+          {apps > 0 && ` and ${apps} ${apps === 1 ? 'app' : 'apps'}`}
+        </Text>
+        <Anchor component={Link} to="/stats" size="sm" fw={600}>
           See all your stats
         </Anchor>
       </Group>
-      <TimeStrip
-        parts={PLATFORMS.map((p) => ({
-          platform: p.id,
-          minutes: totals[p.id],
-        }))}
-        height={20}
-        hero
-      />
+      <TimeStrip parts={PLATFORMS.map((p) => ({ platform: p.id, minutes: totals[p.id] }))} height={10} hero />
       <Group gap="lg">
         {active.map((p) => (
           <Group key={p.id} gap={6} wrap="nowrap">
@@ -78,6 +109,31 @@ function Overview({ lib }: { lib: LibraryGame[] }) {
         ))}
       </Group>
     </Stack>
+  );
+}
+
+/** A horizontally scrolling row of covers, like a console home screen. */
+function Shelf({ title, items, meta }: { title: string; items: LibraryGame[]; meta: (item: LibraryGame) => string }) {
+  if (!items.length) return null;
+  return (
+    <section aria-label={title}>
+      <Title order={2} mb="sm">
+        {title}
+      </Title>
+      <div className="shelf">
+        {items.map((item) => (
+          <Link key={item.game.id} to={`/game/${item.game.id}`} className="shelf-tile">
+            <Cover game={item.game} width="100%" radius={12} />
+            <Text fw={700} mt={8} truncate>
+              {item.game.title}
+            </Text>
+            <Text size="sm" c="dimmed" truncate>
+              {meta(item)}
+            </Text>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -107,6 +163,7 @@ function GameRow({
           <Text fw={600} truncate>
             {item.game.title}
           </Text>
+          <FranchiseBadge game={item.game} size="xs" />
           {item.isApp && (
             <Badge size="xs" variant="outline" color="gray" radius="xs" tt="none" style={{ flexShrink: 0 }}>
               App
@@ -296,6 +353,18 @@ export function LibraryPage() {
 
   const max = lib[0]?.totalMinutes ?? 1;
 
+  // Home screen: the last game you played, then shelves of what you're playing
+  // and what to pick up next from the backlog.
+  const games = lib.filter((l) => !l.isApp);
+  const byRecent = games.filter((l) => l.lastPlayed).sort((a, b) => b.lastPlayed!.localeCompare(a.lastPlayed!));
+  const hero = byRecent[0] ?? games[0];
+  const playing = games.filter((l) => statusOf.get(l.game.id) === 'playing' && l.game.id !== hero?.game.id);
+  const recent = byRecent.slice(1, 13);
+  const backlog = games
+    .filter((l) => statusOf.get(l.game.id) === 'backlog')
+    .sort((a, b) => (matchOf.get(b.game.id) ?? 0) - (matchOf.get(a.game.id) ?? 0))
+    .slice(0, 12);
+
   if (!all.length) {
     return (
       <Paper p="xl" maw={560}>
@@ -303,7 +372,7 @@ export function LibraryPage() {
         <Text c="dimmed" mt="sm">
           Connect Steam or PlayStation to import play time automatically, or add Epic and Switch games by hand.
         </Text>
-        <Button component={Link} to="/platforms" mt="lg" leftSection={<IconPlugConnected size={18} />}>
+        <Button component={Link} to="/settings" mt="lg" leftSection={<IconPlugConnected size={18} />}>
           Connect platforms
         </Button>
       </Paper>
@@ -313,20 +382,42 @@ export function LibraryPage() {
   const showingSample = lib.some((l) => l.plays.some((p) => p.source === 'demo'));
 
   return (
-    <Stack gap={40}>
+    <Stack gap={48}>
       {showingSample && (
         <Paper p="md" radius="md" style={{ borderStyle: 'dashed', background: 'transparent' }}>
           <Group justify="space-between" gap="sm" wrap="wrap">
             <Text size="sm">This is a sample library. Import your games from Steam or PlayStation to replace it.</Text>
-            <Button component={Link} to="/platforms" size="xs" leftSection={<IconPlugConnected size={16} />}>
+            <Button component={Link} to="/settings" size="xs" leftSection={<IconPlugConnected size={16} />}>
               Import my games
             </Button>
           </Group>
         </Paper>
       )}
-      <Overview lib={lib} />
+      {hero && <HomeHero item={hero} />}
+      <Totals lib={lib} />
+      <Shelf
+        title={playing.length ? 'Playing' : 'Recently played'}
+        items={playing.length ? playing : recent}
+        meta={(l) =>
+          l.lastPlayed
+            ? `${formatPlaytime(l.totalMinutes)}, ${formatLastPlayed(l.lastPlayed)}`
+            : formatPlaytime(l.totalMinutes)
+        }
+      />
+      <Shelf
+        title="Up next from your backlog"
+        items={backlog}
+        meta={(l) =>
+          lengths[l.game.id]?.main
+            ? `~${lengths[l.game.id]!.main} h to beat`
+            : l.totalMinutes
+              ? `${formatPlaytime(l.totalMinutes)} played`
+              : 'Not started'
+        }
+      />
 
       <Stack gap="md">
+        <Title order={2}>All games</Title>
         <Group gap="sm" align="flex-end" wrap="wrap">
           <TextInput
             placeholder="Search your games"

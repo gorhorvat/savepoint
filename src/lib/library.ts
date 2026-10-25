@@ -94,3 +94,9 @@ export function ownedPlatforms(lib: LibraryGame[]): PlatformId[] {
   const totals = platformTotals(lib);
   return PLATFORMS.map((p) => p.id).filter((id) => totals[id] > 0);
 }
+
+/** Physical copies typed in by hand (no linked game): titles you own that aren't in the library. */
+export function useUnlinkedPhysicalTitles(): string[] {
+  const physical = useStore((s) => s.physical);
+  return useMemo(() => physical.filter((p) => !p.gameId).map((p) => p.title), [physical]);
+}

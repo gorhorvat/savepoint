@@ -2,19 +2,19 @@
 
 :root,
 :root[data-mantine-color-scheme='light'] {
-  --sp-shell: #d9d4cc; /* stone */
-  --sp-surface: #ece8e1;
-  --sp-raised: #f7f4ef;
-  --sp-line: #c2bab0;
-  --sp-ink: #2a221c;
-  --sp-muted: #6c6157;
+  --sp-shell: #eef1f8; /* page */
+  --sp-surface: #ffffff;
+  --sp-raised: #e4e9f5;
+  --sp-line: #d3d9e9;
+  --sp-ink: #121730;
+  --sp-muted: #59617f;
 
   /* Platform data colours. Neighbouring segments are split by a gap, so
      lightness differences (Steam light, PS deep) carry the distinction too. */
-  --sp-steam: #2e8bc9;
-  --sp-playstation: #1f3fb0;
+  --sp-steam: #1f86c7;
+  --sp-playstation: #2346d6;
   --sp-switch: #e60012;
-  --sp-epic: #2a221c;
+  --sp-epic: #121730;
 
   /* Categorical chart colors (validated: CVD-safe adjacent pairs). Light-mode
      slots 2-5 are under 3:1 contrast, so charts using them always show a
@@ -24,7 +24,11 @@
   --sp-c3: #1baf7a;
   --sp-c4: #eda100;
   --sp-c5: #e87ba4;
-  --sp-c-other: #a0968b;
+  --sp-c-other: #9aa1b8;
+
+  /* Favourites (genres, franchises): rose, apart from the gold accent. */
+  --sp-fav: #c42d6a;
+  --sp-fav-soft: rgb(196 45 106 / 0.1);
 
   --mantine-color-body: var(--sp-shell);
   --mantine-color-text: var(--sp-ink);
@@ -32,26 +36,35 @@
   --mantine-color-default-border: var(--sp-line);
 }
 
+/* Gold text on a light page needs a deeper shade to stay readable. Higher
+   specificity than the variables Mantine injects at runtime. */
+html:root[data-mantine-color-scheme='light'] {
+  --mantine-color-anchor: var(--mantine-color-gold-8);
+}
+
 :root[data-mantine-color-scheme='dark'] {
-  /* Soot brown around an ember accent: the room a save point's fire lights. */
-  --sp-shell: #241c16;
-  --sp-surface: #2f261f;
-  --sp-raised: #3a3028;
-  --sp-line: #4d4035;
-  --sp-ink: #efe6da;
-  --sp-muted: #ab9f91;
+  /* Night blue: the home screen behind the box art. */
+  --sp-shell: #0e1328;
+  --sp-surface: #151c38;
+  --sp-raised: #1c2547;
+  --sp-line: #2a3460;
+  --sp-ink: #e8ecfa;
+  --sp-muted: #8f98c2;
 
   --sp-steam: #66c0f4;
-  --sp-playstation: #4a6cf0;
+  --sp-playstation: #5b7cff;
   --sp-switch: #ff3b47;
-  --sp-epic: #ebe3d8;
+  --sp-epic: #e8ecfa;
 
   --sp-c1: #3987e5;
   --sp-c2: #d95926;
   --sp-c3: #199e70;
   --sp-c4: #c98500;
   --sp-c5: #d55181;
-  --sp-c-other: #75695d;
+  --sp-c-other: #5d6690;
+
+  --sp-fav: #ff78a8;
+  --sp-fav-soft: rgb(255 120 168 / 0.12);
 
   --mantine-color-body: var(--sp-shell);
   --mantine-color-text: var(--sp-ink);
@@ -62,8 +75,7 @@
 body {
   background: var(--sp-shell);
   color: var(--sp-ink);
-  font-feature-settings: 'ss01';
-  -webkit-font-smoothing: antialiased;
+    -webkit-font-smoothing: antialiased;
 }
 
 .num {
@@ -71,8 +83,19 @@ body {
 }
 
 .display {
-  font-family: 'Unbounded', sans-serif;
-  letter-spacing: -0.02em;
+  font-stretch: 75%;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.01em;
+}
+
+/* Titles: heavy and condensed, like a console's tile labels. */
+h1,
+h2,
+h3,
+.mantine-Title-root {
+  font-stretch: 78%;
+  letter-spacing: -0.005em;
 }
 
 /* ------------------------------------------------------------------ time strip
@@ -120,7 +143,6 @@ body {
   overflow: hidden;
   flex-shrink: 0;
   background: var(--sp-raised);
-  border: 1px solid var(--sp-line);
 }
 
 .cover img {
@@ -136,8 +158,8 @@ body {
   display: flex;
   align-items: flex-end;
   padding: 6px 8px;
-  font-family: 'Unbounded', sans-serif;
-  font-weight: 700;
+  font-stretch: 75%;
+  font-weight: 800;
   line-height: 1.05;
   color: #fff;
   letter-spacing: -0.02em;
@@ -173,7 +195,7 @@ body {
 }
 
 .game-row:hover {
-  background: var(--sp-raised);
+  background: var(--sp-surface);
 }
 
 .game-row:focus-visible {
@@ -284,4 +306,324 @@ body {
 }
 .chat-md li {
   margin-bottom: 0.35em;
+}
+
+/* ------------------------------------------------------------------ favourites */
+
+.fav-chip {
+  background: var(--sp-fav-soft) !important;
+  color: var(--sp-fav) !important;
+  border: 1px solid var(--sp-fav) !important;
+}
+
+.fav-chip svg {
+  flex-shrink: 0;
+}
+
+/* A slim bar that stays at the top of the page while it scrolls (below the header). */
+.sticky-bar {
+  position: sticky;
+  top: 68px;
+  z-index: 50;
+  margin: calc(var(--mantine-spacing-xl) * -1) calc(var(--mantine-spacing-xl) * -1) 0;
+  padding: 10px var(--mantine-spacing-xl);
+  background: var(--sp-shell);
+  border-bottom: 1px solid var(--sp-line);
+}
+
+@media (max-width: 62em) {
+  .sticky-bar {
+    top: 56px;
+    margin: calc(var(--mantine-spacing-md) * -1) calc(var(--mantine-spacing-md) * -1) 0;
+    padding: 8px var(--mantine-spacing-md);
+  }
+}
+
+/* ------------------------------------------------------------------ top tabs (desktop) */
+
+.top-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.top-tabs a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  font-stretch: 90%;
+  color: var(--sp-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.top-tabs a:hover {
+  color: var(--sp-ink);
+}
+
+.top-tabs a[aria-current='page'] {
+  color: var(--sp-ink);
+}
+
+/* The selection bar: the console's highlight under the current tab. */
+.top-tabs a[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 12px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--mantine-primary-color-filled);
+}
+
+.top-tabs a:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -6px;
+  border-radius: 10px;
+}
+
+.tab-count {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--sp-raised);
+  color: var(--sp-ink);
+}
+
+/* ------------------------------------------------------------------ backdrop + hero */
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.backdrop-wash,
+.backdrop img {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  object-fit: cover;
+  filter: blur(36px) saturate(1.35);
+  opacity: 0.75;
+}
+
+.backdrop-fade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, var(--sp-shell) 0%, color-mix(in srgb, var(--sp-shell) 70%, transparent) 45%, transparent 100%),
+    linear-gradient(0deg, var(--sp-shell) 0%, transparent 55%);
+}
+
+.hero {
+  position: relative;
+  border-radius: var(--mantine-radius-xl);
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 300px;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 380px);
+  align-items: end;
+  gap: 32px;
+  padding: 40px;
+  min-height: 300px;
+}
+
+.hero-title {
+  font-size: clamp(2.2rem, 1.2rem + 3.6vw, 4.5rem);
+  font-weight: 800;
+  font-stretch: 72%;
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  margin: 6px 0 0;
+}
+
+.hero-cover {
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
+}
+
+@media (max-width: 48em) {
+  .hero-content {
+    grid-template-columns: 1fr;
+    padding: 24px 20px;
+    gap: 20px;
+    min-height: 0;
+  }
+  .hero-cover {
+    order: -1;
+    max-width: 280px;
+  }
+  .hero,
+  .hero-content {
+    min-height: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ shelves */
+
+.shelf {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(200px, 240px);
+  gap: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 4px 2px 12px;
+  scrollbar-width: thin;
+}
+
+.shelf > * {
+  scroll-snap-align: start;
+}
+
+.shelf-tile {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+}
+
+.shelf-tile .cover {
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+/* The focused tile lifts and gets the gold selection ring, like a console menu. */
+.shelf-tile:hover .cover,
+.shelf-tile:focus-visible .cover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 3px var(--mantine-primary-color-filled), 0 14px 30px rgb(0 0 0 / 0.35);
+}
+
+.shelf-tile:focus-visible {
+  outline: none;
+}
+
+@media (max-width: 48em) {
+  .shelf {
+    grid-auto-columns: 62%;
+    gap: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shelf-tile .cover {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ page hero (game page) */
+
+/* Bleeds to the page edges and up under the header, so the art fills the top. */
+.page-hero {
+  position: relative;
+  isolation: isolate;
+  margin: calc(var(--mantine-spacing-xl) * -1) calc(var(--mantine-spacing-xl) * -1) 0;
+  padding: var(--mantine-spacing-xl);
+}
+
+.page-hero .backdrop-fade {
+  background: linear-gradient(0deg, var(--sp-shell) 0%, color-mix(in srgb, var(--sp-shell) 55%, transparent) 60%, color-mix(in srgb, var(--sp-shell) 30%, transparent) 100%);
+}
+
+.page-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 62em) {
+  .page-hero {
+    margin: calc(var(--mantine-spacing-md) * -1) calc(var(--mantine-spacing-md) * -1) 0;
+    padding: var(--mantine-spacing-md);
+  }
+}
+
+/* ------------------------------------------------------------------ rows and tiles */
+
+/* A list entry on the page itself: no box until you point at it. */
+.list-row {
+  padding: 14px 16px;
+  margin: 0 -16px;
+  border-radius: var(--mantine-radius-lg);
+}
+
+.list-row:hover,
+.list-row:focus-within {
+  background: var(--sp-surface);
+}
+
+.tile {
+  border-radius: var(--mantine-radius-md);
+}
+
+.tile .cover {
+  transition: box-shadow 160ms ease;
+}
+
+.tile:hover .cover,
+.tile:focus-within .cover {
+  box-shadow: 0 0 0 3px var(--mantine-primary-color-filled);
+}
+
+.stat {
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile .cover {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ login */
+
+/* The save point's glow: the one lit thing on the screen when you arrive. */
+.login-crystal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 140px;
+  height: 140px;
+}
+
+.login-crystal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--mantine-color-gold-4) 45%, transparent) 0%, transparent 68%);
+}
+
+.login-crystal svg {
+  position: relative;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .login-crystal svg {
+    animation: crystal-float 3.2s ease-in-out infinite;
+  }
+}
+
+@keyframes crystal-float {
+  50% {
+    transform: translateY(-6px);
+  }
 }

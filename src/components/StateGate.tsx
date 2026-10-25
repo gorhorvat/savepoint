@@ -1,4 +1,4 @@
-import { Button, Center, Loader, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Button, Center, Loader, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import {
@@ -14,7 +14,7 @@ import {
   subscribeSyncStatus,
 } from '../lib/serverStorage';
 import { useStore } from '../lib/store';
-import { Logo } from './Layout';
+import { Crystal } from './Layout';
 
 function reload() {
   void useStore.persist.rehydrate();
@@ -41,9 +41,16 @@ function LoginForm() {
   }
 
   return (
-    <Paper component="form" onSubmit={submit} p="xl" w="100%" maw={380} withBorder>
+    <form onSubmit={submit} style={{ width: '100%', maxWidth: 360 }}>
       <Stack gap="md">
-        <Logo size={26} />
+        <Stack align="center" gap={6} mb="lg">
+          <div className="login-crystal">
+            <Crystal size={72} />
+          </div>
+          <Text className="display" fz={40} lh={1}>
+            savepoint
+          </Text>
+        </Stack>
         <TextInput
           label="Username"
           autoComplete="username"
@@ -69,7 +76,7 @@ function LoginForm() {
           </Text>
         )}
       </Stack>
-    </Paper>
+    </form>
   );
 }
 

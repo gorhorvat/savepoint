@@ -11,7 +11,6 @@ import {
   Text,
   Textarea,
   Title,
-  Tooltip,
 } from '@mantine/core';
 import { IconArrowUp, IconInfoCircle, IconPlayerStop, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -27,9 +26,10 @@ import {
   offlineReply,
   wishlistGames,
 } from '../lib/assistantContext';
-import { ownedPlatforms, useLibrary, type LibraryGame } from '../lib/library';
+import { ownedPlatforms, useLibrary, useUnlinkedPhysicalTitles, type LibraryGame } from '../lib/library';
 import { recommend } from '../lib/recommend';
 import { useGameResolver, useStore } from '../lib/store';
+import { useFavorites } from '../lib/favorites';
 import { useSuggestionPool } from '../lib/suggestions';
 import type { ChatMessage, Game } from '../types';
 
@@ -43,6 +43,8 @@ const STARTERS = [
 export function AssistantPage() {
   const lib = useLibrary();
   const pool = useSuggestionPool(lib);
+  const favorites = useFavorites();
+  const alsoOwned = useUnlinkedPhysicalTitles();
   const resolve = useGameResolver();
   const wishlist = useStore((s) => s.wishlist);
   const dismissedIds = useStore((s) => s.dismissed);
@@ -85,11 +87,16 @@ export function AssistantPage() {
       owned: ownedPlatforms(lib),
       exclude: new Set(dismissedIds),
       pool: pool.games,
+      favorites,
+      alsoOwned,
     }).slice(0, 30);
     const context = buildContext(
       lib,
       wishlistGames(wishlist, resolve),
-      wishlistGames(dismissedIds.map((gameId) => ({ gameId, addedAt: '' })), resolve),
+      wishlistGames(
+        dismissedIds.map((gameId) => ({ gameId, addedAt: '' })),
+        resolve,
+      ),
       candidates,
     );
     let reply = '';
@@ -118,6 +125,26 @@ export function AssistantPage() {
 
   return (
     <Stack gap="lg">
+      {chat.length > 0 && (
+        // Pinned to the top, so clearing is one tap away however long the conversation gets.
+        <div className="sticky-bar">
+          <Group justify="space-between" gap="sm" wrap="nowrap">
+            <Text size="sm" c="dimmed">
+              {chat.filter((m) => m.role === 'user').length}{' '}
+              {chat.filter((m) => m.role === 'user').length === 1 ? 'question' : 'questions'} in this chat
+            </Text>
+            <Button
+              variant="default"
+              size="xs"
+              leftSection={<IconTrash size={15} />}
+              onClick={() => setChat([])}
+              disabled={busy}
+            >
+              Clear chat
+            </Button>
+          </Group>
+        </div>
+      )}
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <div>
           <Title order={1}>Assistant</Title>
@@ -132,20 +159,6 @@ export function AssistantPage() {
             </Text>
           )}
         </div>
-        {chat.length > 0 && (
-          <Tooltip label="Clear conversation">
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              size="lg"
-              onClick={() => setChat([])}
-              disabled={busy}
-              aria-label="Clear conversation"
-            >
-              <IconTrash size={18} />
-            </ActionIcon>
-          </Tooltip>
-        )}
       </Group>
 
       {status && !live && (
@@ -153,7 +166,9 @@ export function AssistantPage() {
           <Stack gap="xs" align="flex-start">
             <Text size="sm">
               {!status.online ? (
-                <>The Savepoint server isn't running. Start the app with <Code>npm run dev</Code>.</>
+                <>
+                  The Savepoint server isn't running. Start the app with <Code>npm run dev</Code>.
+                </>
               ) : status.assistantProvider === 'gemini' ? (
                 <>
                   Add a free Gemini API key as <Code>GEMINI_API_KEY</Code> in <Code>.env</Code> (get one at

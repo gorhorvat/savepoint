@@ -23,6 +23,8 @@ export interface ServerStatus {
   ntfyTopic?: string | null;
   /** False when the API server isn't running at all. */
   online: boolean;
+  /** True for the owner's account (VerBuddy SuperAdmin); other admins can't use owner-only features. */
+  owner?: boolean;
 }
 
 const OFFLINE: ServerStatus = {
@@ -295,8 +297,13 @@ export async function fetchDetails(
 
 /** Search every PC (Steam, Epic) and Nintendo Switch / Switch 2 game. */
 /** Well-reviewed Steam games for these sub-genres and genres (strongest first). */
-export async function fetchDiscoverPool(subgenres: string[], genres: string[]): Promise<FoundGame[]> {
-  const q = `subgenres=${encodeURIComponent(subgenres.join(','))}&genres=${encodeURIComponent(genres.join(','))}`;
+export async function fetchDiscoverPool(
+  subgenres: string[],
+  genres: string[],
+  franchises: string[] = [],
+): Promise<FoundGame[]> {
+  const list = (xs: string[]) => encodeURIComponent(xs.join(','));
+  const q = `subgenres=${list(subgenres)}&genres=${list(genres)}&franchises=${list(franchises)}`;
   return (await getJson<{ results: FoundGame[] }>(`/api/discover?${q}`)).results;
 }
 
@@ -413,4 +420,20 @@ export async function sendTestAlert(): Promise<void> {
   const r = await fetch('/api/alerts/test', { method: 'POST' });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error ?? `Test failed (${r.status})`);
+}
+
+export interface Taxonomy {
+  genres: string[];
+  subgenres: string[];
+}
+
+let taxonomyPromise: Promise<Taxonomy> | null = null;
+
+/** Every genre and sub-genre name Savepoint knows (for the favourites picker). */
+export function fetchTaxonomy(): Promise<Taxonomy> {
+  taxonomyPromise ??= getJson<Taxonomy>('/api/taxonomy').catch((err) => {
+    taxonomyPromise = null;
+    throw err;
+  });
+  return taxonomyPromise;
 }

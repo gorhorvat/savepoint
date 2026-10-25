@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { StateGate } from './components/StateGate';
 import { AssistantPage } from './pages/AssistantPage';
@@ -7,7 +7,8 @@ import { DiscoverPage } from './pages/DiscoverPage';
 import { GamePage } from './pages/GamePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { PhysicalPage } from './pages/PhysicalPage';
-import { PlatformsPage } from './pages/PlatformsPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { StatsPage } from './pages/StatsPage';
 import { StoresPage } from './pages/StoresPage';
 import { WishlistPage } from './pages/WishlistPage';
@@ -34,7 +35,10 @@ export default function App() {
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/physical" element={<PhysicalPage />} />
           <Route path="/stores" element={<StoresPage />} />
-          <Route path="/platforms" element={<PlatformsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          {/* Platforms is a section of Settings now; keep old links working. */}
+          <Route path="/platforms" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<LibraryPage />} />
         </Routes>
       </Layout>

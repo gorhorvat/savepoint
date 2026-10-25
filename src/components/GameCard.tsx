@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Game } from '../types';
 import { Cover } from './Cover';
-import { GenreChips } from './GenreChips';
+import { FranchiseBadge, GenreChips } from './GenreChips';
 import { PlatformList } from './PlatformBadge';
 import { WishlistButton } from './WishlistButton';
 
@@ -35,6 +35,7 @@ export function GameCard({ game, note, actions }: { game: Game; note?: ReactNode
         </Group>
       </Group>
       {note}
+      <FranchiseBadge game={game} size="xs" />
       <GenreChips game={game} limit={4} size="xs" />
       <PlatformList platforms={game.availableOn} switchVersions={game.switchVersions} />
     </Stack>

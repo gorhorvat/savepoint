@@ -63,3 +63,25 @@ export function Cover({ game, width, radius = 8 }: { game: Game; width: number |
     </div>
   );
 }
+
+/**
+ * A game's art, blurred and dimmed, as the backdrop of a page section (the
+ * console home screen look). Falls back to a colour wash from the title.
+ */
+export function Backdrop({ game }: { game: Game }) {
+  const lookedUp = useStore((s) => s.details[game.id]?.imageUrl);
+  const urls = coverUrls(game, lookedUp);
+  const [attempt, setAttempt] = useState(0);
+  const url = urls[attempt];
+  const h = hue(game.title);
+  return (
+    <div className="backdrop" aria-hidden>
+      <div
+        className="backdrop-wash"
+        style={{ background: `linear-gradient(120deg, hsl(${h} 70% 40%), hsl(${(h + 60) % 360} 70% 30%))` }}
+      />
+      {url && <img key={url} src={url} alt="" onError={() => setAttempt((a) => a + 1)} />}
+      <div className="backdrop-fade" />
+    </div>
+  );
+}

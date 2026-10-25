@@ -6,7 +6,6 @@ import {
   Group,
   Modal,
   NumberInput,
-  Paper,
   Select,
   Stack,
   Tabs,
@@ -21,13 +20,44 @@ import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from '@tabler/icons
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Cover } from '../components/Cover';
+import { FranchiseBadge } from '../components/GenreChips';
+import { ShareExport, type ListExport } from '../components/ShareExport';
 import { GameSearch } from '../components/GameSearch';
 import { PhysicalPlatformIcon } from '../components/PhysicalPlatformIcon';
 import { CONDITIONS, DIGITAL, PHYSICAL_PLATFORMS } from '../data/physical';
 import type { FoundGame } from '../lib/api';
 import { formatPrice } from '../lib/format';
+import { vendorSearchUrl } from '../lib/vendors';
 import { useGameResolver, useStore } from '../lib/store';
 import type { Condition, Game, PhysicalItem, PhysicalPlatform, PhysicalWant } from '../types';
+
+/** Search links for a want in the shops picked in Settings. */
+function ShopLinks({ want }: { want: PhysicalWant }) {
+  const vendors = useStore((s) => s.vendors);
+  if (!vendors.length) {
+    return (
+      <Anchor component={Link} to="/settings" size="sm" c="dimmed">
+        Pick shops to search in Settings
+      </Anchor>
+    );
+  }
+  const query = `${want.title} ${want.platform}`;
+  return (
+    <Group gap={4} wrap="wrap" align="baseline">
+      <Text span size="sm" c="dimmed">
+        Find on
+      </Text>
+      {vendors.map((v, i) => (
+        <Text span size="sm" key={v}>
+          <Anchor href={vendorSearchUrl(v, query)} target="_blank" rel="noopener noreferrer" inherit>
+            {v}
+          </Anchor>
+          {i < vendors.length - 1 && <Text span c="dimmed">{' · '}</Text>}
+        </Text>
+      ))}
+    </Group>
+  );
+}
 
 function PlatformTag({ platform }: { platform: PhysicalPlatform }) {
   return (
@@ -202,7 +232,7 @@ function ItemCard({
   actions: React.ReactNode;
 }) {
   return (
-    <Paper p="sm" radius="md">
+    <div className="tile">
       <Stack gap={8}>
         {item.gameId ? (
           <Link to={`/game/${item.gameId}`} aria-hidden tabIndex={-1}>
@@ -226,6 +256,7 @@ function ItemCard({
             {actions}
           </Group>
         </Group>
+        <FranchiseBadge game={game} size="xs" />
         <Group gap="sm" wrap="wrap">
           <PlatformTag platform={item.platform} />
           {footer}
@@ -236,7 +267,7 @@ function ItemCard({
           </Text>
         )}
       </Stack>
-    </Paper>
+    </div>
   );
 }
 
@@ -340,8 +371,17 @@ export function PhysicalPage() {
     price: w.maxPrice,
     notes: w.notes,
   });
-  const ebay = (w: PhysicalWant) =>
-    `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`${w.title} ${w.platform}`)}`;
+  const exported: ListExport = {
+    title: 'Physical games I’m looking for',
+    filename: 'savepoint-physical-wants',
+    lines: wanted.map((w) =>
+      [`${w.title} (${w.platform}${w.edition ? `, ${w.edition}` : ''})`, w.maxPrice !== undefined && `up to ${formatPrice(w.maxPrice)}`]
+        .filter(Boolean)
+        .join(', '),
+    ),
+    columns: ['Title', 'Platform', 'Edition', 'Max price (USD)', 'Notes', 'Added'],
+    rows: wanted.map((w) => [w.title, w.platform, w.edition, w.maxPrice, w.notes, w.addedAt.slice(0, 10)]),
+  };
 
   const isItemForm = editing?.kind === 'new-item' || editing?.kind === 'edit-item';
 
@@ -448,6 +488,14 @@ export function PhysicalPage() {
         </Stack>
       ) : (
         <Stack gap="md">
+          {wanted.length > 0 && (
+            <Group justify="space-between" gap="sm">
+              <Text size="sm" c="dimmed">
+                {wanted.length} {wanted.length === 1 ? 'game' : 'games'}
+              </Text>
+              <ShareExport list={exported} />
+            </Group>
+          )}
           <div className="card-grid card-grid--physical">
             {wanted.map((w) => (
               <ItemCard
@@ -461,9 +509,7 @@ export function PhysicalPage() {
                         Up to {formatPrice(w.maxPrice)}
                       </Text>
                     )}
-                    <Anchor href={ebay(w)} target="_blank" rel="noopener noreferrer" size="sm">
-                      Find on eBay
-                    </Anchor>
+                    <ShopLinks want={w} />
                   </>
                 }
                 actions={

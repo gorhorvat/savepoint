@@ -18,19 +18,30 @@ export function useSuggestionPool(lib: LibraryGame[]): { games: Game[]; loading:
   const suggested = useStore((s) => s.suggested);
   const [failed, setFailed] = useState('');
   const profile = useMemo(() => tasteProfile(lib), [lib]);
-  const subgenres = profile.subgenres.slice(0, 6).map((x) => x.name);
-  const genres = profile.genres.slice(0, 4).map((x) => x.name);
-  // Bump the leading version when the server's pool changes shape (v2: Switch games).
-  const key = ['v2', ...subgenres, '|', ...genres].join(',');
+  const { favoriteGenres, favoriteFranchises } = useStore((s) => s.profile);
+  // Favourites come first, then what your hours say. A favourite can be a
+  // genre or a sub-genre; the server looks each name up as both.
+  const subgenres = [...new Set([...favoriteGenres, ...profile.subgenres.map((x) => x.name)])].slice(
+    0,
+    Math.max(6, favoriteGenres.length),
+  );
+  const genres = [...new Set([...favoriteGenres, ...profile.genres.map((x) => x.name)])].slice(
+    0,
+    Math.max(4, favoriteGenres.length),
+  );
+  const franchises = favoriteFranchises.slice(0, 8);
+  // Bump the leading version when the server's pool changes shape (v3: franchises).
+  const key = ['v3', ...subgenres, '|', ...genres, '|', ...franchises].join(',');
   const stale =
-    !!subgenres.length && (suggested.key !== key || Date.now() - new Date(suggested.fetchedAt).getTime() > POOL_TTL);
+    !!(subgenres.length || franchises.length) &&
+    (suggested.key !== key || Date.now() - new Date(suggested.fetchedAt).getTime() > POOL_TTL);
 
   useEffect(() => {
     if (!stale || failed === key) return;
     let cancelled = false;
     // Pages that need the pool at the same time share one request.
     if (inFlight?.key !== key) {
-      const promise = fetchDiscoverPool(subgenres, genres)
+      const promise = fetchDiscoverPool(subgenres, genres, franchises)
         .then((found) => useStore.getState().setSuggested(key, found))
         .finally(() => {
           if (inFlight?.promise === promise) inFlight = null;

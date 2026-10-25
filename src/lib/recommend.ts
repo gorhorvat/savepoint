@@ -1,6 +1,7 @@
 import type { Game, PlatformId } from '../types';
+import { favoriteBoost, type Favorites } from './favorites';
 import type { LibraryGame } from './library';
-import { normalizeTitle } from './match';
+import { ownedKey, ownedKeys } from './match';
 import { tasteFactor } from './progress';
 
 export interface Weighted {
@@ -65,6 +66,10 @@ export interface Recommendation {
   because?: LibraryGame;
   sharedTraits: string[];
   onYourPlatforms: PlatformId[];
+  /** Your favourite franchise this game belongs to, if any. */
+  favoriteFranchise?: string;
+  /** Its genres you marked as favourites. */
+  favoriteGenres: string[];
 }
 
 function overlap(a: Game, b: Game) {
@@ -85,12 +90,20 @@ function overlap(a: Game, b: Game) {
 export function recommend(
   lib: LibraryGame[],
   // pool: the live suggestion pool (lib/suggestions.ts), the only source of candidates.
-  opts: { owned: PlatformId[]; exclude: Set<string>; pool: Game[] },
+  opts: {
+    owned: PlatformId[];
+    exclude: Set<string>;
+    pool: Game[];
+    favorites?: Favorites;
+    /** More titles you own that aren't in the library (physical copies typed in by hand). */
+    alsoOwned?: string[];
+  },
 ): Recommendation[] {
   const fit = tasteMatcher(tasteProfile(lib));
   const played = new Set(lib.map((l) => l.game.id));
-  // Steam suggestions get their own ids, so also skip them by title and app id.
-  const playedTitles = new Set(lib.map((l) => normalizeTitle(l.game.title)));
+  // Suggestions get their own ids, so also skip games you own by app id, and by
+  // title on any platform and in any version (Gold, Cloud, Deluxe…).
+  const playedTitles = new Set([...lib.map((l) => l.game.title), ...(opts.alsoOwned ?? [])].flatMap(ownedKeys));
   const playedApps = new Set(lib.map((l) => l.game.steamAppId).filter(Boolean));
 
   const recs: Recommendation[] = [];
@@ -98,11 +111,14 @@ export function recommend(
   for (const game of opts.pool) {
     if (played.has(game.id) || opts.exclude.has(game.id) || seen.has(game.id)) continue;
     if (game.steamAppId && playedApps.has(game.steamAppId)) continue;
-    if (playedTitles.has(normalizeTitle(game.title))) continue;
+    if (playedTitles.has(ownedKey(game.title))) continue;
     seen.add(game.id);
     const onYourPlatforms = game.availableOn.filter((p) => opts.owned.includes(p));
+    const fav = opts.favorites ? favoriteBoost(game, opts.favorites) : { factor: 1, genres: [] };
+    // A favourite franchise counts even when the store lists no genres for the game.
+    const base = fav.franchise ? Math.max(fit(game), 0.5) : fit(game);
     // Games you can't play on anything you own sink to the bottom.
-    const score = fit(game) * (onYourPlatforms.length ? 1 : 0.4);
+    const score = base * fav.factor * (onYourPlatforms.length ? 1 : 0.4);
     if (score <= 0) continue;
 
     let because: LibraryGame | undefined;
@@ -117,7 +133,16 @@ export function recommend(
         sharedTraits = o.shared;
       }
     }
-    recs.push({ game, score, fit: 0, because, sharedTraits: [...new Set(sharedTraits)], onYourPlatforms });
+    recs.push({
+      game,
+      score,
+      fit: 0,
+      because,
+      sharedTraits: [...new Set(sharedTraits)],
+      onYourPlatforms,
+      favoriteFranchise: fav.franchise,
+      favoriteGenres: fav.genres,
+    });
   }
   recs.sort((a, b) => b.score - a.score);
   const top = recs[0]?.score ?? 1;

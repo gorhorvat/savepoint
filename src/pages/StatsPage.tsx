@@ -1,4 +1,4 @@
-import { Anchor, Grid, Group, Paper, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Grid, Group, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BarList, Columns, Donut, StatTile, type Slice } from '../components/charts';
@@ -15,17 +15,15 @@ const GENRE_COLORS = ['var(--sp-c1)', 'var(--sp-c2)', 'var(--sp-c3)', 'var(--sp-
 
 function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
-    <Paper p={{ base: 'md', sm: 'lg' }} h="100%">
-      <Title order={2} fz="lg">
-        {title}
-      </Title>
+    <section style={{ height: '100%' }}>
+      <Title order={2}>{title}</Title>
       {note && (
         <Text size="sm" c="dimmed" mt={4}>
           {note}
         </Text>
       )}
       <div style={{ marginTop: 16 }}>{children}</div>
-    </Paper>
+    </section>
   );
 }
 
@@ -78,7 +76,7 @@ export function StatsPage() {
     : '';
 
   return (
-    <Stack gap="xl">
+    <Stack gap={56}>
       <div>
         <Title order={1}>My Stats</Title>
         <Text c="dimmed" mt={6} size="lg">
@@ -127,7 +125,7 @@ export function StatsPage() {
         />
       </SimpleGrid>
 
-      <Grid gap="lg">
+      <Grid gap={48}>
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Section
             title="Genres you play"
@@ -238,7 +236,7 @@ export function StatsPage() {
         </Grid>
       </Section>
 
-      <Grid gap="lg">
+      <Grid gap={48}>
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Section title="Most played, all time">
             <BarList
@@ -276,7 +274,7 @@ export function StatsPage() {
         </Grid.Col>
       </Grid>
 
-      <Grid gap="lg">
+      <Grid gap={48}>
         <Grid.Col span={{ base: 12, md: 6, lg: 3 }}>
           <Section title="Top developers">
             {stats.developers.length ? (

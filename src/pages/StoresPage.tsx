@@ -92,7 +92,7 @@ export function StoresPage() {
           </div>
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
             {STORES.filter((s) => s.kind === kind).map((s) => (
-              <Paper key={s.id} p="md" radius="md">
+              <div key={s.id} className="tile">
                 <Anchor href={s.url} target="_blank" rel="noopener noreferrer" c="inherit" fw={700}>
                   <Group gap={6} wrap="nowrap" component="span" style={{ display: 'inline-flex' }}>
                     {s.name}
@@ -107,7 +107,7 @@ export function StoresPage() {
                 <Text size="sm" mt="sm" c="dimmed" lh={1.45}>
                   {s.about}
                 </Text>
-              </Paper>
+              </div>
             ))}
           </SimpleGrid>
         </Stack>

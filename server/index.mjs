@@ -12,7 +12,7 @@ import {
   getUserPlayedGames,
   getUserTitles,
 } from 'psn-api';
-import { lookupDetails, nintendoPrice, searchGames, setPsnAuth, steamWishlist } from './search.mjs';
+import { NINTENDO_GENRES, lookupDetails, nintendoPrice, searchGames, setPsnAuth, steamWishlist } from './search.mjs';
 import { lookupGameFacts } from './gameFacts.mjs';
 import { discoverPool } from './discover.mjs';
 import { howLongToBeat } from './hltb.mjs';
@@ -20,9 +20,9 @@ import { criticScore } from './opencritic.mjs';
 import { igdbConfigured, igdbGame, lookupIgdb } from './igdb.mjs';
 import { itadDeal } from './itad.mjs';
 import { checkAlerts, notify, ntfyTopic, setAlerts, startAlertTimer } from './alerts.mjs';
-import { lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
+import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
-import { authRouter, requireLogin } from './auth.mjs';
+import { authRouter, ownerOnly, requireLogin } from './auth.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
 const USER_AGENT = 'Savepoint/0.1 (self-hosted game library app)';
@@ -66,7 +66,7 @@ app.use(express.json({ limit: '1mb' }));
 
 const has = (name) => Boolean(process.env[name] && process.env[name].trim());
 
-app.get('/api/status', async (_req, res) => {
+app.get('/api/status', async (req, res) => {
   const provider = assistantProvider();
   const ollama = provider === 'ollama' ? await ollamaStatus() : { reachable: false, installed: false };
   res.json({
@@ -75,13 +75,15 @@ app.get('/api/status', async (_req, res) => {
     assistantModel: provider === 'gemini' ? GEMINI_MODEL : OLLAMA_MODEL,
     ollama: { ...ollama, model: OLLAMA_MODEL, url: OLLAMA_URL },
     steam: has('STEAM_API_KEY'),
-    psn: has('PSN_NPSSO'),
+    // Owner-only features read as "not set up" for other admins; `owner` says why.
+    owner: req.isOwner,
+    psn: has('PSN_NPSSO') && req.isOwner,
     keyshops: has('GGDEALS_API_KEY'),
     prices: true,
     igdb: igdbConfigured(),
     critics: has('OPENCRITIC_RAPIDAPI_KEY'),
     deals: has('ITAD_API_KEY'),
-    ntfyTopic: ntfyTopic() || null,
+    ntfyTopic: (req.isOwner && ntfyTopic()) || null,
   });
 });
 
@@ -249,7 +251,7 @@ function isoDurationToMinutes(d) {
 if (has('PSN_NPSSO')) setPsnAuth(getPsnAuth);
 
 // -> { titles: [{ name, earned, total, platinum }] } for every game with trophies.
-app.get('/api/psn/trophies', async (_req, res) => {
+app.get('/api/psn/trophies', ownerOnly, async (_req, res) => {
   if (!has('PSN_NPSSO')) return res.status(501).json({ error: 'PSN_NPSSO is not set on the server.' });
   try {
     const auth = await getPsnAuth();
@@ -275,7 +277,7 @@ app.get('/api/psn/trophies', async (_req, res) => {
   }
 });
 
-app.get('/api/psn/library', async (_req, res) => {
+app.get('/api/psn/library', ownerOnly, async (_req, res) => {
   if (!has('PSN_NPSSO')) {
     return res.status(501).json({ error: 'PSN_NPSSO is not set on the server. Add it to .env and restart.' });
   }
@@ -324,6 +326,13 @@ app.get('/api/search', async (req, res) => {
 });
 
 // ?subgenres=a,b&genres=c,d (strongest first) -> { results } of well-reviewed Steam games
+app.get('/api/taxonomy', (_req, res) => {
+  const { genres, subgenres } = genreTaxonomy();
+  const nintendo = Object.values(NINTENDO_GENRES).map((m) => m.g);
+  res.set('Cache-Control', 'private, max-age=86400');
+  res.json({ genres: [...new Set([...genres, ...nintendo.filter(Boolean)])].sort(), subgenres });
+});
+
 app.get('/api/discover', async (req, res) => {
   const list = (v) =>
     String(v || '')
@@ -332,7 +341,9 @@ app.get('/api/discover', async (req, res) => {
       .filter(Boolean)
       .slice(0, 10);
   try {
-    res.json({ results: await discoverPool(list(req.query.subgenres), list(req.query.genres)) });
+    res.json({
+      results: await discoverPool(list(req.query.subgenres), list(req.query.genres), list(req.query.franchises)),
+    });
   } catch (err) {
     res.status(502).json({ error: `Suggestions failed: ${err.message}` });
   }
@@ -370,7 +381,7 @@ app.post('/api/lengths', async (req, res) => {
 });
 
 // Body: { items: [{ id, title, steamAppId?, nsuid?, pc, switch, target }] } -> { checked, sent }
-app.post('/api/alerts', async (req, res) => {
+app.post('/api/alerts', ownerOnly, async (req, res) => {
   const items = (req.body?.items ?? [])
     .filter((i) => i && typeof i.id === 'string' && typeof i.title === 'string' && typeof i.target === 'number')
     .slice(0, 300)
@@ -390,7 +401,7 @@ app.post('/api/alerts', async (req, res) => {
   }
 });
 
-app.post('/api/alerts/test', async (_req, res) => {
+app.post('/api/alerts/test', ownerOnly, async (_req, res) => {
   try {
     await notify({
       title: 'Savepoint',

@@ -1,6 +1,8 @@
 // Login: you sign in with your VerBuddy username and password. Savepoint asks
-// VerBuddy's API whether they're right, and only VerBuddy's SuperAdmin account
-// is let in (students and teachers aren't). VerBuddy's login token goes into a
+// VerBuddy's API whether they're right. VerBuddy's SuperAdmin (the owner) and
+// Admin accounts get in, students don't. Each account has its own library in
+// VerBuddy; things tied to the owner's own accounts (PlayStation sign-in, price
+// alerts to the owner's phone) are owner-only. VerBuddy's login token goes into a
 // signed, HttpOnly cookie: every other /api route requires it, and the server
 // uses the token to load and save your data in VerBuddy. The login lasts as
 // long as VerBuddy's token (8 hours by default).
@@ -17,7 +19,8 @@ import { dataDir, verbuddyUrl } from './state.mjs';
 const COOKIE = 'sp_session';
 const GENERIC_FAIL = 'Wrong username or password.';
 
-const ALLOWED_ROLE = 'SuperAdmin';
+const OWNER_ROLE = 'SuperAdmin';
+const ALLOWED_ROLES = [OWNER_ROLE, 'Admin'];
 
 let secret = null;
 async function getSecret() {
@@ -39,8 +42,8 @@ async function getSecret() {
 const b64 = (s) => Buffer.from(s).toString('base64url');
 const sign = (data, key) => createHmac('sha256', key).update(data).digest('base64url');
 
-async function makeSession(user, token, exp) {
-  const data = b64(JSON.stringify({ u: user, t: token, exp }));
+async function makeSession(user, token, exp, owner) {
+  const data = b64(JSON.stringify({ u: user, t: token, exp, o: owner }));
   return `${data}.${sign(data, await getSecret())}`;
 }
 
@@ -108,15 +111,16 @@ authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) 
   if (!r.ok) return res.status(502).json({ error: `VerBuddy answered with an error (${r.status}). Try again.` });
 
   const { token } = await r.json().catch(() => ({}));
-  // The token came straight from VerBuddy over HTTPS; only the SuperAdmin gets in.
+  // The token came straight from VerBuddy over HTTPS; only admins get in.
   const { user, roles, exp } = token ? readToken(token) : { user: '', roles: [], exp: 0 };
-  if (!roles.includes(ALLOWED_ROLE)) {
+  if (!roles.some((r) => ALLOWED_ROLES.includes(r))) {
     return res.status(403).json({ error: 'This VerBuddy account has no access to Savepoint.' });
   }
 
   const expires = exp > Date.now() ? exp : Date.now() + 8 * 60 * 60 * 1000;
-  setCookie(req, res, await makeSession(user, token, expires), expires - Date.now());
-  res.json({ user });
+  const owner = roles.includes(OWNER_ROLE);
+  setCookie(req, res, await makeSession(user, token, expires, owner), expires - Date.now());
+  res.json({ user, owner });
 });
 
 authRouter.post('/api/logout', (req, res) => {
@@ -127,8 +131,11 @@ authRouter.post('/api/logout', (req, res) => {
 authRouter.get('/api/session', async (req, res) => {
   const s = await readSession(req);
   if (!s) return res.status(401).json({ error: 'Not logged in.' });
-  res.json({ user: s.u });
+  res.json({ user: s.u, owner: isOwner(s) });
 });
+
+// Sessions from before admins could log in were all the owner's.
+const isOwner = (s) => s.o ?? true;
 
 /** Every other /api route needs a valid session; it carries the VerBuddy token on. */
 export async function requireLogin(req, res, next) {
@@ -136,5 +143,12 @@ export async function requireLogin(req, res, next) {
   const s = await readSession(req);
   if (!s?.t) return res.status(401).json({ error: 'Not logged in.' });
   req.verbuddyToken = s.t;
+  req.isOwner = isOwner(s);
   next();
+}
+
+/** For things that use the owner's own accounts: their PlayStation sign-in, alerts to their phone. */
+export function ownerOnly(req, res, next) {
+  if (req.isOwner) return next();
+  res.status(403).json({ error: "This uses the owner's own account, so it's only available to them." });
 }

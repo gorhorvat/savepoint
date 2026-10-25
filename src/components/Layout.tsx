@@ -1,9 +1,7 @@
 import {
   ActionIcon,
   AppShell,
-  Badge,
   Group,
-  Stack,
   Text,
   Tooltip,
   useComputedColorScheme,
@@ -16,10 +14,9 @@ import {
   IconChartPie,
   IconDisc,
   IconHeart,
-  IconLogout,
   IconMessageCircle,
   IconMoon,
-  IconPlugConnected,
+  IconSettings,
   IconSparkles,
   IconSun,
 } from '@tabler/icons-react';
@@ -32,7 +29,7 @@ import { useAchievementsSync } from '../lib/achievements';
 import { useLengthBackfill } from '../lib/lengths';
 import { usePriceAlertsSync } from '../lib/alerts';
 import { useGenreBackfill } from '../lib/genreLookup';
-import { logOut } from '../lib/serverStorage';
+import { ProfileAvatar } from './ProfileAvatar';
 import { useStore } from '../lib/store';
 
 const NAV: { to: string; label: string; short?: string; icon: typeof IconBooks; end?: boolean }[] = [
@@ -45,31 +42,27 @@ const NAV: { to: string; label: string; short?: string; icon: typeof IconBooks; 
   { to: '/stores', label: 'Stores', icon: IconBuildingStore },
 ];
 
+/** The save crystal: the glowing gem you save your game at in a JRPG. */
+export function Crystal({ size = 26 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden style={{ flexShrink: 0 }}>
+      <path d="M16 2 26 13.5 16 30 6 13.5Z" fill="var(--mantine-color-gold-4)" />
+      <path d="M16 2 20.5 13.5 16 30 11.5 13.5Z" fill="var(--mantine-color-gold-2)" />
+      <path d="M6 13.5h20" stroke="var(--sp-shell)" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export function Logo({ size = 22 }: { size?: number }) {
   return (
     <Link to="/" style={{ color: 'inherit', textDecoration: 'none' }} aria-label="Savepoint home">
-      <Group gap={10} wrap="nowrap">
-        <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-          <rect width="32" height="32" rx="8" fill="var(--sp-ink)" />
-          <rect x="5" y="9" width="11" height="14" rx="2" fill="var(--sp-steam)" />
-          <rect x="17.5" y="9" width="5" height="14" rx="2" fill="var(--sp-playstation)" />
-          <rect x="24" y="9" width="3" height="14" rx="1.5" fill="var(--sp-switch)" />
-        </svg>
-        <Text className="display" fw={700} fz={size * 0.82}>
+      <Group gap={8} wrap="nowrap">
+        <Crystal size={size * 1.25} />
+        <Text className="display" fz={size * 1.05} lh={1}>
           savepoint
         </Text>
       </Group>
     </Link>
-  );
-}
-
-function LogoutButton() {
-  return (
-    <Tooltip label="Log out">
-      <ActionIcon variant="subtle" color="gray" size="lg" aria-label="Log out" onClick={() => void logOut()}>
-        <IconLogout size={18} />
-      </ActionIcon>
-    </Tooltip>
   );
 }
 
@@ -93,10 +86,9 @@ function SchemeToggle() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const mobile = useMediaQuery('(max-width: 48em)', false, { getInitialValueInEffect: false });
+  // Below this width the tabs move to the bottom of the screen.
+  const mobile = useMediaQuery('(max-width: 62em)', false, { getInitialValueInEffect: false });
   const wishCount = useStore((s) => s.wishlist.length);
-  const connections = useStore((s) => s.connections);
-  const connectedCount = Object.keys(connections).length;
   useAutoSync();
   useGenreBackfill();
   useDetailsBackfill();
@@ -108,73 +100,50 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <AppShell
       padding={mobile ? 'md' : 'xl'}
-      header={{ height: 56, collapsed: !mobile }}
+      header={{ height: mobile ? 56 : 68 }}
       footer={{ height: 64, collapsed: !mobile }}
-      navbar={{ width: 236, breakpoint: 'sm', collapsed: { mobile: true } }}
       styles={{
-        main: { width: '100%', minWidth: 0, paddingBottom: mobile ? 'calc(64px + 24px)' : undefined },
-        navbar: { background: 'var(--sp-shell)', borderColor: 'var(--sp-line)' },
-        header: { background: 'var(--sp-shell)', borderColor: 'var(--sp-line)' },
-        footer: { background: 'var(--sp-surface)', borderColor: 'var(--sp-line)' },
+        main: { width: '100%', minWidth: 0, paddingBottom: mobile ? 'calc(64px + 24px)' : 64 },
+        header: { background: 'var(--sp-shell)', borderBottom: 'none' },
+        footer: { background: 'var(--sp-surface)', borderTop: 'none' },
       }}
     >
-      <AppShell.Header px="md">
-        <Group h="100%" justify="space-between">
-          <Logo />
-          <Group gap={4}>
-            <Tooltip label="Connected platforms">
-              <ActionIcon
-                component={Link}
-                to="/platforms"
-                variant="subtle"
-                color="gray"
-                size="lg"
-                aria-label="Connected platforms"
-              >
-                <IconPlugConnected size={18} />
+      <AppShell.Header px={mobile ? 'md' : 'xl'}>
+        <Group h="100%" justify="space-between" wrap="nowrap" gap="xl">
+          <Logo size={mobile ? 20 : 22} />
+          {!mobile && (
+            <nav className="top-tabs" aria-label="Main">
+              {NAV.map(({ to, label, end }) => (
+                <NavLink key={to} to={to} end={end}>
+                  {label}
+                  {to === '/wishlist' && wishCount > 0 && <span className="tab-count num">{wishCount}</span>}
+                </NavLink>
+              ))}
+            </nav>
+          )}
+          <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
+            <SchemeToggle />
+            <Tooltip label="Settings">
+              <ActionIcon component={Link} to="/settings" variant="subtle" color="gray" size="lg" aria-label="Settings">
+                <IconSettings size={20} />
               </ActionIcon>
             </Tooltip>
-            <SchemeToggle />
-            <LogoutButton />
+            <Tooltip label="Profile">
+              <ActionIcon
+                component={Link}
+                to="/profile"
+                variant="transparent"
+                size="lg"
+                radius="xl"
+                aria-label="Profile"
+                ml={4}
+              >
+                <ProfileAvatar size={32} />
+              </ActionIcon>
+            </Tooltip>
           </Group>
         </Group>
       </AppShell.Header>
-
-      <AppShell.Navbar p="md">
-        <AppShell.Section mb="xl" mt={6} px={6}>
-          <Logo />
-        </AppShell.Section>
-        <AppShell.Section grow>
-          <Stack gap={2} component="nav" aria-label="Main">
-            {NAV.map(({ to, label, icon: Icon, end }) => (
-              <NavLink key={to} to={to} end={end} className="nav-link">
-                <Icon size={19} stroke={1.7} />
-                <span style={{ flex: 1 }}>{label}</span>
-                {to === '/wishlist' && wishCount > 0 && (
-                  <Badge size="sm" variant="light" color="gray" radius="sm" className="num">
-                    {wishCount}
-                  </Badge>
-                )}
-              </NavLink>
-            ))}
-          </Stack>
-        </AppShell.Section>
-        <AppShell.Section>
-          <Stack gap={2}>
-            <NavLink to="/platforms" className="nav-link">
-              <IconPlugConnected size={19} stroke={1.7} />
-              <span style={{ flex: 1 }}>Platforms</span>
-              <Text span size="xs" c="dimmed" className="num">
-                {connectedCount ? `${connectedCount} linked` : 'Sample data'}
-              </Text>
-            </NavLink>
-            <Group justify="flex-end" gap={4} mt="xs">
-              <SchemeToggle />
-              <LogoutButton />
-            </Group>
-          </Stack>
-        </AppShell.Section>
-      </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>
 

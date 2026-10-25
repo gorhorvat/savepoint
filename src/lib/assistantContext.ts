@@ -4,6 +4,8 @@ import { formatPlaytime } from './format';
 import { ownedPlatforms, platformTotals, type LibraryGame } from './library';
 import { normalizeTitle } from './match';
 import { recommend, tasteProfile, type Recommendation } from './recommend';
+import { useStore } from './store';
+import { makeFavorites } from './favorites';
 
 /**
  * Plain-text snapshot sent to the local model as context. It includes a
@@ -29,6 +31,14 @@ export function buildContext(
       .map((s) => `${s.name} (${formatPlaytime(s.minutes)})`)
       .join(', ')}`,
   );
+  const { favoriteGenres, favoriteFranchises } = useStore.getState().profile;
+  if (favoriteGenres.length || favoriteFranchises.length) {
+    lines.push(
+      `Marked as favourites by the player (weigh these heavily): genres ${favoriteGenres.join(', ') || 'none'}; franchises ${
+        favoriteFranchises.join(', ') || 'none'
+      }`,
+    );
+  }
   lines.push(
     `Favourite tags: ${profile.tags
       .slice(0, 12)
@@ -122,7 +132,9 @@ const MOOD_TAGS: [RegExp, string[]][] = [
  */
 export function offlineReply(question: string, lib: LibraryGame[], exclude: Set<string>, pool: Game[]): string {
   const owned = ownedPlatforms(lib);
-  let recs: Recommendation[] = recommend(lib, { owned, exclude, pool });
+  const { favoriteGenres, favoriteFranchises } = useStore.getState().profile;
+  const favorites = makeFavorites(favoriteGenres, favoriteFranchises);
+  let recs: Recommendation[] = recommend(lib, { owned, exclude, pool, favorites });
 
   const platform = PLATFORM_WORDS.find(([re]) => re.test(question))?.[1];
   if (platform) recs = recs.filter((r) => r.game.availableOn.includes(platform));

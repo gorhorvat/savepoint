@@ -228,6 +228,13 @@ const WIKIDATA_RULES = [
  * top tag (Wikidata genres are all 1). Players add plenty of loosely related
  * tags, so sub-genres need a strong share of votes to count.
  */
+/** Every genre and sub-genre name the mappings above can produce, for pickers. */
+export function genreTaxonomy() {
+  const maps = [...Object.values(STEAM_TAGS), ...WIKIDATA_RULES.map(([, m]) => m)];
+  const sort = (xs) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  return { genres: sort(maps.map((m) => m.g)), subgenres: sort(maps.map((m) => m.s)) };
+}
+
 export function collect(mappings) {
   const sorted = [...mappings].sort((a, b) => b.w - a.w);
   const pick = (key, min, max) => [...new Set(sorted.filter((m) => m[key] && m.w >= min).map((m) => m[key]))].slice(0, max);

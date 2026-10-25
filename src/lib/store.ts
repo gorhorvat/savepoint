@@ -38,6 +38,15 @@ export interface Connection {
   account?: string;
 }
 
+export interface Profile {
+  /** Small JPEG as a data URL (resized to 256 px before saving). */
+  avatar?: string;
+  /** Genre and sub-genre names, e.g. "Survival horror". */
+  favoriteGenres: string[];
+  /** Series names matched against titles, e.g. "Resident Evil". */
+  favoriteFranchises: string[];
+}
+
 interface State {
   entries: PlayEntry[];
   customGames: Record<string, Game>;
@@ -66,6 +75,10 @@ interface State {
   achievementsSync?: string;
   /** Typical hours to beat (HowLongToBeat); null = looked up, not found. */
   lengths: Record<string, { main?: number; extra?: number; complete?: number; url?: string; checkedAt: string } | null>;
+  /** Your profile: picture, and the genres and franchises you love (they boost suggestions). */
+  profile: Profile;
+  /** Shops searched for physical wants, as domains ("amazon.de", "vinted.hr"). */
+  vendors: string[];
 
   importLibrary: (
     platform: PlatformId,
@@ -113,6 +126,8 @@ interface State {
   addWant: (item: Omit<PhysicalWant, 'id' | 'addedAt'>) => void;
   updateWant: (id: string, patch: Partial<PhysicalWant>) => void;
   removeWant: (id: string) => void;
+  updateProfile: (patch: Partial<Profile>) => void;
+  setVendors: (vendors: string[]) => void;
 }
 
 function ensureGame(
@@ -198,6 +213,8 @@ export const useStore = create<State>()(
       dismissed: [],
       connections: {},
       chat: [],
+      profile: { favoriteGenres: [], favoriteFranchises: [] },
+      vendors: ['ebay.com'],
       showApps: false,
       suggested: { key: '', fetchedAt: '', games: {} },
       progress: {},
@@ -460,6 +477,8 @@ export const useStore = create<State>()(
       updateWant: (id, patch) =>
         set({ physicalWants: get().physicalWants.map((w) => (w.id === id ? { ...w, ...patch } : w)) }),
       removeWant: (id) => set({ physicalWants: get().physicalWants.filter((w) => w.id !== id) }),
+      updateProfile: (patch) => set({ profile: { ...get().profile, ...patch } }),
+      setVendors: (vendors) => set({ vendors }),
 
       applyGenres: (results) => {
         const customGames = { ...get().customGames };

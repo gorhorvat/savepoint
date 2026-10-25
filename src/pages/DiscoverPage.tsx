@@ -1,24 +1,13 @@
-import {
-  ActionIcon,
-  Anchor,
-  Button,
-  Chip,
-  Group,
-  Loader,
-  Stack,
-  Switch,
-  Text,
-  Title,
-  Tooltip,
-} from '@mantine/core';
+import { ActionIcon, Anchor, Button, Chip, Group, Loader, Stack, Switch, Text, Title, Tooltip } from '@mantine/core';
 import { IconMessageCircle, IconX } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GameCard } from '../components/GameCard';
 import { formatPlaytime } from '../lib/format';
-import { ownedPlatforms, useLibrary } from '../lib/library';
+import { ownedPlatforms, useLibrary, useUnlinkedPhysicalTitles } from '../lib/library';
 import { recommend, tasteProfile } from '../lib/recommend';
 import { useStore } from '../lib/store';
+import { useFavorites } from '../lib/favorites';
 import { useSuggestionPool } from '../lib/suggestions';
 
 const PAGE = 24;
@@ -35,9 +24,11 @@ export function DiscoverPage() {
   const owned = useMemo(() => ownedPlatforms(lib), [lib]);
   const pool = useSuggestionPool(lib);
   const [shown, setShown] = useState(PAGE);
+  const favorites = useFavorites();
+  const alsoOwned = useUnlinkedPhysicalTitles();
   const recs = useMemo(
-    () => recommend(lib, { owned, exclude: new Set(dismissed), pool: pool.games }),
-    [lib, owned, dismissed, pool.games],
+    () => recommend(lib, { owned, exclude: new Set(dismissed), pool: pool.games, favorites, alsoOwned }),
+    [lib, owned, dismissed, pool.games, favorites, alsoOwned],
   );
 
   const matching = recs
@@ -45,7 +36,9 @@ export function DiscoverPage() {
     .filter((r) => !focus || r.game.subgenres.includes(focus) || r.game.genres.includes(focus));
   const visible = matching.slice(0, shown);
 
-  const focusOptions = profile.subgenres.slice(0, 8).map((x) => x.name);
+  const favoriteGenres = useStore((s) => s.profile.favoriteGenres);
+  // Your favourite genres first, then the sub-genres you play most.
+  const focusOptions = [...new Set([...favoriteGenres, ...profile.subgenres.slice(0, 8).map((x) => x.name)])];
 
   return (
     <Stack gap={36}>
@@ -116,7 +109,10 @@ export function DiscoverPage() {
               }
               note={
                 <Stack gap={6}>
-                  <div className="strip-track" style={{ height: 4 }} aria-label={`${r.fit}% match`} role="img">
+                  <Text size="xs" fw={600} className="num" c="dimmed" mb={-2}>
+                    {r.fit}% match
+                  </Text>
+                  <div className="strip-track" style={{ height: 4 }} aria-hidden>
                     <div
                       style={{
                         width: `${r.fit}%`,

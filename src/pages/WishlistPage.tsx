@@ -24,6 +24,8 @@ import { GenreChips } from '../components/GenreChips';
 import { GameSearch } from '../components/GameSearch';
 import { PlatformIcon, PlatformList } from '../components/PlatformBadge';
 import { PriceTable } from '../components/PriceTable';
+import { ShareExport, type ListExport } from '../components/ShareExport';
+import { PLATFORM_BY_ID } from '../data/platforms';
 import { STORE_BY_ID } from '../data/stores';
 import { fetchSteamWishlist, sendTestAlert, usePrices, useServerStatus } from '../lib/api';
 import { formatLastPlayed, formatPrice, upcomingLabel } from '../lib/format';
@@ -43,7 +45,7 @@ function WishRow({ item, game }: { item: WishlistItem; game: Game }) {
   const dealHit = deal && item.targetPrice !== undefined && deal.price <= item.targetPrice;
 
   return (
-    <Paper p={{ base: 'sm', sm: 'md' }}>
+    <div className="list-row">
       <Group gap="md" wrap="nowrap" align="flex-start">
         <Link to={`/game/${game.id}`} aria-hidden tabIndex={-1} style={{ flexShrink: 0 }}>
           <Cover game={game} width={120} radius={8} />
@@ -204,7 +206,7 @@ function WishRow({ item, game }: { item: WishlistItem; game: Game }) {
           <PriceTable game={game} compact />
         </div>
       </Collapse>
-    </Paper>
+    </div>
   );
 }
 
@@ -285,6 +287,14 @@ function PriceAlerts() {
   const targets = useStore((s) => s.wishlist.filter((w) => w.targetPrice != null).length);
   const topic = status?.ntfyTopic;
   if (!status?.online) return null;
+  if (status.owner === false) {
+    return (
+      <Text size="sm" c="dimmed">
+        Price alerts go to the owner&apos;s phone, so they&apos;re only on for the owner&apos;s account. Target prices
+        still mark games that hit them here.
+      </Text>
+    );
+  }
   if (!topic) {
     return (
       <Text size="sm" c="dimmed">
@@ -335,13 +345,32 @@ export function WishlistPage() {
     .sort((a, b) => b.item.addedAt.localeCompare(a.item.addedAt));
 
   const onWishlist = useMemo(() => new Set(rows.map((r) => normalizeTitle(r.game.title))), [rows]);
+  const exported: ListExport = {
+    title: 'My Savepoint wishlist',
+    filename: 'savepoint-wishlist',
+    lines: rows.map(({ item, game }) => {
+      const on = game.availableOn.map((p) => PLATFORM_BY_ID[p].short).join(', ');
+      const target = item.targetPrice !== undefined ? `, target ${formatPrice(item.targetPrice)}` : '';
+      return `${game.title}${on ? ` (${on})` : ''}${target}`;
+    }),
+    columns: ['Title', 'Platforms', 'Target price (USD)', 'Note', 'Added', 'From'],
+    rows: rows.map(({ item, game }) => [
+      game.title,
+      game.availableOn.map((p) => PLATFORM_BY_ID[p].name).join(', '),
+      item.targetPrice,
+      item.note,
+      item.addedAt.slice(0, 10),
+      item.source === 'steam' ? 'Steam wishlist' : 'Savepoint',
+    ]),
+  };
 
   return (
     <Stack gap="xl">
       <div>
         <Title order={1}>Wishlist</Title>
         <Text c="dimmed" mt={6} size="lg">
-          Set a target price and Savepoint flags the game once a store sells it for that or less, and can notify your phone.
+          Set a target price and Savepoint flags the game once a store sells it for that or less, and can notify your
+          phone.
         </Text>
       </div>
 
@@ -372,9 +401,12 @@ export function WishlistPage() {
 
       {rows.length ? (
         <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            {rows.length} {rows.length === 1 ? 'game' : 'games'}
-          </Text>
+          <Group justify="space-between" gap="sm">
+            <Text size="sm" c="dimmed">
+              {rows.length} {rows.length === 1 ? 'game' : 'games'}
+            </Text>
+            <ShareExport list={exported} />
+          </Group>
           {rows.map(({ item, game }) => (
             <WishRow key={game.id} item={item} game={game} />
           ))}
