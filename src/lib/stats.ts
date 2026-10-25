@@ -34,7 +34,12 @@ export interface Stats {
     byMonth: number[];
     /** Lifetime hours of the games played this year. */
     minutes: number;
-    /** Real hours this year from recorded history, when there is any. */
+    /**
+     * Hours recorded since tracking began (only what changed between syncs;
+     * platforms report lifetime totals, so earlier hours can't be dated).
+     */
+    recorded?: { since: string; minutes: number };
+    /** Real hours per month this year: only once tracking covers the whole year. */
     tracked?: {
       since: string;
       minutes: number;
@@ -121,7 +126,11 @@ export function computeStats(
   const prefix = `${year}-`;
   const yearLog = log.filter((l) => l.date.startsWith(prefix));
   let tracked: Stats['year']['tracked'];
-  if (since && yearLog.length) {
+  // A year's hours are only real if tracking began by its first week; a
+  // partial year would show a few days as if they were the whole year.
+  const coversYear = !!since && since.slice(0, 10) <= `${year}-01-07`;
+  const recordedMinutes = log.filter((l) => !since || l.date >= since.slice(0, 10)).reduce((n, l) => n + l.minutes, 0);
+  if (since && coversYear && yearLog.length) {
     const byId = new Map(all.map((l) => [l.game.id, l]));
     const perGame = new Map<string, number>();
     const monthly = Array.from({ length: 12 }, () => 0);
@@ -177,6 +186,7 @@ export function computeStats(
       played: [...thisYear].sort((a, b) => b.totalMinutes - a.totalMinutes),
       byMonth,
       minutes: thisYear.reduce((n, l) => n + l.totalMinutes, 0),
+      recorded: since ? { since, minutes: recordedMinutes } : undefined,
       tracked,
     },
     finishedThisYear: Object.values(progress).filter(

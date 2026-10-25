@@ -184,7 +184,9 @@ export function StatsPage() {
         note={
           t
             ? `Hours played each month, recorded from the change between syncs since ${sinceLabel}. Earlier hours can't be dated, so they aren't counted here.`
-            : `Games by the month you last played them. Savepoint has been recording your play time since ${sinceLabel || 'your first import'}; real hours per month appear here after your next sync with new play time.`
+            : `Games by the month you last played them. Steam and PlayStation only report lifetime totals, so hours can't be dated before Savepoint started recording on ${sinceLabel || 'your first import'}${
+                y.recorded ? ` (${hours(y.recorded.minutes)} recorded since)` : ''
+              }. Real hours per month show here from ${y.year + 1}, the first full year Savepoint records.`
         }
       >
         <Grid gap="xl">
@@ -203,7 +205,7 @@ export function StatsPage() {
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 5 }}>
             <Text size="sm" fw={600} mb="xs">
-              {t ? `Most played in ${y.year}` : `Most played of ${y.year}’s games`}
+              {t ? `Most played in ${y.year}` : `Games you played in ${y.year}, by all-time hours`}
             </Text>
             {t ? (
               <BarList
