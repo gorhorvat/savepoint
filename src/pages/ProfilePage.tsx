@@ -432,14 +432,7 @@ function InviteSection() {
   );
 }
 
-// What a return from Steam's page (?steam=...) after "Link Steam" means.
-const STEAM_LINK_MESSAGES: Record<string, { message: string; color?: string }> = {
-  linked: { message: 'Steam linked. You can now log in through Steam too.' },
-  taken: { message: 'That Steam account is already linked to another Savepoint account.', color: 'red' },
-  failed: { message: "Linking Steam didn't work. Try again.", color: 'red' },
-};
-
-/** Ways to log in: Steam, linked or not. */
+/** Steam as a way to log in: shown once linked, from the login screen's Sign in through Steam. */
 function SteamLoginSection({ account, onChange }: { account: Account; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -492,21 +485,10 @@ function SteamLoginSection({ account, onChange }: { account: Account; onChange: 
             )}
           </>
         ) : (
-          <>
-            <Text size="sm" c="dimmed">
-              Link your Steam account to log in with Steam instead of typing your password.
-            </Text>
-            <Button
-              component="a"
-              href="/api/auth/steam/start?intent=link"
-              size="xs"
-              variant="default"
-              w="fit-content"
-              leftSection={<IconBrandSteam size={14} />}
-            >
-              Link Steam
-            </Button>
-          </>
+          <Text size="sm" c="dimmed">
+            Not linked. To log in with Steam, log out, choose Sign in through Steam, then &ldquo;I already have an
+            account&rdquo; to link it once.
+          </Text>
         )}
         {error && (
           <Text size="sm" c="red">
@@ -537,15 +519,6 @@ function AccountSection() {
 
   useEffect(() => {
     loadAccount();
-    // Back from Steam after "Link Steam".
-    const url = new URL(location.href);
-    const result = url.searchParams.get('steam');
-    if (result) {
-      const note = STEAM_LINK_MESSAGES[result];
-      if (note) notifications.show(note);
-      url.searchParams.delete('steam');
-      history.replaceState(null, '', url.pathname + url.search + url.hash);
-    }
   }, []);
 
   const submit = async (e: React.FormEvent) => {

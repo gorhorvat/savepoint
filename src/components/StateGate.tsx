@@ -1,4 +1,15 @@
-import { Anchor, Button, Center, Loader, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import {
+  Anchor,
+  Button,
+  Center,
+  Loader,
+  PasswordInput,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconBrandSteam } from '@tabler/icons-react';
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
@@ -13,6 +24,7 @@ import {
   serverHasNewer,
   setSyncHandlers,
   completeSteamSignup,
+  linkSteamToAccount,
   signUp,
   signupOpen,
   steamPending,
@@ -29,7 +41,6 @@ function reload() {
 /** What a return from Steam's login page (?steam=...) means for the login screen. */
 const STEAM_MESSAGES: Record<string, string> = {
   failed: "Signing in through Steam didn't work. Try again.",
-  closed: "That Steam account isn't linked to a Savepoint account, and sign-up is closed.",
 };
 
 /** Removes ?steam=... from the address bar. */
@@ -41,22 +52,18 @@ function clearSteamParam() {
 
 function SteamButton() {
   return (
-    <Button
-      component="a"
-      href="/api/auth/steam/start?intent=login"
-      variant="default"
-      leftSection={<IconBrandSteam size={18} />}
-    >
+    <Button component="a" href="/api/auth/steam/start" variant="default" leftSection={<IconBrandSteam size={18} />}>
       Sign in through Steam
     </Button>
   );
 }
 
-type Mode = 'login' | 'signup' | 'steam';
+/** steamNew / steamLink: back from Steam with a Steam account that isn't linked yet. */
+type Mode = 'login' | 'signup' | 'steamNew' | 'steamLink';
 
 function LoginForm() {
   const steamReturn = new URLSearchParams(location.search).get('steam');
-  const [mode, setMode] = useState<Mode>(steamReturn === 'signup' ? 'steam' : 'login');
+  const [mode, setMode] = useState<Mode>(steamReturn === 'signup' ? 'steamNew' : 'login');
   const [canSignUp, setCanSignUp] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -64,9 +71,12 @@ function LoginForm() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(steamReturn ? (STEAM_MESSAGES[steamReturn] ?? null) : null);
   const [busy, setBusy] = useState(false);
-  const signup = mode === 'signup';
-  const steam = mode === 'steam';
-  const mismatch = signup && repeat.length > 0 && password !== repeat;
+  const steam = mode === 'steamNew' || mode === 'steamLink';
+  const newAccount = mode === 'signup' || mode === 'steamNew';
+  const needsPassword = mode !== 'steamNew';
+  const mismatch = mode === 'signup' && repeat.length > 0 && password !== repeat;
+  const [suggested, setSuggested] = useState('');
+  const [steamSignupOpen, setSteamSignupOpen] = useState(false);
 
   useEffect(() => {
     void signupOpen().then(setCanSignUp);
@@ -74,13 +84,18 @@ function LoginForm() {
       if (steamReturn) clearSteamParam();
       return;
     }
-    // Back from Steam with a Steam account that has no Savepoint account yet.
-    void steamPending().then((suggested) => {
-      if (suggested === null) {
+    void steamPending().then((pending) => {
+      if (pending === null) {
         setMode('login');
         setError('That took too long. Sign in through Steam again.');
         clearSteamParam();
-      } else setUsername(suggested);
+        return;
+      }
+      setSuggested(pending.username);
+      setSteamSignupOpen(pending.signupOpen);
+      setUsername(pending.username);
+      // Sign-up closed: the only way forward is linking an existing account.
+      if (!pending.signupOpen) setMode('steamLink');
     });
   }, [steamReturn]);
 
@@ -89,19 +104,23 @@ function LoginForm() {
     if (mismatch) return;
     setBusy(true);
     setError(null);
-    const failed = steam
-      ? await completeSteamSignup(username.trim(), code)
-      : signup
-        ? await signUp(username.trim(), password, code)
-        : await logIn(username, password);
+    const name = username.trim();
+    const failed =
+      mode === 'steamNew'
+        ? await completeSteamSignup(name, code)
+        : mode === 'steamLink'
+          ? await linkSteamToAccount(name, password)
+          : mode === 'signup'
+            ? await signUp(name, password, code)
+            : await logIn(username, password);
     setBusy(false);
     if (failed) {
       setError(failed);
       return;
     }
     if (steam) {
-      // A fresh start that then imports the Steam library (see StateGate).
-      location.replace('/?steam=new');
+      // A fresh start; a new account then imports its Steam library (see StateGate).
+      location.replace(mode === 'steamNew' ? '/?steam=new' : '/');
       return;
     }
     await resumeAfterLogin();
@@ -112,7 +131,11 @@ function LoginForm() {
     setMode(next);
     setError(null);
     setRepeat('');
-    clearSteamParam();
+    setPassword('');
+    // The Steam name only makes sense as the suggestion for a new account.
+    if (next === 'steamNew') setUsername(suggested);
+    else if (mode === 'steamNew' && username === suggested) setUsername('');
+    if (!(next === 'steamNew' || next === 'steamLink')) clearSteamParam();
   };
 
   return (
@@ -125,35 +148,51 @@ function LoginForm() {
           <Text className="display" fz={40} lh={1}>
             savepoint
           </Text>
-          {signup && <Text c="dimmed">Create your account</Text>}
+          {mode === 'signup' && <Text c="dimmed">Create your account</Text>}
           {steam && (
             <Text c="dimmed" ta="center">
-              Signed in to Steam. Pick a username and enter your invite code to create your account.
+              Signed in to Steam. This Steam account isn&apos;t linked to Savepoint yet.
             </Text>
           )}
         </Stack>
+        {steam && steamSignupOpen && (
+          <SegmentedControl
+            fullWidth
+            value={mode}
+            onChange={(v) => switchTo(v as Mode)}
+            data={[
+              { value: 'steamNew', label: 'New to Savepoint' },
+              { value: 'steamLink', label: 'I already have an account' },
+            ]}
+          />
+        )}
+        {mode === 'steamLink' && (
+          <Text size="sm" c="dimmed">
+            Log in once to link this Steam account. After that, Sign in through Steam is enough.
+          </Text>
+        )}
         <TextInput
           label="Username"
-          description={signup || steam ? 'Letters, digits, dots, dashes or underscores.' : undefined}
+          description={newAccount ? 'Letters, digits, dots, dashes or underscores.' : undefined}
           autoComplete="username"
           autoCapitalize="none"
           value={username}
           onChange={(e) => setUsername(e.currentTarget.value)}
           required
         />
-        {!steam && (
+        {needsPassword && (
           <PasswordInput
             label="Password"
-            description={signup ? 'At least 8 characters.' : undefined}
-            autoComplete={signup ? 'new-password' : 'current-password'}
+            description={mode === 'signup' ? 'At least 8 characters.' : undefined}
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
-            error={mode === 'login' ? error : undefined}
-            minLength={signup ? 8 : undefined}
+            error={newAccount ? undefined : error}
+            minLength={mode === 'signup' ? 8 : undefined}
             required
           />
         )}
-        {signup && (
+        {mode === 'signup' && (
           <PasswordInput
             label="Password again"
             autoComplete="new-password"
@@ -163,7 +202,7 @@ function LoginForm() {
             required
           />
         )}
-        {(signup || steam) && (
+        {newAccount && (
           <TextInput
             label="Invite code"
             autoComplete="off"
@@ -175,22 +214,26 @@ function LoginForm() {
           />
         )}
         <Button type="submit" loading={busy} disabled={mismatch}>
-          {mode === 'login' ? 'Log in' : 'Create account'}
+          {mode === 'login' ? 'Log in' : mode === 'steamLink' ? 'Log in and link Steam' : 'Create account'}
         </Button>
         {mode === 'login' && <SteamButton />}
         {steam ? (
           <Text size="sm" c="dimmed" ta="center">
-            Already have an account? Log in, then link Steam in Profile.{' '}
             <Anchor component="button" type="button" size="sm" onClick={() => switchTo('login')}>
-              Log in
+              Back to login
             </Anchor>
           </Text>
         ) : (
           canSignUp && (
             <Text size="sm" c="dimmed" ta="center">
-              {signup ? 'Already have an account? ' : 'Have an invite code? '}
-              <Anchor component="button" type="button" size="sm" onClick={() => switchTo(signup ? 'login' : 'signup')}>
-                {signup ? 'Log in' : 'Create an account'}
+              {mode === 'signup' ? 'Already have an account? ' : 'Have an invite code? '}
+              <Anchor
+                component="button"
+                type="button"
+                size="sm"
+                onClick={() => switchTo(mode === 'signup' ? 'login' : 'signup')}
+              >
+                {mode === 'signup' ? 'Log in' : 'Create an account'}
               </Anchor>
             </Text>
           )

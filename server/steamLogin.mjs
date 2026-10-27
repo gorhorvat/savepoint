@@ -3,14 +3,15 @@
 // claim before we trust it (check_authentication), and the SteamID is the only
 // thing taken from it.
 //
-//   GET  /api/auth/steam/start?intent=login|link  -> Steam's login page
+//   GET  /api/auth/steam/start                     -> Steam's login page
 //   GET  /api/auth/steam/return                    <- Steam sends the browser back here
-//   GET  /api/auth/steam/pending                   a new Steam account waiting for its invite code
-//   POST /api/auth/steam/complete { code, username } creates that account
+//   GET  /api/auth/steam/pending                   a Steam account that isn't linked yet
+//   POST /api/auth/steam/complete { code, username }      creates an account for it
+//   POST /api/auth/steam/link { username, password }      links it to an existing account
 //
-// login: a linked Steam account logs straight in; an unlinked one goes to
-// /?steam=signup, where the invite code and a username create the account.
-// link:  adds Steam as a way to log in to the account that's logged in.
+// A linked Steam account logs straight in. One that isn't linked goes to
+// /?steam=signup, which offers both: create an account (with the invite code)
+// or log in to an existing one once, which links Steam to it.
 import express from 'express';
 import { randomBytes } from 'node:crypto';
 import { createAccount, getInviteCode, ROLES, usernameProblem, UsernameTaken } from './accounts.mjs';
@@ -19,13 +20,13 @@ import {
   countFailure,
   clientAddress,
   lockedOut,
-  readSession,
   readSigned,
   setCookie,
   setSessionCookie,
   signValue,
 } from './auth.mjs';
 import { query } from './db.mjs';
+import { verifyAgainstNothing, verifyPassword } from './passwords.mjs';
 
 const STEAM_OPENID = 'https://steamcommunity.com/openid/login';
 const CLAIMED_ID = /^https:\/\/steamcommunity\.com\/openid\/id\/(\d{17})$/;
@@ -85,15 +86,8 @@ const clearCookie = (req, res, name) => setCookie(req, res, name, '', 0);
 export const steamLoginRouter = express.Router();
 
 steamLoginRouter.get('/api/auth/steam/start', async (req, res) => {
-  const intent = req.query.intent === 'link' ? 'link' : 'login';
-  let userId = null;
-  if (intent === 'link') {
-    const s = await readSession(req);
-    if (!s) return res.redirect('/');
-    userId = s.id;
-  }
   const nonce = randomBytes(16).toString('base64url');
-  const state = await signValue({ n: nonce, i: intent, u: userId, exp: Date.now() + STATE_MS });
+  const state = await signValue({ n: nonce, exp: Date.now() + STATE_MS });
   setCookie(req, res, STATE_COOKIE, state, STATE_MS);
   const url = new URL(STEAM_OPENID);
   url.search = new URLSearchParams({
@@ -110,8 +104,7 @@ steamLoginRouter.get('/api/auth/steam/start', async (req, res) => {
 steamLoginRouter.get('/api/auth/steam/return', async (req, res) => {
   const state = await readSigned(req, STATE_COOKIE);
   clearCookie(req, res, STATE_COOKIE);
-  const back = state?.i === 'link' ? '/profile' : '/';
-  const fail = (reason) => res.redirect(`${back}?steam=${reason}`);
+  const fail = (reason) => res.redirect(`/?steam=${reason}`);
   try {
     const p = req.query;
     // The browser must be the one that started this, coming back to the address we gave Steam.
@@ -127,20 +120,11 @@ steamLoginRouter.get('/api/auth/steam/return', async (req, res) => {
 
     const linked = (await query('SELECT "id", "username", "role" FROM users WHERE "steam_id" = $1', [steamId])).rows[0];
 
-    if (state.i === 'link') {
-      const s = await readSession(req);
-      if (!s || s.id !== state.u) return fail('failed');
-      if (linked && linked.id !== s.id) return fail('taken');
-      await query('UPDATE users SET "steam_id" = $2 WHERE "id" = $1', [s.id, steamId]);
-      return res.redirect('/profile?steam=linked');
-    }
-
     if (linked) {
       await setSessionCookie(req, res, linked);
       return res.redirect('/');
     }
-    // A Steam account that has no Savepoint account yet.
-    if (!(await getInviteCode())) return fail('closed');
+    // Not linked yet: the login screen offers a new account or linking an existing one.
     const pending = await signValue({ s: steamId, exp: Date.now() + PENDING_MS });
     setCookie(req, res, PENDING_COOKIE, pending, PENDING_MS);
     res.redirect('/?steam=signup');
@@ -153,7 +137,8 @@ steamLoginRouter.get('/api/auth/steam/return', async (req, res) => {
 steamLoginRouter.get('/api/auth/steam/pending', async (req, res) => {
   const pending = await readSigned(req, PENDING_COOKIE);
   if (!pending) return res.status(404).json({ error: 'Sign in through Steam again.' });
-  res.json({ username: await suggestedUsername(pending.s) });
+  const [username, invite] = await Promise.all([suggestedUsername(pending.s), getInviteCode().catch(() => '')]);
+  res.json({ username, signupOpen: !!invite });
 });
 
 steamLoginRouter.post('/api/auth/steam/complete', express.json({ limit: '10kb' }), async (req, res) => {
@@ -183,6 +168,49 @@ steamLoginRouter.post('/api/auth/steam/complete', express.json({ limit: '10kb' }
     if (err.code === '23505')
       return res.status(409).json({ error: 'That Steam account already has a Savepoint account.' });
     console.error('Steam sign-up:', err);
+    res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+  }
+});
+
+// "I already have an account": logging in once links this Steam account to it.
+steamLoginRouter.post('/api/auth/steam/link', express.json({ limit: '10kb' }), async (req, res) => {
+  const pending = await readSigned(req, PENDING_COOKIE);
+  if (!pending) return res.status(400).json({ error: 'That took too long. Sign in through Steam again.' });
+  const { username, password } = req.body ?? {};
+  if (typeof username !== 'string' || typeof password !== 'string' || !username.trim() || !password) {
+    return res.status(400).json({ error: 'Enter your username and password.' });
+  }
+  const name = username.trim();
+  const keys = [`user:${name.toLowerCase()}`, `ip:${clientAddress(req)}`];
+  try {
+    if (await lockedOut(keys)) {
+      return res.status(429).json({ error: 'Too many wrong passwords. Try again in 15 minutes.' });
+    }
+    const user = (
+      await query(
+        'SELECT "id", "username", "password_hash", "role", "steam_id" FROM users WHERE lower("username") = lower($1)',
+        [name],
+      )
+    ).rows[0];
+    const ok = user?.password_hash
+      ? await verifyPassword(password, user.password_hash)
+      : await verifyAgainstNothing(password);
+    if (!ok) {
+      await countFailure(keys);
+      return res.status(401).json({ error: 'Wrong username or password.' });
+    }
+    if (user.steam_id && user.steam_id !== pending.s) {
+      return res.status(409).json({ error: 'That account is already linked to a different Steam account.' });
+    }
+    await query('UPDATE users SET "steam_id" = $2 WHERE "id" = $1', [user.id, pending.s]);
+    clearCookie(req, res, PENDING_COOKIE);
+    await setSessionCookie(req, res, user);
+    res.json({ id: user.id, user: user.username, superAdmin: user.role === ROLES.superAdmin });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'That Steam account is already linked to another Savepoint account.' });
+    }
+    console.error('Steam link:', err);
     res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
   }
 });

@@ -175,14 +175,22 @@ export function signUp(username: string, password: string, code: string): Promis
   return authenticate('/api/signup', { username, password, code });
 }
 
-/** After "Sign in through Steam" for a new Steam account: the suggested username, or null if that expired. */
-export async function steamPending(): Promise<string | null> {
+/**
+ * After "Sign in through Steam" with a Steam account that isn't linked yet: a
+ * suggested username and whether new accounts can be made, or null if that expired.
+ */
+export async function steamPending(): Promise<{ username: string; signupOpen: boolean } | null> {
   try {
     const r = await fetch('/api/auth/steam/pending');
-    return r.ok ? ((await r.json()) as { username: string }).username : null;
+    return r.ok ? ((await r.json()) as { username: string; signupOpen: boolean }) : null;
   } catch {
     return null;
   }
+}
+
+/** Links the Steam account that just signed in to an existing account, and logs in to it. */
+export function linkSteamToAccount(username: string, password: string): Promise<string | null> {
+  return authenticate('/api/auth/steam/link', { username, password });
 }
 
 /** Creates the account for the Steam account that just signed in. */
