@@ -16,16 +16,21 @@ export function usernameProblem(username) {
 
 export class UsernameTaken extends Error {}
 
-/** Inserts a user and returns { id, username, role }. Throws UsernameTaken. */
-export async function createAccount(username, passwordHash, role = ROLES.user) {
+/**
+ * Inserts a user and returns { id, username, role }. Throws UsernameTaken.
+ * passwordHash is null for an account that logs in through Steam only.
+ */
+export async function createAccount(username, passwordHash, role = ROLES.user, steamId = null) {
   try {
     const { rows } = await query(
-      'INSERT INTO users ("username", "password_hash", "role") VALUES ($1, $2, $3) RETURNING "id", "username", "role"',
-      [username, passwordHash, role],
+      'INSERT INTO users ("username", "password_hash", "role", "steam_id") VALUES ($1, $2, $3, $4) RETURNING "id", "username", "role"',
+      [username, passwordHash, role, steamId],
     );
     return rows[0];
   } catch (err) {
-    if (err.code === '23505') throw new UsernameTaken(`The username "${username}" is taken.`);
+    if (err.code === '23505' && /username/.test(err.constraint ?? '')) {
+      throw new UsernameTaken(`The username "${username}" is taken.`);
+    }
     throw err;
   }
 }

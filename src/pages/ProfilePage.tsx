@@ -1,4 +1,5 @@
 import {
+  Anchor,
   Avatar,
   Button,
   FileButton,
@@ -14,14 +15,17 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCopy, IconLock, IconLogout, IconPhoto, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconBrandSteam, IconCopy, IconLock, IconLogout, IconPhoto, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   changePassword,
+  fetchAccount,
   fetchInviteCode,
   fetchTaxonomy,
+  unlinkSteam,
   updateInviteCode,
   useServerStatus,
+  type Account,
   type Taxonomy,
 } from '../lib/api';
 import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } from '../lib/favorites';
@@ -428,14 +432,121 @@ function InviteSection() {
   );
 }
 
+// What a return from Steam's page (?steam=...) after "Link Steam" means.
+const STEAM_LINK_MESSAGES: Record<string, { message: string; color?: string }> = {
+  linked: { message: 'Steam linked. You can now log in through Steam too.' },
+  taken: { message: 'That Steam account is already linked to another Savepoint account.', color: 'red' },
+  failed: { message: "Linking Steam didn't work. Try again.", color: 'red' },
+};
+
+/** Ways to log in: Steam, linked or not. */
+function SteamLoginSection({ account, onChange }: { account: Account; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const unlink = async () => {
+    setBusy(true);
+    setError(null);
+    const problem = await unlinkSteam();
+    setBusy(false);
+    if (problem) setError(problem);
+    else {
+      notifications.show({ message: 'Steam unlinked.' });
+      onChange();
+    }
+  };
+
+  return (
+    <Paper p={{ base: 'md', sm: 'lg' }} maw={480}>
+      <Stack gap="sm">
+        <Group gap="xs">
+          <IconBrandSteam size={20} />
+          <Text fw={600}>Sign in through Steam</Text>
+        </Group>
+        {account.steamId ? (
+          <>
+            <Text size="sm" c="dimmed">
+              Linked to{' '}
+              <Anchor href={`https://steamcommunity.com/profiles/${account.steamId}/`} target="_blank" rel="noreferrer">
+                this Steam account
+              </Anchor>
+              .{' '}
+              {account.hasPassword
+                ? 'You can log in with it or with your username and password.'
+                : 'You log in with it.'}
+            </Text>
+            <Button
+              size="xs"
+              variant="default"
+              w="fit-content"
+              loading={busy}
+              disabled={!account.hasPassword}
+              onClick={() => void unlink()}
+            >
+              Unlink Steam
+            </Button>
+            {!account.hasPassword && (
+              <Text size="xs" c="dimmed">
+                Set a password below before unlinking, so you can still log in.
+              </Text>
+            )}
+          </>
+        ) : (
+          <>
+            <Text size="sm" c="dimmed">
+              Link your Steam account to log in with Steam instead of typing your password.
+            </Text>
+            <Button
+              component="a"
+              href="/api/auth/steam/start?intent=link"
+              size="xs"
+              variant="default"
+              w="fit-content"
+              leftSection={<IconBrandSteam size={14} />}
+            >
+              Link Steam
+            </Button>
+          </>
+        )}
+        {error && (
+          <Text size="sm" c="red">
+            {error}
+          </Text>
+        )}
+      </Stack>
+    </Paper>
+  );
+}
+
 function AccountSection() {
   const [status] = useServerStatus();
+  const [account, setAccount] = useState<Account | null>(null);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [repeat, setRepeat] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mismatch = repeat.length > 0 && next !== repeat;
+  const firstPassword = account?.hasPassword === false;
+
+  const loadAccount = () => {
+    fetchAccount()
+      .then(setAccount)
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadAccount();
+    // Back from Steam after "Link Steam".
+    const url = new URL(location.href);
+    const result = url.searchParams.get('steam');
+    if (result) {
+      const note = STEAM_LINK_MESSAGES[result];
+      if (note) notifications.show(note);
+      url.searchParams.delete('steam');
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -451,23 +562,34 @@ function AccountSection() {
     setCurrent('');
     setNext('');
     setRepeat('');
-    notifications.show({ message: 'Password changed.' });
+    notifications.show({ message: firstPassword ? 'Password set.' : 'Password changed.' });
+    loadAccount();
   };
 
   return (
     <Stack gap="lg">
       <Title order={2}>Account</Title>
+      {account && <SteamLoginSection account={account} onChange={loadAccount} />}
       <Paper p={{ base: 'md', sm: 'lg' }} maw={480}>
         <form onSubmit={submit}>
           <Stack gap="sm">
-            <Text fw={600}>Change password</Text>
-            <PasswordInput
-              label="Current password"
-              autoComplete="current-password"
-              value={current}
-              onChange={(e) => setCurrent(e.currentTarget.value)}
-              required
-            />
+            <div>
+              <Text fw={600}>{firstPassword ? 'Set a password' : 'Change password'}</Text>
+              {firstPassword && (
+                <Text size="sm" c="dimmed">
+                  Then you can also log in as {account.username} with a password, if Steam is ever unavailable.
+                </Text>
+              )}
+            </div>
+            {!firstPassword && (
+              <PasswordInput
+                label="Current password"
+                autoComplete="current-password"
+                value={current}
+                onChange={(e) => setCurrent(e.currentTarget.value)}
+                required
+              />
+            )}
             <PasswordInput
               label="New password"
               description="At least 8 characters."
@@ -491,7 +613,7 @@ function AccountSection() {
               </Text>
             )}
             <Button type="submit" loading={busy} disabled={mismatch} w="fit-content">
-              Change password
+              {firstPassword ? 'Set password' : 'Change password'}
             </Button>
           </Stack>
         </form>

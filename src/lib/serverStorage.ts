@@ -175,6 +175,21 @@ export function signUp(username: string, password: string, code: string): Promis
   return authenticate('/api/signup', { username, password, code });
 }
 
+/** After "Sign in through Steam" for a new Steam account: the suggested username, or null if that expired. */
+export async function steamPending(): Promise<string | null> {
+  try {
+    const r = await fetch('/api/auth/steam/pending');
+    return r.ok ? ((await r.json()) as { username: string }).username : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Creates the account for the Steam account that just signed in. */
+export function completeSteamSignup(username: string, code: string): Promise<string | null> {
+  return authenticate('/api/auth/steam/complete', { username, code });
+}
+
 /** True when the server takes new accounts (an invite code is set). */
 export async function signupOpen(): Promise<boolean> {
   try {

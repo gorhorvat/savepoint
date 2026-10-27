@@ -24,6 +24,7 @@ import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from '.
 import { stateRouter } from './state.mjs';
 import { xboxKey, xboxLibrary } from './xbox.mjs';
 import { accountRouter, authRouter, requireLogin, superAdminOnly } from './auth.mjs';
+import { steamLoginRouter } from './steamLogin.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
 const USER_AGENT = 'Savepoint/0.1 (self-hosted game library app)';
@@ -59,9 +60,10 @@ app.get('/api/cron/alerts', async (req, res) => {
   }
 });
 
-app.use(authRouter); // /api/login, /api/logout, /api/session
+app.use(authRouter); // /api/login, /api/logout, /api/session, /api/signup
+app.use(steamLoginRouter); // /api/auth/steam/*
 app.use(requireLogin); // Everything below needs you to be logged in.
-app.use(accountRouter); // /api/account/password, /api/admin/invite
+app.use(accountRouter); // /api/account, /api/account/*, /api/admin/invite
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);
 app.use(express.json({ limit: '1mb' }));

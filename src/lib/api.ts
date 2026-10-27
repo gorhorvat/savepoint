@@ -430,7 +430,7 @@ export async function sendTestAlert(): Promise<void> {
   if (!r.ok) throw new Error(body.error ?? `Test failed (${r.status})`);
 }
 
-/** Changes the logged-in account's password. Returns why it failed, or null. */
+/** Changes the logged-in account's password (no current one when setting the first). Returns why it failed, or null. */
 export async function changePassword(current: string, next: string): Promise<string | null> {
   try {
     const r = await fetch('/api/account/password', {
@@ -438,6 +438,29 @@ export async function changePassword(current: string, next: string): Promise<str
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ current, next }),
     });
+    if (r.ok) return null;
+    return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `Failed (${r.status}).`;
+  } catch {
+    return "Can't reach the Savepoint server.";
+  }
+}
+
+export interface Account {
+  username: string;
+  /** False for an account made through Steam that hasn't set a password. */
+  hasPassword: boolean;
+  /** SteamID64 when Steam is linked as a way to log in. */
+  steamId: string | null;
+}
+
+export function fetchAccount(): Promise<Account> {
+  return getJson<Account>('/api/account');
+}
+
+/** Removes Steam as a way to log in (needs a password). Returns why it failed, or null. */
+export async function unlinkSteam(): Promise<string | null> {
+  try {
+    const r = await fetch('/api/account/steam/unlink', { method: 'POST' });
     if (r.ok) return null;
     return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `Failed (${r.status}).`;
   } catch {

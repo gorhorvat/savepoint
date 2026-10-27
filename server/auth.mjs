@@ -1,6 +1,7 @@
-// Login: Savepoint's own accounts, a username and a password, in the users
-// table. People with the invite code can create an account from the login
-// screen; the super admin sets or changes that code in Profile.
+// Login: Savepoint's own accounts, in the users table. An account logs in with
+// a username and password, through Steam (server/steamLogin.mjs), or both.
+// People with the invite code can create an account from the login screen;
+// the super admin sets or changes that code in Profile.
 // `npm run setup-account` creates accounts and resets passwords from the
 // command line. The super admin can also use the features tied to their own
 // accounts: their PlayStation and Xbox, and price alerts to their phone.
@@ -63,19 +64,19 @@ async function getSecret() {
 const b64 = (s) => Buffer.from(s).toString('base64url');
 const sign = (data, key) => createHmac('sha256', key).update(data).digest('base64url');
 
-async function makeSession(user) {
-  const exp = Date.now() + SESSION_MS;
-  const data = b64(JSON.stringify({ id: user.id, u: user.username, r: user.role, exp }));
+/** A signed cookie value holding `value` (an object with an exp time). */
+export async function signValue(value) {
+  const data = b64(JSON.stringify(value));
   return `${data}.${sign(data, await getSecret())}`;
 }
 
-/** The session from the cookie, or null. */
-async function readSession(req) {
+/** The signed cookie `name`, or null when it's missing, tampered with or expired. */
+export async function readSigned(req, name) {
   const raw = (req.headers.cookie || '')
     .split(';')
     .map((c) => c.trim())
-    .find((c) => c.startsWith(`${COOKIE}=`))
-    ?.slice(COOKIE.length + 1);
+    .find((c) => c.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
   if (!raw) return null;
   const [data, mac] = raw.split('.');
   if (!data || !mac) return null;
@@ -83,32 +84,44 @@ async function readSession(req) {
   const given = Buffer.from(mac);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
-    const s = JSON.parse(Buffer.from(data, 'base64url').toString());
-    return s.exp > Date.now() && Number.isInteger(s.id) ? s : null;
+    const value = JSON.parse(Buffer.from(data, 'base64url').toString());
+    return value.exp > Date.now() ? value : null;
   } catch {
     return null;
   }
 }
 
-function setCookie(req, res, value, maxAgeMs) {
+/** The login session, or null. */
+export async function readSession(req) {
+  const s = await readSigned(req, COOKIE);
+  return s && Number.isInteger(s.id) ? s : null;
+}
+
+export function setCookie(req, res, name, value, maxAgeMs) {
   const https = req.secure || req.headers['x-forwarded-proto'] === 'https';
   res.append(
     'Set-Cookie',
-    `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(maxAgeMs / 1000)}${https ? '; Secure' : ''}`,
+    `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(maxAgeMs / 1000)}${https ? '; Secure' : ''}`,
   );
 }
 
-const clientAddress = (req) =>
+/** Logs `user` ({ id, username, role }) in on this browser. */
+export async function setSessionCookie(req, res, user) {
+  const value = await signValue({ id: user.id, u: user.username, r: user.role, exp: Date.now() + SESSION_MS });
+  setCookie(req, res, COOKIE, value, SESSION_MS);
+}
+
+export const clientAddress = (req) =>
   String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '')
     .split(',')[0]
     .trim();
 
-async function lockedOut(keys) {
+export async function lockedOut(keys) {
   for (const key of keys) if (((await failures.get(key)) ?? 0) >= MAX_FAILURES) return true;
   return false;
 }
 
-async function countFailure(keys) {
+export async function countFailure(keys) {
   for (const key of keys) await failures.set(key, ((await failures.get(key)) ?? 0) + 1);
 }
 
@@ -137,7 +150,7 @@ authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) 
       await countFailure(keys);
       return res.status(401).json({ error: GENERIC_FAIL });
     }
-    setCookie(req, res, await makeSession(user), SESSION_MS);
+    await setSessionCookie(req, res, user);
     res.json({ id: user.id, user: user.username, superAdmin: user.role === ROLES.superAdmin });
   } catch (err) {
     console.error('Login:', err);
@@ -149,6 +162,14 @@ function sameText(a, b) {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
   return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/** 'ok', 'wrong' or 'closed' (no invite code set). Case and spaces don't matter. */
+export async function checkInviteCode(code) {
+  const invite = await getInviteCode();
+  if (!invite) return 'closed';
+  const tidy = (c) => c.trim().toUpperCase();
+  return typeof code === 'string' && sameText(tidy(code), tidy(invite)) ? 'ok' : 'wrong';
 }
 
 // Whether the login screen should offer "Create an account".
@@ -164,18 +185,16 @@ authRouter.post('/api/signup', express.json({ limit: '10kb' }), async (req, res)
     if (await lockedOut(keys)) {
       return res.status(429).json({ error: 'Too many wrong invite codes. Try again in 15 minutes.' });
     }
-    const invite = await getInviteCode();
-    if (!invite) return res.status(403).json({ error: 'Sign-up is closed.' });
-    // Case and spaces don't matter, so a code typed on a phone still works.
-    const tidy = (c) => c.trim().toUpperCase();
-    if (typeof code !== 'string' || !sameText(tidy(code), tidy(invite))) {
+    const invite = await checkInviteCode(code);
+    if (invite === 'closed') return res.status(403).json({ error: 'Sign-up is closed.' });
+    if (invite === 'wrong') {
       await countFailure(keys);
       return res.status(403).json({ error: "That invite code isn't right." });
     }
     const problem = usernameProblem(name) ?? passwordProblem(password);
     if (problem) return res.status(400).json({ error: problem });
     const user = await createAccount(name, await hashPassword(password));
-    setCookie(req, res, await makeSession(user), SESSION_MS);
+    await setSessionCookie(req, res, user);
     res.status(201).json({ id: user.id, user: user.username, superAdmin: false });
   } catch (err) {
     if (err instanceof UsernameTaken) return res.status(409).json({ error: err.message });
@@ -185,7 +204,7 @@ authRouter.post('/api/signup', express.json({ limit: '10kb' }), async (req, res)
 });
 
 authRouter.post('/api/logout', (req, res) => {
-  setCookie(req, res, '', 0);
+  setCookie(req, res, COOKIE, '', 0);
   res.status(204).end();
 });
 
@@ -218,9 +237,23 @@ export function superAdminOnly(req, res, next) {
 /** Routes for the logged-in user's own account (mounted after requireLogin). */
 export const accountRouter = express.Router();
 
+// The account's login methods, for Profile.
+accountRouter.get('/api/account', async (req, res) => {
+  try {
+    const { rows } = await query('SELECT "username", "password_hash", "steam_id" FROM users WHERE "id" = $1', [
+      req.userId,
+    ]);
+    if (!rows[0]) return res.status(401).json({ error: 'Not logged in.' });
+    res.json({ username: rows[0].username, hasPassword: !!rows[0].password_hash, steamId: rows[0].steam_id });
+  } catch (err) {
+    console.error('Account:', err);
+    res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+  }
+});
+
+// Changes the password, or sets the first one for an account made through Steam.
 accountRouter.post('/api/account/password', express.json({ limit: '10kb' }), async (req, res) => {
   const { current, next } = req.body ?? {};
-  if (typeof current !== 'string' || !current) return res.status(400).json({ error: 'Enter your current password.' });
   const problem = passwordProblem(next);
   if (problem) return res.status(400).json({ error: problem });
   const keys = [`user:${req.username.toLowerCase()}`];
@@ -229,14 +262,34 @@ accountRouter.post('/api/account/password', express.json({ limit: '10kb' }), asy
       return res.status(429).json({ error: 'Too many wrong passwords. Try again in 15 minutes.' });
     }
     const { rows } = await query('SELECT "password_hash" FROM users WHERE "id" = $1', [req.userId]);
-    if (!rows[0] || !(await verifyPassword(current, rows[0].password_hash))) {
-      await countFailure(keys);
-      return res.status(400).json({ error: 'Your current password is wrong.' });
+    if (!rows[0]) return res.status(401).json({ error: 'Not logged in.' });
+    if (rows[0].password_hash) {
+      if (typeof current !== 'string' || !current)
+        return res.status(400).json({ error: 'Enter your current password.' });
+      if (!(await verifyPassword(current, rows[0].password_hash))) {
+        await countFailure(keys);
+        return res.status(400).json({ error: 'Your current password is wrong.' });
+      }
     }
     await query('UPDATE users SET "password_hash" = $2 WHERE "id" = $1', [req.userId, await hashPassword(next)]);
     res.json({ ok: true });
   } catch (err) {
     console.error('Change password:', err);
+    res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+  }
+});
+
+// Removes Steam as a way to log in; only with a password to log in with instead.
+accountRouter.post('/api/account/steam/unlink', async (req, res) => {
+  try {
+    const { rowCount } = await query(
+      'UPDATE users SET "steam_id" = NULL WHERE "id" = $1 AND "password_hash" IS NOT NULL',
+      [req.userId],
+    );
+    if (!rowCount) return res.status(400).json({ error: 'Set a password first, so you can still log in.' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Unlink Steam:', err);
     res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
   }
 });
