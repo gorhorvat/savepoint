@@ -23,7 +23,7 @@ import {
   platformLoginRouter,
   platformLogins,
   psnAuthFor,
-  rememberPsnName,
+  fillMissingNames,
   resetPsnSession,
   xboxKeyFor,
 } from './platformLogins.mjs';
@@ -78,6 +78,8 @@ app.use(express.json({ limit: '1mb' }));
 const has = (name) => Boolean(process.env[name] && process.env[name].trim());
 
 app.get('/api/status', async (req, res) => {
+  // Names shown in Settings for PlayStation and Xbox, if they're still missing.
+  await fillMissingNames(req.userId).catch((err) => console.warn('[name lookup]', err.message));
   const provider = assistantProvider();
   const ollama = provider === 'ollama' ? await ollamaStatus() : { reachable: false, installed: false };
   res.json({
@@ -286,7 +288,6 @@ app.get('/api/psn/trophies', async (req, res) => {
 app.get('/api/psn/library', async (req, res) => {
   try {
     const auth = await psnAuthFor(req.userId);
-    void rememberPsnName(req.userId, auth).catch(() => {});
     const titles = [];
     let offset = 0;
     // Page through the full played-games list (200 per page).
@@ -296,6 +297,7 @@ app.get('/api/psn/library', async (req, res) => {
       if (!r.nextOffset || r.nextOffset <= offset || titles.length >= r.totalItemCount) break;
       offset = r.nextOffset;
     }
+    void fillMissingNames(req.userId, { force: true }).catch(() => {});
     res.json({
       games: titles
         .map((t) => ({
@@ -321,6 +323,7 @@ app.get('/api/psn/library', async (req, res) => {
 app.get('/api/xbox/library', async (req, res) => {
   try {
     res.json({ games: await xboxLibrary(await xboxKeyFor(req.userId), req.userId) });
+    void fillMissingNames(req.userId, { force: true }).catch(() => {});
   } catch (err) {
     platformError(res, err, 'Xbox import failed');
   }

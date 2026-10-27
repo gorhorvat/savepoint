@@ -129,33 +129,50 @@ export async function psnAuthFor(userId) {
 
 /** The signed-in PlayStation account's online ID, or null if Sony won't say. */
 async function psnOnlineId(auth) {
+  const problems = [];
   try {
     const name = (await getProfileFromUserName(auth, 'me'))?.profile?.onlineId;
     if (name) return name;
-  } catch {
-    // Try the other way.
+    problems.push('profile2 had no onlineId');
+  } catch (err) {
+    problems.push(`profile2: ${err.message}`);
   }
   try {
     const { accountId } = await getUserTrophyProfileSummary(auth, 'me');
-    return (await getProfileFromAccountId(auth, accountId))?.onlineId ?? null;
-  } catch {
-    return null;
+    const name = (await getProfileFromAccountId(auth, accountId))?.onlineId;
+    if (name) return name;
+    problems.push('profiles had no onlineId');
+  } catch (err) {
+    problems.push(`trophy summary/profiles: ${err.message}`);
   }
+  console.warn('[name lookup] PlayStation:', problems.join(' | ').replace(/\s+/g, ' '));
+  return null;
 }
 
-/** Fills in the PlayStation name for a connection made before it could be looked up. */
-export async function rememberPsnName(userId, auth) {
-  const { rows } = await query(
-    'SELECT "account_name" FROM platform_logins WHERE "user_id" = $1 AND "platform" = \'playstation\'',
-    [userId],
-  );
-  if (!rows[0] || rows[0].account_name) return;
-  const name = await psnOnlineId(auth);
-  if (name) {
-    await query(
-      'UPDATE platform_logins SET "account_name" = $2 WHERE "user_id" = $1 AND "platform" = \'playstation\'',
-      [userId, name],
-    );
+const nameTried = new Map(); // userId -> time of the last attempt
+
+/**
+ * Fills in the PlayStation and Xbox names Settings shows, when they're missing
+ * (connections made before the lookup worked, or a lookup that failed).
+ * Tried at most every 10 minutes unless `force`.
+ */
+export async function fillMissingNames(userId, { force = false } = {}) {
+  if (!force && (nameTried.get(userId) ?? 0) > Date.now() - 10 * 60_000) return;
+  nameTried.set(userId, Date.now());
+  const logins = await platformLogins(userId);
+  const update = (platform, name) =>
+    query('UPDATE platform_logins SET "account_name" = $3 WHERE "user_id" = $1 AND "platform" = $2', [
+      userId,
+      platform,
+      name,
+    ]);
+  if (logins.playstation && !logins.playstation.account) {
+    const name = await psnOnlineId(await psnAuthFor(userId)).catch(() => null);
+    if (name) await update('playstation', name);
+  }
+  if (logins.xbox && !logins.xbox.account) {
+    const name = await xboxAccount(await xboxKeyFor(userId)).catch(() => null);
+    if (name) await update('xbox', name);
   }
 }
 

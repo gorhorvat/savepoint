@@ -75,11 +75,44 @@ export function toGames(titles) {
     });
 }
 
-/** The gamertag the key belongs to; throws when OpenXBL refuses the key. */
+/**
+ * Finds the gamertag wherever the answer keeps it: Xbox profile settings
+ * ({ id: "Gamertag", value }) or a plain gamertag field.
+ */
+export function findGamertag(data) {
+  let found = null;
+  const walk = (v, depth) => {
+    if (found || !v || typeof v !== 'object' || depth > 8) return;
+    if (/^(modern)?gamertag$/i.test(String(v.id ?? '')) && typeof v.value === 'string' && v.value) {
+      found = v.value;
+      return;
+    }
+    for (const k of ['gamertag', 'Gamertag', 'modernGamertag']) {
+      if (typeof v[k] === 'string' && v[k]) {
+        found = v[k];
+        return;
+      }
+    }
+    for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x, depth + 1);
+  };
+  walk(data, 0);
+  return found;
+}
+
+/** The shape of an answer (its keys, no values), for logs. */
+const shape = (v, depth = 0) =>
+  !v || typeof v !== 'object' || depth > 2
+    ? typeof v
+    : Array.isArray(v)
+      ? [v.length ? shape(v[0], depth + 1) : 'empty']
+      : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shape(x, depth + 1)]));
+
+/** The gamertag the key belongs to, or null; throws when OpenXBL refuses the key. */
 export async function xboxAccount(key) {
   const data = await xbl(key, '/account');
-  const user = data?.profileUsers?.[0];
-  return user?.settings?.find((s) => s.id === 'Gamertag')?.value ?? user?.id ?? null;
+  const name = findGamertag(data);
+  if (!name) console.warn('[name lookup] Xbox: no gamertag in /account. Its shape:', JSON.stringify(shape(data)));
+  return name;
 }
 
 /** The games of the Xbox account `key` belongs to. `scope` keeps each account's play times apart. */
