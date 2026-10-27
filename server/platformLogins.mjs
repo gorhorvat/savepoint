@@ -17,6 +17,8 @@ import {
   exchangeNpssoForAccessCode,
   exchangeRefreshTokenForAuthTokens,
   getProfileFromAccountId,
+  getProfileFromUserName,
+  getUserTrophyProfileSummary,
 } from 'psn-api';
 import { getSecret } from './auth.mjs';
 import { query } from './db.mjs';
@@ -125,6 +127,38 @@ export async function psnAuthFor(userId) {
   return auth;
 }
 
+/** The signed-in PlayStation account's online ID, or null if Sony won't say. */
+async function psnOnlineId(auth) {
+  try {
+    const name = (await getProfileFromUserName(auth, 'me'))?.profile?.onlineId;
+    if (name) return name;
+  } catch {
+    // Try the other way.
+  }
+  try {
+    const { accountId } = await getUserTrophyProfileSummary(auth, 'me');
+    return (await getProfileFromAccountId(auth, accountId))?.onlineId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fills in the PlayStation name for a connection made before it could be looked up. */
+export async function rememberPsnName(userId, auth) {
+  const { rows } = await query(
+    'SELECT "account_name" FROM platform_logins WHERE "user_id" = $1 AND "platform" = \'playstation\'',
+    [userId],
+  );
+  if (!rows[0] || rows[0].account_name) return;
+  const name = await psnOnlineId(auth);
+  if (name) {
+    await query(
+      'UPDATE platform_logins SET "account_name" = $2 WHERE "user_id" = $1 AND "platform" = \'playstation\'',
+      [userId, name],
+    );
+  }
+}
+
 /** Forget a cached PSN session (after an error), so the next call signs in again. */
 export const resetPsnSession = (userId) => psnSessions.delete(userId);
 
@@ -177,12 +211,8 @@ platformLoginRouter.post('/api/psn/connect', express.json({ limit: '10kb' }), as
   } catch {
     return res.status(400).json({ error: 'Sony didn’t accept that token. Get a fresh one and try again.' });
   }
-  let account = null;
-  try {
-    account = (await getProfileFromAccountId({ accessToken: tokens.accessToken }, 'me')).onlineId ?? null;
-  } catch {
-    // The name is only shown in Settings; connecting works without it.
-  }
+  // Only shown in Settings; connecting works without it.
+  const account = await psnOnlineId({ accessToken: tokens.accessToken });
   try {
     const expiresAt = new Date(Date.now() + tokens.refreshTokenExpiresIn * 1000);
     await save(req.userId, 'playstation', tokens.refreshToken, account, expiresAt);

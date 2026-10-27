@@ -23,6 +23,7 @@ import {
   platformLoginRouter,
   platformLogins,
   psnAuthFor,
+  rememberPsnName,
   resetPsnSession,
   xboxKeyFor,
 } from './platformLogins.mjs';
@@ -285,6 +286,7 @@ app.get('/api/psn/trophies', async (req, res) => {
 app.get('/api/psn/library', async (req, res) => {
   try {
     const auth = await psnAuthFor(req.userId);
+    void rememberPsnName(req.userId, auth).catch(() => {});
     const titles = [];
     let offset = 0;
     // Page through the full played-games list (200 per page).

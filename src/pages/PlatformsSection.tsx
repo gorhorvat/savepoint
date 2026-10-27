@@ -262,12 +262,14 @@ const external = (href: string, text: string) => (
 
 /** Import button, Disconnect, and any error, once a platform is connected. */
 function ConnectedControls({
+  platformName,
   account,
   synced,
   importLabel,
   onImport,
   onDisconnect,
 }: {
+  platformName: string;
   account: string | null | undefined;
   synced: boolean;
   importLabel: string;
@@ -289,7 +291,7 @@ function ConnectedControls({
   };
   return (
     <>
-      <Text size="sm">Connected{account ? ` as ${account}` : ''}.</Text>
+      <Text size="sm">{account ? `Connected as ${account}.` : `Connected to ${platformName}.`}</Text>
       {error && (
         <Text size="sm" c="red">
           {error}
@@ -328,6 +330,7 @@ function PsnPanel({ status, refresh }: { status: ServerStatus | null; refresh: (
     });
     // A manual sync refreshes trophies (and their grades) straight away.
     void runAchievementsSync({ forcePsn: true });
+    refresh(); // Picks up the PlayStation name, if it wasn't known yet.
   };
 
   return (
@@ -336,6 +339,7 @@ function PsnPanel({ status, refresh }: { status: ServerStatus | null; refresh: (
         <ServerHint status={status} />
       ) : status.psn ? (
         <ConnectedControls
+          platformName="PlayStation"
           account={status.psnAccount}
           synced={!!conn}
           importLabel="Import from PlayStation"
@@ -388,6 +392,7 @@ function XboxPanel({ status, refresh }: { status: ServerStatus | null; refresh: 
         <ServerHint status={status} />
       ) : status.xbox ? (
         <ConnectedControls
+          platformName="Xbox"
           account={status.xboxAccount}
           synced={!!conn}
           importLabel="Import from Xbox"
