@@ -7,9 +7,6 @@
 // topic; the person subscribes to that topic in the free ntfy app. The topic
 // name works like a password (anyone who knows it can read the alerts), so
 // it's long and random, and can be replaced with a new one at any time.
-//
-// An NTFY_TOPIC from before this is moved to the super admin once, so their
-// subscribed phone keeps working.
 import { randomBytes } from 'node:crypto';
 import { query } from './db.mjs';
 import { itadDeal } from './itad.mjs';
@@ -35,25 +32,8 @@ export async function notify(topic, { title, message, url }) {
 
 // ---------------------------------------------------------------- topics
 
-let envTopicMoved = false;
-
-/** Gives the super admin the NTFY_TOPIC from .env, once, if they have no topic yet. */
-async function moveEnvTopic() {
-  if (envTopicMoved) return;
-  envTopicMoved = true;
-  const topic = process.env.NTFY_TOPIC?.trim();
-  if (!topic) return;
-  await query(
-    `INSERT INTO alert_topics ("user_id", "topic")
-     SELECT "id", $1 FROM users WHERE "role" = 'superadmin' ORDER BY "id" LIMIT 1
-     ON CONFLICT DO NOTHING`,
-    [topic],
-  );
-}
-
 /** The account's ntfy topic, or null when alerts are off. */
 export async function alertTopic(userId) {
-  await moveEnvTopic();
   const { rows } = await query('SELECT "topic" FROM alert_topics WHERE "user_id" = $1', [userId]);
   return rows[0]?.topic ?? null;
 }
@@ -123,7 +103,6 @@ async function bestPrice(item) {
  * per check, however many accounts watch it.
  */
 export async function checkAlerts({ userId = null } = {}) {
-  await moveEnvTopic();
   const { rows } = await query(
     `SELECT a.*, t."topic" FROM price_alerts a JOIN alert_topics t USING ("user_id")
      WHERE $1::integer IS NULL OR a."user_id" = $1`,
