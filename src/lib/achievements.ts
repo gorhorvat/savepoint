@@ -17,7 +17,7 @@ type Result = Omit<AchievementProgress, 'checkedAt'>;
 export async function runAchievementsSync({ forcePsn = false } = {}): Promise<void> {
   if (running) return;
   const { entries, connections, achievements, achievementsSync } = useStore.getState();
-  const steamProfile = connections.steam?.account;
+  const steamConnected = !!connections.steam;
   const steamTodo = entries.filter(
     (e) =>
       e.platform === 'steam' &&
@@ -29,14 +29,14 @@ export async function runAchievementsSync({ forcePsn = false } = {}): Promise<vo
   const psnDue =
     !!connections.playstation?.lastSync &&
     (forcePsn || !achievementsSync || Date.now() - Date.parse(achievementsSync) > PSN_MAX_AGE);
-  if ((!steamProfile || !steamTodo.length) && !psnDue) return;
+  if ((!steamConnected || !steamTodo.length) && !psnDue) return;
 
   running = true;
   try {
     const status = await fetchStatus();
     if (!status.online) return;
 
-    if (status.steam && steamProfile && steamTodo.length) {
+    if (status.steam && steamConnected && steamTodo.length) {
       const { customGames, genreOverrides, details } = useStore.getState();
       const byApp = new Map<number, { gameId: string; minutes: number }>();
       for (const e of steamTodo) {
@@ -45,7 +45,7 @@ export async function runAchievementsSync({ forcePsn = false } = {}): Promise<vo
       }
       const appids = [...byApp.keys()];
       for (let i = 0; i < appids.length; i += 40) {
-        const { results } = await fetchSteamAchievements(steamProfile, appids.slice(i, i + 40));
+        const { results } = await fetchSteamAchievements(appids.slice(i, i + 40));
         const out: Record<string, Result> = {};
         for (const [appid, r] of Object.entries(results)) {
           const hit = byApp.get(Number(appid));

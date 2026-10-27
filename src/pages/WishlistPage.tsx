@@ -10,14 +10,13 @@ import {
   Paper,
   Stack,
   Text,
-  TextInput,
   Title,
   Tooltip,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IconChevronDown, IconTrash } from '@tabler/icons-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Cover } from '../components/Cover';
 import { GenreChips } from '../components/GenreChips';
@@ -27,7 +26,15 @@ import { PriceTable } from '../components/PriceTable';
 import { ShareExport, type ListExport } from '../components/ShareExport';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import { STORE_BY_ID } from '../data/stores';
-import { fetchSteamWishlist, sendTestAlert, usePrices, useServerStatus } from '../lib/api';
+import {
+  fetchAccount,
+  fetchSteamWishlist,
+  sendTestAlert,
+  steamProfileUrl,
+  usePrices,
+  useServerStatus,
+  type Account,
+} from '../lib/api';
 import { formatLastPlayed, formatPrice, upcomingLabel } from '../lib/format';
 import { normalizeTitle } from '../lib/match';
 import { useGameResolver, useStore } from '../lib/store';
@@ -214,22 +221,28 @@ function SteamSync() {
   const conn = useStore((s) => s.connections.steam);
   const sync = useStore((s) => s.syncSteamWishlist);
   const [status] = useServerStatus();
-  const [profile, setProfile] = useState(conn?.account ?? '');
+  const [account, setAccount] = useState<Account | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAccount()
+      .then(setAccount)
+      .catch(() => {});
+  }, []);
 
   const run = async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetchSteamWishlist(profile);
+      const res = await fetchSteamWishlist();
       if (!res.games.length) {
         setError(
           "Steam returned an empty wishlist. If yours isn't empty, set your profile's Game details to Public in Steam's privacy settings.",
         );
         return;
       }
-      const r = sync(res.games, profile.trim());
+      const r = sync(res.games, steamProfileUrl(res.steamId));
       notifications.show({
         title: 'Steam wishlist synced',
         message: `${r.total} games on your Steam wishlist: ${r.added} added, ${r.removed} removed.`,
@@ -248,25 +261,28 @@ function SteamSync() {
       </Text>
     );
   }
+  if (account === null) return null;
+  if (!account.steamId) {
+    return (
+      <Text size="sm" c="dimmed">
+        To copy your Steam wishlist here,{' '}
+        <Anchor component={Link} to="/settings">
+          connect Steam in Settings
+        </Anchor>{' '}
+        first.
+      </Text>
+    );
+  }
   return (
     <Stack gap="xs">
-      <Group gap="sm" align="flex-end" wrap="wrap">
-        <TextInput
-          label="Steam profile"
-          placeholder="steamcommunity.com/id/yourname"
-          value={profile}
-          onChange={(e) => setProfile(e.currentTarget.value)}
-          style={{ flex: '1 1 240px' }}
-        />
-        <Button
-          onClick={run}
-          loading={busy}
-          disabled={!profile.trim()}
-          leftSection={<PlatformIcon platform="steam" size={16} color="currentColor" />}
-        >
-          Sync Steam wishlist
-        </Button>
-      </Group>
+      <Button
+        onClick={run}
+        loading={busy}
+        w="fit-content"
+        leftSection={<PlatformIcon platform="steam" size={16} color="currentColor" />}
+      >
+        Sync Steam wishlist
+      </Button>
       {error && (
         <Text size="sm" c="red">
           {error}

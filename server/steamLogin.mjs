@@ -3,7 +3,7 @@
 // claim before we trust it (check_authentication), and the SteamID is the only
 // thing taken from it.
 //
-//   GET  /api/auth/steam/start                     -> Steam's login page
+//   GET  /api/auth/steam/start[?intent=connect]    -> Steam's login page
 //   GET  /api/auth/steam/return                    <- Steam sends the browser back here
 //   GET  /api/auth/steam/pending                   a Steam account that isn't linked yet
 //   POST /api/auth/steam/complete { code, username }      creates an account for it
@@ -12,6 +12,9 @@
 // A linked Steam account logs straight in. One that isn't linked goes to
 // /?steam=signup, which offers both: create an account (with the invite code)
 // or log in to an existing one once, which links Steam to it.
+// intent=connect (Settings, Platforms, while logged in) links Steam to the
+// logged-in account and goes back to /settings?steam=connected. The linked
+// Steam account is also the only one whose library Savepoint imports.
 import express from 'express';
 import { randomBytes } from 'node:crypto';
 import { createAccount, getInviteCode, ROLES, usernameProblem, UsernameTaken } from './accounts.mjs';
@@ -20,6 +23,7 @@ import {
   countFailure,
   clientAddress,
   lockedOut,
+  readSession,
   readSigned,
   setCookie,
   setSessionCookie,
@@ -86,8 +90,14 @@ const clearCookie = (req, res, name) => setCookie(req, res, name, '', 0);
 export const steamLoginRouter = express.Router();
 
 steamLoginRouter.get('/api/auth/steam/start', async (req, res) => {
+  let connectFor = null;
+  if (req.query.intent === 'connect') {
+    const session = await readSession(req);
+    if (!session) return res.redirect('/');
+    connectFor = session.id;
+  }
   const nonce = randomBytes(16).toString('base64url');
-  const state = await signValue({ n: nonce, exp: Date.now() + STATE_MS });
+  const state = await signValue({ n: nonce, c: connectFor, exp: Date.now() + STATE_MS });
   setCookie(req, res, STATE_COOKIE, state, STATE_MS);
   const url = new URL(STEAM_OPENID);
   url.search = new URLSearchParams({
@@ -104,7 +114,8 @@ steamLoginRouter.get('/api/auth/steam/start', async (req, res) => {
 steamLoginRouter.get('/api/auth/steam/return', async (req, res) => {
   const state = await readSigned(req, STATE_COOKIE);
   clearCookie(req, res, STATE_COOKIE);
-  const fail = (reason) => res.redirect(`/?steam=${reason}`);
+  const back = state?.c ? '/settings' : '/';
+  const fail = (reason) => res.redirect(`${back}?steam=${reason}`);
   try {
     const p = req.query;
     // The browser must be the one that started this, coming back to the address we gave Steam.
@@ -119,6 +130,15 @@ steamLoginRouter.get('/api/auth/steam/return', async (req, res) => {
     const steamId = match[1];
 
     const linked = (await query('SELECT "id", "username", "role" FROM users WHERE "steam_id" = $1', [steamId])).rows[0];
+
+    if (state.c) {
+      // Connecting Steam to the account that's logged in.
+      const session = await readSession(req);
+      if (!session || session.id !== state.c) return fail('failed');
+      if (linked && linked.id !== session.id) return fail('taken');
+      await query('UPDATE users SET "steam_id" = $2 WHERE "id" = $1', [session.id, steamId]);
+      return res.redirect('/settings?steam=connected');
+    }
 
     if (linked) {
       await setSessionCookie(req, res, linked);

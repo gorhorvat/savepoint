@@ -81,15 +81,19 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
-export function importSteam(profile: string) {
-  return getJson<{ steamId: string; games: ImportedGame[] }>(
-    `/api/steam/library?profile=${encodeURIComponent(profile)}`,
-  );
+/** The address of a Steam account's profile page. */
+export const steamProfileUrl = (steamId: string) => `https://steamcommunity.com/profiles/${steamId}/`;
+
+// Steam data is always for the Steam account connected through Steam's login
+// (Settings, Platforms); the server answers 409 when none is connected.
+
+export function importSteam() {
+  return getJson<{ steamId: string; games: ImportedGame[] }>('/api/steam/library');
 }
 
-export function fetchSteamAchievements(profile: string, appids: number[]) {
+export function fetchSteamAchievements(appids: number[]) {
   return getJson<{ results: Record<string, { earned: number; total: number }> }>(
-    `/api/steam/achievements?profile=${encodeURIComponent(profile)}&appids=${appids.join(',')}`,
+    `/api/steam/achievements?appids=${appids.join(',')}`,
   );
 }
 
@@ -322,8 +326,8 @@ export async function searchGames(query: string, signal?: AbortSignal): Promise<
   return body.results;
 }
 
-export function fetchSteamWishlist(profile: string) {
-  return getJson<{ steamId: string; games: FoundGame[] }>(`/api/steam/wishlist?profile=${encodeURIComponent(profile)}`);
+export function fetchSteamWishlist() {
+  return getJson<{ steamId: string; games: FoundGame[] }>('/api/steam/wishlist');
 }
 
 // ---------------------------------------------------------------- assistant

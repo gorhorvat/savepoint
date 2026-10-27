@@ -16,14 +16,24 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconDownload, IconPlus, IconRefresh } from '@tabler/icons-react';
-import { useState, type ReactNode } from 'react';
+import { IconBrandSteam, IconDownload, IconPlus, IconRefresh } from '@tabler/icons-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { GameSearch } from '../components/GameSearch';
 import { ListImport } from '../components/ListImport';
 import { PlatformIcon } from '../components/PlatformBadge';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import { applyXboxAchievements, runAchievementsSync } from '../lib/achievements';
-import { importPsn, importSteam, importXbox, useServerStatus, type FoundGame, type ServerStatus } from '../lib/api';
+import {
+  fetchAccount,
+  importPsn,
+  importSteam,
+  importXbox,
+  steamProfileUrl,
+  useServerStatus,
+  type Account,
+  type FoundGame,
+  type ServerStatus,
+} from '../lib/api';
 import { formatLastPlayed } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { PlatformId } from '../types';
@@ -46,7 +56,7 @@ function PlatformPanel({ platform, method, children }: { platform: PlatformId; m
       </Group>
       <Text size="sm" c="dimmed" mt={6}>
         {conn
-          ? `${conn.count} games imported${conn.account ? ` from ${conn.account}` : ''}, synced ${formatLastPlayed(conn.lastSync ?? null)}`
+          ? `${conn.count} games imported, synced ${formatLastPlayed(conn.lastSync ?? null)}`
           : count
             ? `${count} games added`
             : 'Nothing imported yet'}
@@ -74,20 +84,28 @@ function ServerHint({ status, envVar }: { status: ServerStatus | null; envVar: s
   );
 }
 
+const STEAM_CONNECT_ERRORS: Record<string, string> = {
+  taken: 'That Steam account is already connected to another Savepoint account.',
+  failed: "Connecting Steam didn't work. Try again.",
+};
+
 function SteamPanel({ status }: { status: ServerStatus | null }) {
   const conn = useStore((s) => s.connections.steam);
   const importLibrary = useStore((s) => s.importLibrary);
   const disconnect = useStore((s) => s.disconnect);
-  const [profile, setProfile] = useState(conn?.account ?? '');
+  const [account, setAccount] = useState<Account | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Back from Steam's login page after Connect Steam: ?steam=connected|taken|failed|cancelled.
+  const [steamReturn] = useState(() => new URLSearchParams(location.search).get('steam'));
+  const importedOnReturn = useRef(false); // Development mode runs effects twice.
+  const [error, setError] = useState<string | null>(() => STEAM_CONNECT_ERRORS[steamReturn ?? ''] ?? null);
 
-  const run = async () => {
+  const run = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await importSteam(profile);
-      const r = importLibrary('steam', 'steam', res.games, profile.trim());
+      const res = await importSteam();
+      const r = importLibrary('steam', 'steam', res.games, steamProfileUrl(res.steamId));
       notifications.show({
         title: 'Steam imported',
         message: `${r.added} played games.${r.removedSample ? ' The sample library was removed.' : ''}`,
@@ -97,38 +115,75 @@ function SteamPanel({ status }: { status: ServerStatus | null }) {
     } finally {
       setBusy(false);
     }
-  };
+  }, [importLibrary]);
+
+  useEffect(() => {
+    if (steamReturn) {
+      const url = new URL(location.href);
+      url.searchParams.delete('steam');
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }
+    fetchAccount()
+      .then((account) => {
+        setAccount(account);
+        // Just connected: import straight away.
+        if (steamReturn === 'connected' && account.steamId && !importedOnReturn.current) {
+          importedOnReturn.current = true;
+          notifications.show({ message: 'Steam connected. Importing your games…' });
+          void run();
+        }
+      })
+      .catch(() => {});
+  }, [steamReturn, run]);
 
   return (
     <PlatformPanel platform="steam" method="Steam Web API">
       {status && !status.steam ? (
         <ServerHint status={status} envVar="STEAM_API_KEY" />
+      ) : account === null ? null : !account.steamId ? (
+        <>
+          <Text size="sm">
+            Connect through Steam&apos;s own login page. Savepoint then imports your games and play time, and you can
+            log in with Steam too. Your Steam profile&apos;s Game details must be public.
+          </Text>
+          <Button
+            component="a"
+            href="/api/auth/steam/start?intent=connect"
+            w="fit-content"
+            leftSection={<IconBrandSteam size={18} />}
+          >
+            Connect Steam
+          </Button>
+        </>
       ) : (
         <>
-          <TextInput
-            label="Steam profile"
-            description="Profile URL, custom URL name, or SteamID64. Game details must be public."
-            placeholder="steamcommunity.com/id/yourname"
-            value={profile}
-            onChange={(e) => setProfile(e.currentTarget.value)}
-            error={error}
-          />
+          <Text size="sm">
+            Connected to{' '}
+            <Anchor href={steamProfileUrl(account.steamId)} target="_blank" rel="noopener noreferrer">
+              your Steam account
+            </Anchor>
+            . Game details must be public in Steam&apos;s privacy settings.
+          </Text>
           <Group gap="sm">
             <Button
               onClick={run}
               loading={busy}
-              disabled={!profile.trim()}
               leftSection={conn ? <IconRefresh size={18} /> : <IconDownload size={18} />}
             >
               {conn ? 'Sync again' : 'Import from Steam'}
             </Button>
             {conn && (
               <Button variant="subtle" color="gray" onClick={() => disconnect('steam')}>
-                Disconnect
+                Remove imported games
               </Button>
             )}
           </Group>
         </>
+      )}
+      {error && (
+        <Text size="sm" c="red">
+          {error}
+        </Text>
       )}
     </PlatformPanel>
   );
@@ -403,8 +458,8 @@ export function PlatformsSection() {
       <div>
         <Title order={2}>Platforms</Title>
         <Text c="dimmed" mt={6} maw={640}>
-          Steam and PlayStation import play time automatically. Epic and Nintendo don't offer a way to read it, so add
-          those games by hand.
+          Steam, PlayStation and Xbox import play time automatically. Epic and Nintendo don't offer a way to read it, so
+          add those games by hand.
         </Text>
       </div>
 

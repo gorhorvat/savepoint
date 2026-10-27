@@ -17,6 +17,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconBrandSteam, IconCopy, IconLock, IconLogout, IconPhoto, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   changePassword,
   fetchAccount,
@@ -433,11 +434,10 @@ function InviteSection() {
 }
 
 /**
- * Steam as a way to log in (set up from the login screen's Sign in through
- * Steam). Separate from the Steam library import in Settings, Platforms.
+ * The connected Steam account: it logs in through Steam and is the one whose
+ * library is imported. Connected in Settings, Platforms, or from the login screen.
  */
 function SteamLoginSection({ account, onChange }: { account: Account; onChange: () => void }) {
-  const libraryConnected = useStore((s) => !!s.connections.steam);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -458,19 +458,19 @@ function SteamLoginSection({ account, onChange }: { account: Account; onChange: 
       <Stack gap="sm">
         <Group gap="xs">
           <IconBrandSteam size={20} />
-          <Text fw={600}>Log in with Steam</Text>
+          <Text fw={600}>Steam</Text>
         </Group>
         {account.steamId ? (
           <>
             <Text size="sm" c="dimmed">
-              Set up for{' '}
+              Connected to{' '}
               <Anchor href={`https://steamcommunity.com/profiles/${account.steamId}/`} target="_blank" rel="noreferrer">
                 this Steam account
               </Anchor>
               .{' '}
               {account.hasPassword
-                ? 'You can log in with it or with your username and password.'
-                : 'You log in with it.'}
+                ? 'Your Steam games come from it, and you can log in with it or with your username and password.'
+                : 'Your Steam games come from it, and you log in with it.'}
             </Text>
             <Button
               size="xs"
@@ -490,11 +490,11 @@ function SteamLoginSection({ account, onChange }: { account: Account; onChange: 
           </>
         ) : (
           <Text size="sm" c="dimmed">
-            {libraryConnected
-              ? 'Your Steam library is connected, but Steam isn\u2019t set up as a way to log in yet. '
-              : 'Not set up. '}
-            To log in with Steam: log out, choose Sign in through Steam, then &ldquo;I already have an account&rdquo;
-            and log in once.
+            Not connected.{' '}
+            <Anchor component={Link} to="/settings">
+              Connect Steam in Settings
+            </Anchor>{' '}
+            to import your Steam games and log in with Steam.
           </Text>
         )}
         {error && (

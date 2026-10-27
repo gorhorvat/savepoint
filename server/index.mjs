@@ -25,6 +25,7 @@ import { stateRouter } from './state.mjs';
 import { xboxKey, xboxLibrary } from './xbox.mjs';
 import { accountRouter, authRouter, requireLogin, superAdminOnly } from './auth.mjs';
 import { steamLoginRouter } from './steamLogin.mjs';
+import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
 const USER_AGENT = 'Savepoint/0.1 (self-hosted game library app)';
@@ -133,16 +134,15 @@ async function steamItemTypes(appids) {
 
 class NotFound extends Error {}
 
-/** SteamID64 from a profile URL, custom URL name, or SteamID64. */
-async function resolveSteamId(profile) {
-  let id = String(profile || '').trim();
-  const urlMatch = id.match(/steamcommunity\.com\/(id|profiles)\/([^/?#]+)/i);
-  if (urlMatch) id = urlMatch[2];
-  if (!id) throw new NotFound('Enter your Steam profile URL, custom name, or SteamID64.');
-  if (/^\d{17}$/.test(id)) return id;
-  const v = await steamGet('ISteamUser/ResolveVanityURL/v1/', { vanityurl: id });
-  if (v.response?.success !== 1) throw new NotFound(`No Steam profile found for "${id}".`);
-  return v.response.steamid;
+/**
+ * The SteamID64 the logged-in account has connected through Steam's own login
+ * (server/steamLogin.mjs). Steam data is only ever fetched for that account,
+ * never for a profile someone types in.
+ */
+async function linkedSteamId(req) {
+  const { rows } = await query('SELECT "steam_id" FROM users WHERE "id" = $1', [req.userId]);
+  if (!rows[0]?.steam_id) throw new NotFound('Connect Steam first (Settings, Platforms).');
+  return rows[0].steam_id;
 }
 
 app.get('/api/steam/library', async (req, res) => {
@@ -151,9 +151,9 @@ app.get('/api/steam/library', async (req, res) => {
   }
   let id;
   try {
-    id = await resolveSteamId(req.query.profile);
+    id = await linkedSteamId(req);
   } catch (err) {
-    return res.status(err instanceof NotFound ? 404 : 502).json({ error: err.message });
+    return res.status(err instanceof NotFound ? 409 : 502).json({ error: err.message });
   }
 
   try {
@@ -186,7 +186,7 @@ app.get('/api/steam/library', async (req, res) => {
   }
 });
 
-// ?profile=&appids=1,2,3 (up to 40) -> { results: { [appid]: { earned, total } } }
+// ?appids=1,2,3 (up to 40), for the connected Steam account -> { results: { [appid]: { earned, total } } }
 // Steam has no batch call for this with an API key, so it's one request per game.
 app.get('/api/steam/achievements', async (req, res) => {
   if (!has('STEAM_API_KEY')) return res.status(501).json({ error: 'STEAM_API_KEY is not set on the server.' });
@@ -197,9 +197,9 @@ app.get('/api/steam/achievements', async (req, res) => {
     .slice(0, 40);
   let id;
   try {
-    id = await resolveSteamId(req.query.profile);
+    id = await linkedSteamId(req);
   } catch (err) {
-    return res.status(err instanceof NotFound ? 404 : 502).json({ error: err.message });
+    return res.status(err instanceof NotFound ? 409 : 502).json({ error: err.message });
   }
   const results = {};
   for (let i = 0; i < appids.length; i += 4) {
@@ -464,11 +464,11 @@ app.get('/api/steam/wishlist', async (req, res) => {
     return res.status(501).json({ error: 'STEAM_API_KEY is not set on the server. Add it to .env and restart.' });
   }
   try {
-    const steamId = await resolveSteamId(req.query.profile);
+    const steamId = await linkedSteamId(req);
     const games = await steamWishlist(steamId);
     res.json({ steamId, games });
   } catch (err) {
-    res.status(err instanceof NotFound ? 404 : 502).json({ error: err.message });
+    res.status(err instanceof NotFound ? 409 : 502).json({ error: err.message });
   }
 });
 

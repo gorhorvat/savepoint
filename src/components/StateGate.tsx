@@ -32,7 +32,7 @@ import {
 } from '../lib/serverStorage';
 import { useStore } from '../lib/store';
 import { Crystal } from './Layout';
-import { fetchAccount, importSteam } from '../lib/api';
+import { importSteam, steamProfileUrl } from '../lib/api';
 
 function reload() {
   void useStore.persist.rehydrate();
@@ -248,11 +248,8 @@ async function importNewSteamAccount() {
   if (new URLSearchParams(location.search).get('steam') !== 'new') return;
   clearSteamParam();
   try {
-    const { steamId } = await fetchAccount();
-    if (!steamId) return;
-    const profile = `https://steamcommunity.com/profiles/${steamId}/`;
-    const res = await importSteam(profile);
-    const r = useStore.getState().importLibrary('steam', 'steam', res.games, profile);
+    const res = await importSteam();
+    const r = useStore.getState().importLibrary('steam', 'steam', res.games, steamProfileUrl(res.steamId));
     notifications.show({ title: 'Welcome to Savepoint', message: `Imported ${r.added} games from Steam.` });
   } catch (e) {
     notifications.show({

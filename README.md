@@ -30,12 +30,13 @@ The app works without any keys; live PC prices need none. Suggestions need `STEA
 
 ## Platforms
 
-| Platform        | How play time gets in                     | Needs                                   |
-| --------------- | ----------------------------------------- | --------------------------------------- |
-| Steam           | Steam Web API import                      | `STEAM_API_KEY`, public "Game details"  |
-| PlayStation     | PSN import (unofficial API via `psn-api`) | `PSN_NPSSO` token                       |
-| Nintendo Switch | Added by hand                             | Nothing (Nintendo has no public API)    |
-| Epic Games      | Added by hand                             | Nothing (Epic doesn't expose play time) |
+| Platform        | How play time gets in                      | Needs                                   |
+| --------------- | ------------------------------------------ | --------------------------------------- |
+| Steam           | Connect Steam (Steam's login), then import | `STEAM_API_KEY`, public "Game details"  |
+| PlayStation     | PSN import (unofficial API via `psn-api`)  | `PSN_NPSSO` token                       |
+| Xbox            | OpenXBL import (unofficial)                | `OPENXBL_API_KEY`                       |
+| Nintendo Switch | Added by hand                              | Nothing (Nintendo has no public API)    |
+| Epic Games      | Added by hand                              | Nothing (Epic doesn't expose play time) |
 
 A game played on more than one platform is merged into one entry, matched by Steam app ID or normalized title.
 

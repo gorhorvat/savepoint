@@ -1,7 +1,7 @@
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
 import { applyXboxAchievements } from './achievements';
-import { fetchStatus, fetchSteamWishlist, importPsn, importSteam, importXbox } from './api';
+import { fetchStatus, fetchSteamWishlist, importPsn, importSteam, importXbox, steamProfileUrl } from './api';
 import { useStore } from './store';
 
 const MAX_AGE = 6 * 60 * 60 * 1000;
@@ -18,17 +18,16 @@ export async function autoSync(): Promise<void> {
   if (started) return;
   started = true;
   const { connections } = useStore.getState();
-  const steamProfile = connections.steam?.account;
   const jobs: { name: string; run: () => Promise<void> }[] = [];
   const status = await fetchStatus();
   if (!status.online) return;
 
-  if (status.steam && steamProfile && connections.steam?.lastSync && stale(connections.steam.lastSync)) {
+  if (status.steam && connections.steam?.lastSync && stale(connections.steam.lastSync)) {
     jobs.push({
       name: 'Steam library',
       run: async () => {
-        const res = await importSteam(steamProfile);
-        useStore.getState().importLibrary('steam', 'steam', res.games, steamProfile);
+        const res = await importSteam();
+        useStore.getState().importLibrary('steam', 'steam', res.games, steamProfileUrl(res.steamId));
       },
     });
   }
@@ -51,13 +50,13 @@ export async function autoSync(): Promise<void> {
       },
     });
   }
-  if (status.steam && steamProfile && connections.steam?.wishlistSync && stale(connections.steam.wishlistSync)) {
+  if (status.steam && connections.steam?.wishlistSync && stale(connections.steam.wishlistSync)) {
     jobs.push({
       name: 'Steam wishlist',
       run: async () => {
-        const res = await fetchSteamWishlist(steamProfile);
+        const res = await fetchSteamWishlist();
         // An empty answer usually means the wishlist went private; don't wipe ours.
-        if (res.games.length) useStore.getState().syncSteamWishlist(res.games, steamProfile);
+        if (res.games.length) useStore.getState().syncSteamWishlist(res.games, steamProfileUrl(res.steamId));
       },
     });
   }
