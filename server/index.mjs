@@ -23,7 +23,7 @@ import { checkAlerts, notify, ntfyTopic, setAlerts, startAlertTimer } from './al
 import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
 import { xboxKey, xboxLibrary } from './xbox.mjs';
-import { authRouter, ownerOnly, requireLogin } from './auth.mjs';
+import { accountRouter, authRouter, ownerOnly, requireLogin } from './auth.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
 const USER_AGENT = 'Savepoint/0.1 (self-hosted game library app)';
@@ -61,6 +61,7 @@ app.get('/api/cron/alerts', async (req, res) => {
 
 app.use(authRouter); // /api/login, /api/logout, /api/session
 app.use(requireLogin); // Everything below needs you to be logged in.
+app.use(accountRouter); // /api/account/password
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);
 app.use(express.json({ limit: '1mb' }));
@@ -76,7 +77,7 @@ app.get('/api/status', async (req, res) => {
     assistantModel: provider === 'gemini' ? GEMINI_MODEL : OLLAMA_MODEL,
     ollama: { ...ollama, model: OLLAMA_MODEL, url: OLLAMA_URL },
     steam: has('STEAM_API_KEY'),
-    // Owner-only features read as "not set up" for other admins; `owner` says why.
+    // Owner-only features read as "not set up" for other accounts; `owner` says why.
     owner: req.isOwner,
     psn: has('PSN_NPSSO') && req.isOwner,
     xbox: !!xboxKey() && req.isOwner,

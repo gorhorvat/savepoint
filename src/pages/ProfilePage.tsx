@@ -5,6 +5,7 @@ import {
   Group,
   MultiSelect,
   Paper,
+  PasswordInput,
   Progress,
   Stack,
   TagsInput,
@@ -14,7 +15,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconLogout, IconPhoto, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
-import { fetchTaxonomy, type Taxonomy } from '../lib/api';
+import { changePassword, fetchTaxonomy, type Taxonomy } from '../lib/api';
 import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } from '../lib/favorites';
 import { useLibrary } from '../lib/library';
 import { logOut } from '../lib/serverStorage';
@@ -34,7 +35,7 @@ async function toAvatar(file: File): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
-/** The logged-in VerBuddy username. */
+/** The logged-in username. */
 function useUsername(): string | null {
   const [user, setUser] = useState<string | null>(null);
   useEffect(() => {
@@ -284,6 +285,86 @@ function LevelSection() {
   );
 }
 
+function AccountSection() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const mismatch = repeat.length > 0 && next !== repeat;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (next !== repeat) return;
+    setBusy(true);
+    setError(null);
+    const problem = await changePassword(current, next);
+    setBusy(false);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setCurrent('');
+    setNext('');
+    setRepeat('');
+    notifications.show({ message: 'Password changed.' });
+  };
+
+  return (
+    <Stack gap="lg">
+      <Title order={2}>Account</Title>
+      <Paper p={{ base: 'md', sm: 'lg' }} maw={480}>
+        <form onSubmit={submit}>
+          <Stack gap="sm">
+            <Text fw={600}>Change password</Text>
+            <PasswordInput
+              label="Current password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.currentTarget.value)}
+              required
+            />
+            <PasswordInput
+              label="New password"
+              description="At least 8 characters."
+              autoComplete="new-password"
+              value={next}
+              onChange={(e) => setNext(e.currentTarget.value)}
+              minLength={8}
+              required
+            />
+            <PasswordInput
+              label="New password again"
+              autoComplete="new-password"
+              value={repeat}
+              onChange={(e) => setRepeat(e.currentTarget.value)}
+              error={mismatch ? "The new passwords don't match." : undefined}
+              required
+            />
+            {error && (
+              <Text size="sm" c="red">
+                {error}
+              </Text>
+            )}
+            <Button type="submit" loading={busy} disabled={mismatch} w="fit-content">
+              Change password
+            </Button>
+          </Stack>
+        </form>
+      </Paper>
+      <Button
+        variant="subtle"
+        color="gray"
+        leftSection={<IconLogout size={16} />}
+        onClick={() => void logOut()}
+        w="fit-content"
+      >
+        Log out
+      </Button>
+    </Stack>
+  );
+}
+
 export function ProfilePage() {
   return (
     <Stack gap={48}>
@@ -296,15 +377,7 @@ export function ProfilePage() {
       <PictureSection />
       <LevelSection />
       <FavoritesSection />
-      <Button
-        variant="subtle"
-        color="gray"
-        leftSection={<IconLogout size={16} />}
-        onClick={() => void logOut()}
-        w="fit-content"
-      >
-        Log out
-      </Button>
+      <AccountSection />
     </Stack>
   );
 }

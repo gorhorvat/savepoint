@@ -1,26 +1,35 @@
-// Login: you sign in with your VerBuddy username and password. Savepoint asks
-// VerBuddy's API whether they're right. VerBuddy's SuperAdmin (the owner) and
-// Admin accounts get in, students don't. Each account has its own library in
-// VerBuddy; things tied to the owner's own accounts (PlayStation sign-in, price
-// alerts to the owner's phone) are owner-only. VerBuddy's login token goes into a
-// signed, HttpOnly cookie: every other /api route requires it, and the server
-// uses the token to load and save your data in VerBuddy. The login lasts as
-// long as VerBuddy's token (8 hours by default).
+// Login: Savepoint's own accounts, a username and a password, in the users
+// table. Accounts are created with `npm run setup-account` (there's no sign-up
+// page yet). The owner account (is_owner) can use the features tied to the
+// owner's own accounts: their PlayStation and Xbox, and price alerts to their phone.
+//
+// A successful login sets a signed, HttpOnly cookie with the user's id; every
+// other /api route requires it. It lasts 30 days.
 //
 // .env:
-//   VERBUDDY_API_URL  VerBuddy's backend, e.g. https://verbuddy-api.azurewebsites.net
-//   SESSION_SECRET    optional locally (generated into data/session-secret); required on Vercel
+//   DATABASE_URL    the database (see server/db.mjs)
+//   SESSION_SECRET  optional locally (generated into data/session-secret); required on Vercel
 import express from 'express';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { dataDir, verbuddyUrl } from './state.mjs';
+import { fileURLToPath } from 'node:url';
+import { query } from './db.mjs';
+import { diskCache } from './diskCache.mjs';
+import { hashPassword, passwordProblem, verifyAgainstNothing, verifyPassword } from './passwords.mjs';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const dataDir = path.resolve(ROOT, process.env.SAVEPOINT_DATA_DIR?.trim() || 'data');
 
 const COOKIE = 'sp_session';
+const SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const GENERIC_FAIL = 'Wrong username or password.';
 
-const OWNER_ROLE = 'SuperAdmin';
-const ALLOWED_ROLES = [OWNER_ROLE, 'Admin'];
+// After this many wrong passwords for one username (or from one address),
+// logins are refused for a while.
+const MAX_FAILURES = 8;
+const LOCKOUT_MS = 15 * 60 * 1000;
+const failures = diskCache('login-failures', LOCKOUT_MS);
 
 let secret = null;
 async function getSecret() {
@@ -42,11 +51,13 @@ async function getSecret() {
 const b64 = (s) => Buffer.from(s).toString('base64url');
 const sign = (data, key) => createHmac('sha256', key).update(data).digest('base64url');
 
-async function makeSession(user, token, exp, owner) {
-  const data = b64(JSON.stringify({ u: user, t: token, exp, o: owner }));
+async function makeSession(user) {
+  const exp = Date.now() + SESSION_MS;
+  const data = b64(JSON.stringify({ id: user.id, u: user.username, o: user.is_owner, exp }));
   return `${data}.${sign(data, await getSecret())}`;
 }
 
+/** The session from the cookie, or null. Sessions from the VerBuddy login (no id) no longer count. */
 async function readSession(req) {
   const raw = (req.headers.cookie || '')
     .split(';')
@@ -61,7 +72,7 @@ async function readSession(req) {
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
     const s = JSON.parse(Buffer.from(data, 'base64url').toString());
-    return s.exp > Date.now() ? s : null;
+    return s.exp > Date.now() && Number.isInteger(s.id) ? s : null;
   } catch {
     return null;
   }
@@ -75,52 +86,51 @@ function setCookie(req, res, value, maxAgeMs) {
   );
 }
 
-/** Username and roles from VerBuddy's token. */
-function readToken(token) {
-  try {
-    const p = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-    const role = p.role ?? p['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? [];
-    return { user: String(p.unique_name ?? ''), roles: [role].flat().map(String), exp: Number(p.exp) * 1000 };
-  } catch {
-    return { user: '', roles: [], exp: 0 };
-  }
+const clientAddress = (req) =>
+  String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '')
+    .split(',')[0]
+    .trim();
+
+async function lockedOut(keys) {
+  for (const key of keys) if (((await failures.get(key)) ?? 0) >= MAX_FAILURES) return true;
+  return false;
+}
+
+async function countFailure(keys) {
+  for (const key of keys) await failures.set(key, ((await failures.get(key)) ?? 0) + 1);
 }
 
 export const authRouter = express.Router();
 
 authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) => {
   const { username, password } = req.body ?? {};
-  if (!verbuddyUrl()) {
-    return res.status(500).json({ error: 'Login is not set up: add VERBUDDY_API_URL to .env.' });
-  }
-  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+  if (typeof username !== 'string' || typeof password !== 'string' || !username.trim() || !password) {
     return res.status(400).json({ error: 'Enter your username and password.' });
   }
-  let r;
+  const name = username.trim();
+  const keys = [`user:${name.toLowerCase()}`, `ip:${clientAddress(req)}`];
   try {
-    r = await fetch(`${verbuddyUrl()}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.trim(), password }),
-      signal: AbortSignal.timeout(60_000), // VerBuddy may need a while to wake up.
-    });
-  } catch {
-    return res.status(502).json({ error: "Couldn't reach VerBuddy to check your login. Try again in a moment." });
+    if (await lockedOut(keys)) {
+      return res.status(429).json({ error: 'Too many wrong passwords. Try again in 15 minutes.' });
+    }
+    const { rows } = await query(
+      'SELECT "id", "username", "password_hash", "is_owner" FROM users WHERE lower("username") = lower($1)',
+      [name],
+    );
+    const user = rows[0];
+    const ok = user?.password_hash
+      ? await verifyPassword(password, user.password_hash)
+      : await verifyAgainstNothing(password);
+    if (!ok) {
+      await countFailure(keys);
+      return res.status(401).json({ error: GENERIC_FAIL });
+    }
+    setCookie(req, res, await makeSession(user), SESSION_MS);
+    res.json({ user: user.username, owner: user.is_owner });
+  } catch (err) {
+    console.error('Login:', err);
+    res.status(502).json({ error: "Couldn't reach the database to check your login. Try again in a moment." });
   }
-  if (r.status === 401 || r.status === 400) return res.status(401).json({ error: GENERIC_FAIL });
-  if (!r.ok) return res.status(502).json({ error: `VerBuddy answered with an error (${r.status}). Try again.` });
-
-  const { token } = await r.json().catch(() => ({}));
-  // The token came straight from VerBuddy over HTTPS; only admins get in.
-  const { user, roles, exp } = token ? readToken(token) : { user: '', roles: [], exp: 0 };
-  if (!roles.some((r) => ALLOWED_ROLES.includes(r))) {
-    return res.status(403).json({ error: 'This VerBuddy account has no access to Savepoint.' });
-  }
-
-  const expires = exp > Date.now() ? exp : Date.now() + 8 * 60 * 60 * 1000;
-  const owner = roles.includes(OWNER_ROLE);
-  setCookie(req, res, await makeSession(user, token, expires, owner), expires - Date.now());
-  res.json({ user, owner });
 });
 
 authRouter.post('/api/logout', (req, res) => {
@@ -131,24 +141,48 @@ authRouter.post('/api/logout', (req, res) => {
 authRouter.get('/api/session', async (req, res) => {
   const s = await readSession(req);
   if (!s) return res.status(401).json({ error: 'Not logged in.' });
-  res.json({ user: s.u, owner: isOwner(s) });
+  res.json({ user: s.u, owner: !!s.o });
 });
 
-// Sessions from before admins could log in were all the owner's.
-const isOwner = (s) => s.o ?? true;
-
-/** Every other /api route needs a valid session; it carries the VerBuddy token on. */
+/** Every other /api route needs a valid session. */
 export async function requireLogin(req, res, next) {
   if (!req.path.startsWith('/api/')) return next();
   const s = await readSession(req);
-  if (!s?.t) return res.status(401).json({ error: 'Not logged in.' });
-  req.verbuddyToken = s.t;
-  req.isOwner = isOwner(s);
+  if (!s) return res.status(401).json({ error: 'Not logged in.' });
+  req.userId = s.id;
+  req.username = s.u;
+  req.isOwner = !!s.o;
   next();
 }
 
-/** For things that use the owner's own accounts: their PlayStation sign-in, alerts to their phone. */
+/** For things that use the owner's own accounts: their PlayStation and Xbox, alerts to their phone. */
 export function ownerOnly(req, res, next) {
   if (req.isOwner) return next();
   res.status(403).json({ error: "This uses the owner's own account, so it's only available to them." });
 }
+
+/** Routes for the logged-in user's own account (mounted after requireLogin). */
+export const accountRouter = express.Router();
+
+accountRouter.post('/api/account/password', express.json({ limit: '10kb' }), async (req, res) => {
+  const { current, next } = req.body ?? {};
+  if (typeof current !== 'string' || !current) return res.status(400).json({ error: 'Enter your current password.' });
+  const problem = passwordProblem(next);
+  if (problem) return res.status(400).json({ error: problem });
+  const keys = [`user:${req.username.toLowerCase()}`];
+  try {
+    if (await lockedOut(keys)) {
+      return res.status(429).json({ error: 'Too many wrong passwords. Try again in 15 minutes.' });
+    }
+    const { rows } = await query('SELECT "password_hash" FROM users WHERE "id" = $1', [req.userId]);
+    if (!rows[0] || !(await verifyPassword(current, rows[0].password_hash))) {
+      await countFailure(keys);
+      return res.status(400).json({ error: 'Your current password is wrong.' });
+    }
+    await query('UPDATE users SET "password_hash" = $2 WHERE "id" = $1', [req.userId, await hashPassword(next)]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Change password:', err);
+    res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+  }
+});

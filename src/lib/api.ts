@@ -25,7 +25,7 @@ export interface ServerStatus {
   online: boolean;
   /** Xbox import (OpenXBL key) is set up and usable by this account. */
   xbox?: boolean;
-  /** True for the owner's account (VerBuddy SuperAdmin); other admins can't use owner-only features. */
+  /** True for the owner's account; other accounts can't use the owner's PlayStation, Xbox or alerts. */
   owner?: boolean;
 }
 
@@ -428,6 +428,21 @@ export async function sendTestAlert(): Promise<void> {
   const r = await fetch('/api/alerts/test', { method: 'POST' });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error ?? `Test failed (${r.status})`);
+}
+
+/** Changes the logged-in account's password. Returns why it failed, or null. */
+export async function changePassword(current: string, next: string): Promise<string | null> {
+  try {
+    const r = await fetch('/api/account/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current, next }),
+    });
+    if (r.ok) return null;
+    return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `Failed (${r.status}).`;
+  } catch {
+    return "Can't reach the Savepoint server.";
+  }
 }
 
 export interface Taxonomy {

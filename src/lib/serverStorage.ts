@@ -1,7 +1,7 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 
-// Zustand storage that keeps the app's state on the Savepoint server
-// (data/savepoint.json) instead of in the browser, so every device shares it.
+// Zustand storage that keeps the app's state on the Savepoint server (in its
+// database) instead of in the browser, so every device shares it.
 //
 // Saves are debounced and carry the revision they're based on. If another
 // device saved in the meantime the server refuses (409) and this copy reloads

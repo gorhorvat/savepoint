@@ -1,12 +1,12 @@
 # Savepoint
 
-Every game you've played on Steam, Epic Games, PlayStation and Nintendo Switch in one library, with play time added up across platforms.
+Every game you've played on Steam, Epic Games, PlayStation, Xbox and Nintendo Switch in one library, with play time added up across platforms.
 
 - **Library**: total hours per game, split by platform, with genres and sub-genres. Filter by platform, genre or status, and sort by hours, recency, title, your rating or how well a game fits your taste. The Backlog filter lists games you own but have played for under 2 hours (Steam imports include unplayed games).
 - **Play status and ratings**: mark a game Playing, Backlog, Finished, 100% or Dropped, rate it 1 to 5 stars and record when you finished it. Ratings and drops weigh into recommendations.
 - **Game pages**: critic score (OpenCritic), typical time to beat (HowLongToBeat, no key needed) and a screenshot gallery (IGDB). Library sorts by shortest to beat, and backlog rows show each game's length.
 - **Deals and alerts**: the wishlist shows the best PC deal across official stores and the all-time low (IsThereAnyDeal). With `NTFY_TOPIC` set, the server checks target prices every six hours while it runs and sends a push notification through the ntfy app.
-- **Achievements**: Steam achievements and PlayStation trophies per game, fetched in the background after a sync (Steam is one request per game, so only games with new play time are re-checked).
+- **Achievements**: Steam achievements, PlayStation trophies and Xbox achievements per game, fetched in the background after a sync (Steam is one request per game, so only games with new play time are re-checked).
 - **My Stats**: genres, platforms, play depth, eras and more. Savepoint records play time history from the change between syncs, starting the first time you import, so hours per month this year fill in from then on.
 - **Genres** are looked up on Steam first, then IGDB (covers console exclusives), then Wikidata.
 - **Discover**: recommendations scored against your taste profile, which is built from the genres you spend the most hours in (weighted by your ratings and drops). Candidates are always live: well-reviewed Steam games and popular Nintendo eShop games in your favourite genres, never a fixed list. "More like this" on game pages and the assistant use the same pool.
@@ -30,12 +30,12 @@ The app works without any keys; live PC prices need none. Suggestions need `STEA
 
 ## Platforms
 
-| Platform | How play time gets in | Needs |
-| --- | --- | --- |
-| Steam | Steam Web API import | `STEAM_API_KEY`, public "Game details" |
-| PlayStation | PSN import (unofficial API via `psn-api`) | `PSN_NPSSO` token |
-| Nintendo Switch | Added by hand | Nothing (Nintendo has no public API) |
-| Epic Games | Added by hand | Nothing (Epic doesn't expose play time) |
+| Platform        | How play time gets in                     | Needs                                   |
+| --------------- | ----------------------------------------- | --------------------------------------- |
+| Steam           | Steam Web API import                      | `STEAM_API_KEY`, public "Game details"  |
+| PlayStation     | PSN import (unofficial API via `psn-api`) | `PSN_NPSSO` token                       |
+| Nintendo Switch | Added by hand                             | Nothing (Nintendo has no public API)    |
+| Epic Games      | Added by hand                             | Nothing (Epic doesn't expose play time) |
 
 A game played on more than one platform is merged into one entry, matched by Steam app ID or normalized title.
 
@@ -62,12 +62,15 @@ When the app opens, it re-syncs each connected source whose last sync is more th
 
 ## Data
 
-You log in with your VerBuddy account, and your library, wishlist and chat history are saved in VerBuddy's database, so every device sees the same data. Disconnecting a platform removes the games imported from it.
+Your library, wishlist, play history and the rest are saved in a Postgres database (Neon's free plan, `DATABASE_URL`), so every device sees the same data. The tables are created automatically on first use; `server/schema.mjs` lists them and how the app's data maps onto them. Disconnecting a platform removes the games imported from it.
+
+You log in with a Savepoint account (username and password). There's no sign-up page yet: create an account with `npm run setup-account`, which can also set a new password for an existing one. The first account is the owner, the only one that can use the owner's PlayStation and Xbox imports and price alerts. Profile has a Change password form.
 
 ## Deploy (Vercel)
 
 Pushing to `main` deploys to Vercel (`vercel.json`): the built site from `dist/`, and `/api/*` served by the same Express app as a Vercel function (`api/index.js`). Set the variables from `.env.example` in the Vercel project, plus:
 
+- `DATABASE_URL`: the same Neon connection string as locally.
 - `SESSION_SECRET` (required) and `CRON_SECRET`: long random strings.
 - An Upstash Redis database from the Vercel Marketplace (free plan), connected to the project. It adds `KV_REST_API_URL` and `KV_REST_API_TOKEN`, and the server caches go there instead of `.cache/`.
 

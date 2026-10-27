@@ -70,11 +70,6 @@ function LoginForm() {
         <Button type="submit" loading={busy}>
           Log in
         </Button>
-        {busy && (
-          <Text size="xs" c="dimmed">
-            The first login after a while can take up to half a minute.
-          </Text>
-        )}
       </Stack>
     </form>
   );

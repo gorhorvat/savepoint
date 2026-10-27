@@ -507,7 +507,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'savepoint',
-      // Saved in VerBuddy through the Savepoint server, not in the browser.
+      // Saved in the database through the Savepoint server, not in the browser.
       storage: serverStorage<PersistedState>(),
       // The Discover pool is re-fetched (and cached on the server), so it isn't saved.
       partialize: (state) => {
@@ -529,8 +529,14 @@ export const useStore = create<State>()(
               .map((x) => x.gameId)
               .filter((id): id is string => !!id),
             ...(state.dismissed ?? []),
-            ...[state.progress, state.achievements, state.details, state.lengths, state.genreOverrides, state.history?.base]
-              .flatMap((map) => Object.keys(map ?? {})),
+            ...[
+              state.progress,
+              state.achievements,
+              state.details,
+              state.lengths,
+              state.genreOverrides,
+              state.history?.base,
+            ].flatMap((map) => Object.keys(map ?? {})),
           ]);
           for (const id of ids) {
             const legacy = LEGACY_GAMES_BY_ID[id];
