@@ -32,8 +32,9 @@ export const stateRouter = express.Router();
 stateRouter.get('/api/state', async (req, res) => {
   try {
     const saved = await loadLibrary(req.userId);
-    if (!saved) return send(req, res, 404, { rev: 0, savedAt: null });
-    await send(req, res, 200, saved);
+    // `user` lets the app notice when a different account logs in on the same tab.
+    if (!saved) return send(req, res, 404, { rev: 0, savedAt: null, user: req.userId });
+    await send(req, res, 200, { ...saved, user: req.userId });
   } catch (err) {
     failed(res, err);
   }

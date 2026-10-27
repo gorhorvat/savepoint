@@ -287,11 +287,11 @@ function PriceAlerts() {
   const targets = useStore((s) => s.wishlist.filter((w) => w.targetPrice != null).length);
   const topic = status?.ntfyTopic;
   if (!status?.online) return null;
-  if (status.owner === false) {
+  if (status.superAdmin === false) {
     return (
       <Text size="sm" c="dimmed">
-        Price alerts go to the owner&apos;s phone, so they&apos;re only on for the owner&apos;s account. Target prices
-        still mark games that hit them here.
+        Price alerts go to the super admin&apos;s phone, so they&apos;re only on for their account. Target prices still
+        mark games that hit them here.
       </Text>
     );
   }

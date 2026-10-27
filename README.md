@@ -64,7 +64,7 @@ When the app opens, it re-syncs each connected source whose last sync is more th
 
 Your library, wishlist, play history and the rest are saved in a Postgres database (Neon's free plan, `DATABASE_URL`), so every device sees the same data. The tables are created automatically on first use; `server/schema.mjs` lists them and how the app's data maps onto them. Disconnecting a platform removes the games imported from it.
 
-You log in with a Savepoint account (username and password). There's no sign-up page yet: create an account with `npm run setup-account`, which can also set a new password for an existing one. The first account is the owner, the only one that can use the owner's PlayStation and Xbox imports and price alerts. Profile has a Change password form.
+You log in with a Savepoint account (username and password). People with the invite code can create an account from the login screen ("Create an account"); the super admin sees, changes or turns off that code in Profile, and without a code sign-up is closed. `npm run setup-account` creates accounts from the command line and sets a new password for an existing one (there's no reset email); the first account it creates is the super admin. Only the super admin can use their own PlayStation and Xbox imports and price alerts. Profile has a Change password form.
 
 ## Deploy (Vercel)
 

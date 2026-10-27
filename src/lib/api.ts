@@ -25,8 +25,8 @@ export interface ServerStatus {
   online: boolean;
   /** Xbox import (OpenXBL key) is set up and usable by this account. */
   xbox?: boolean;
-  /** True for the owner's account; other accounts can't use the owner's PlayStation, Xbox or alerts. */
-  owner?: boolean;
+  /** True for the super admin; other accounts can't use their PlayStation, Xbox or alerts, or the invite code. */
+  superAdmin?: boolean;
 }
 
 const OFFLINE: ServerStatus = {
@@ -443,6 +443,23 @@ export async function changePassword(current: string, next: string): Promise<str
   } catch {
     return "Can't reach the Savepoint server.";
   }
+}
+
+/** The invite code for sign-up ('' = sign-up closed). Super admin only. */
+export async function fetchInviteCode(): Promise<string> {
+  return (await getJson<{ code: string }>('/api/admin/invite')).code;
+}
+
+/** Sets the invite code: a given one, a new random one, or '' to close sign-up. Returns the new code. */
+export async function updateInviteCode(change: { code: string } | { generate: true }): Promise<string> {
+  const r = await fetch('/api/admin/invite', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(change),
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error ?? `Failed (${r.status}).`);
+  return body.code;
 }
 
 export interface Taxonomy {

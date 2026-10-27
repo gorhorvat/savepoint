@@ -11,6 +11,8 @@ export type SyncStatus = 'loading' | 'ready' | 'offline' | 'login';
 
 let rev = 0;
 let loaded = false; // No saves until the server's copy has been applied.
+/** The account whose library this tab has loaded. */
+let loadedUser: number | null = null;
 let needsLogin = false;
 let loadError: string | null = null;
 
@@ -141,17 +143,45 @@ export async function resumeAfterLogin() {
   await flush();
 }
 
-export async function logIn(username: string, password: string): Promise<string | null> {
+async function authenticate(route: string, body: object): Promise<string | null> {
   try {
-    const r = await fetch('/api/login', {
+    const r = await fetch(route, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify(body),
     });
-    if (r.ok) return null;
-    return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `Login failed (${r.status}).`;
+    if (r.ok) {
+      const { id } = (await r.json()) as { id: number };
+      // Someone else on a tab that still holds another account's library:
+      // start fresh, so none of it (or its unsaved changes) reaches the new account.
+      if (loadedUser !== null && loadedUser !== id) {
+        pending = null;
+        location.reload();
+        await new Promise(() => {}); // Wait for the reload.
+      }
+      return null;
+    }
+    return ((await r.json().catch(() => ({}))) as { error?: string }).error ?? `Failed (${r.status}).`;
   } catch {
     return "Can't reach the Savepoint server.";
+  }
+}
+
+export function logIn(username: string, password: string): Promise<string | null> {
+  return authenticate('/api/login', { username, password });
+}
+
+export function signUp(username: string, password: string, code: string): Promise<string | null> {
+  return authenticate('/api/signup', { username, password, code });
+}
+
+/** True when the server takes new accounts (an invite code is set). */
+export async function signupOpen(): Promise<boolean> {
+  try {
+    const r = await fetch('/api/signup');
+    return r.ok && ((await r.json()) as { open: boolean }).open;
+  } catch {
+    return false;
   }
 }
 
@@ -183,7 +213,9 @@ export function serverStorage<S>(): PersistStorage<S> {
         throw new Error('Not logged in');
       }
       if (r.status === 404) {
-        rev = (await r.json()).rev ?? 0;
+        const empty = await r.json();
+        rev = empty.rev ?? 0;
+        loadedUser = empty.user ?? null;
         return null; // Nothing saved yet: start from the defaults.
       }
       if (!r.ok) {
@@ -193,6 +225,7 @@ export function serverStorage<S>(): PersistStorage<S> {
       loadError = null;
       const data = await r.json();
       rev = data.rev;
+      loadedUser = data.user ?? null;
       return { state: data.state as S, version: data.version };
     },
     setItem(_name, value) {

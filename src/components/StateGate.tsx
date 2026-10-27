@@ -1,4 +1,4 @@
-import { Button, Center, Loader, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Anchor, Button, Center, Loader, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import {
@@ -11,6 +11,8 @@ import {
   resumeAfterLogin,
   serverHasNewer,
   setSyncHandlers,
+  signUp,
+  signupOpen,
   subscribeSyncStatus,
 } from '../lib/serverStorage';
 import { useStore } from '../lib/store';
@@ -21,16 +23,27 @@ function reload() {
 }
 
 function LoginForm() {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [canSignUp, setCanSignUp] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const signup = mode === 'signup';
+  const mismatch = signup && repeat.length > 0 && password !== repeat;
+
+  useEffect(() => {
+    void signupOpen().then(setCanSignUp);
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (mismatch) return;
     setBusy(true);
     setError(null);
-    const failed = await logIn(username, password);
+    const failed = signup ? await signUp(username.trim(), password, code) : await logIn(username, password);
     setBusy(false);
     if (failed) {
       setError(failed);
@@ -39,6 +52,12 @@ function LoginForm() {
     await resumeAfterLogin();
     reload();
   }
+
+  const switchTo = (next: 'login' | 'signup') => {
+    setMode(next);
+    setError(null);
+    setRepeat('');
+  };
 
   return (
     <form onSubmit={submit} style={{ width: '100%', maxWidth: 360 }}>
@@ -50,9 +69,11 @@ function LoginForm() {
           <Text className="display" fz={40} lh={1}>
             savepoint
           </Text>
+          {signup && <Text c="dimmed">Create your account</Text>}
         </Stack>
         <TextInput
           label="Username"
+          description={signup ? 'Letters, digits, dots, dashes or underscores.' : undefined}
           autoComplete="username"
           autoCapitalize="none"
           value={username}
@@ -61,15 +82,46 @@ function LoginForm() {
         />
         <PasswordInput
           label="Password"
-          autoComplete="current-password"
+          description={signup ? 'At least 8 characters.' : undefined}
+          autoComplete={signup ? 'new-password' : 'current-password'}
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
-          error={error}
+          error={signup ? undefined : error}
+          minLength={signup ? 8 : undefined}
           required
         />
-        <Button type="submit" loading={busy}>
-          Log in
+        {signup && (
+          <>
+            <PasswordInput
+              label="Password again"
+              autoComplete="new-password"
+              value={repeat}
+              onChange={(e) => setRepeat(e.currentTarget.value)}
+              error={mismatch ? "The passwords don't match." : undefined}
+              required
+            />
+            <TextInput
+              label="Invite code"
+              autoComplete="off"
+              autoCapitalize="characters"
+              value={code}
+              onChange={(e) => setCode(e.currentTarget.value)}
+              error={error}
+              required
+            />
+          </>
+        )}
+        <Button type="submit" loading={busy} disabled={mismatch}>
+          {signup ? 'Create account' : 'Log in'}
         </Button>
+        {canSignUp && (
+          <Text size="sm" c="dimmed" ta="center">
+            {signup ? 'Already have an account? ' : 'Have an invite code? '}
+            <Anchor component="button" type="button" size="sm" onClick={() => switchTo(signup ? 'login' : 'signup')}>
+              {signup ? 'Log in' : 'Create an account'}
+            </Anchor>
+          </Text>
+        )}
       </Stack>
     </form>
   );

@@ -162,10 +162,10 @@ function PsnPanel({ status }: { status: ServerStatus | null }) {
 
   return (
     <PlatformPanel platform="playstation" method="PSN, unofficial">
-      {status?.owner === false ? (
+      {status?.superAdmin === false ? (
         <Text size="sm" c="dimmed">
-          PlayStation import signs in with the owner&apos;s PlayStation account, so it&apos;s only available to them.
-          You can still log PlayStation hours by hand on a game&apos;s page.
+          PlayStation import signs in with the super admin&apos;s PlayStation account, so it&apos;s only available to
+          them. You can still log PlayStation hours by hand on a game&apos;s page.
         </Text>
       ) : status && !status.psn ? (
         <>
@@ -244,10 +244,10 @@ function XboxPanel({ status }: { status: ServerStatus | null }) {
 
   return (
     <PlatformPanel platform="xbox" method="OpenXBL, unofficial">
-      {status?.owner === false ? (
+      {status?.superAdmin === false ? (
         <Text size="sm" c="dimmed">
-          Xbox import uses the owner&apos;s Xbox account, so it&apos;s only available to them. You can still log Xbox
-          hours by hand on a game&apos;s page.
+          Xbox import uses the super admin&apos;s Xbox account, so it&apos;s only available to them. You can still log
+          Xbox hours by hand on a game&apos;s page.
         </Text>
       ) : status && !status.xbox ? (
         <>

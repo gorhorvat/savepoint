@@ -288,11 +288,27 @@ CREATE TABLE IF NOT EXISTS users (
   "id" integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   "username" text NOT NULL,
   "password_hash" text,
-  "is_owner" boolean NOT NULL DEFAULT false,
+  -- 'superadmin' (can use the super admin's own PlayStation, Xbox and alerts,
+  -- and manage the invite code) or 'user'.
+  "role" text NOT NULL DEFAULT 'user',
   "steam_id" text UNIQUE,
   "created_at" timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users (lower("username"));
+-- Databases from before roles had an is_owner flag instead.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "role" text NOT NULL DEFAULT 'user';
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_owner') THEN
+    UPDATE users SET "role" = 'superadmin' WHERE "is_owner";
+    ALTER TABLE users DROP COLUMN "is_owner";
+  END IF;
+END $$;
+
+-- App-wide settings, such as the invite code for sign-up.
+CREATE TABLE IF NOT EXISTS app_settings (
+  "key" text PRIMARY KEY,
+  "value" text NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS ${USER_DATA.table} (
   "user_id" integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

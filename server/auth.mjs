@@ -1,7 +1,9 @@
 // Login: Savepoint's own accounts, a username and a password, in the users
-// table. Accounts are created with `npm run setup-account` (there's no sign-up
-// page yet). The owner account (is_owner) can use the features tied to the
-// owner's own accounts: their PlayStation and Xbox, and price alerts to their phone.
+// table. People with the invite code can create an account from the login
+// screen; the super admin sets or changes that code in Profile.
+// `npm run setup-account` creates accounts and resets passwords from the
+// command line. The super admin can also use the features tied to their own
+// accounts: their PlayStation and Xbox, and price alerts to their phone.
 //
 // A successful login sets a signed, HttpOnly cookie with the user's id; every
 // other /api route requires it. It lasts 30 days.
@@ -14,6 +16,16 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  createAccount,
+  getInviteCode,
+  inviteCodeProblem,
+  randomInviteCode,
+  ROLES,
+  setInviteCode,
+  usernameProblem,
+  UsernameTaken,
+} from './accounts.mjs';
 import { query } from './db.mjs';
 import { diskCache } from './diskCache.mjs';
 import { hashPassword, passwordProblem, verifyAgainstNothing, verifyPassword } from './passwords.mjs';
@@ -53,11 +65,11 @@ const sign = (data, key) => createHmac('sha256', key).update(data).digest('base6
 
 async function makeSession(user) {
   const exp = Date.now() + SESSION_MS;
-  const data = b64(JSON.stringify({ id: user.id, u: user.username, o: user.is_owner, exp }));
+  const data = b64(JSON.stringify({ id: user.id, u: user.username, r: user.role, exp }));
   return `${data}.${sign(data, await getSecret())}`;
 }
 
-/** The session from the cookie, or null. Sessions from the VerBuddy login (no id) no longer count. */
+/** The session from the cookie, or null. */
 async function readSession(req) {
   const raw = (req.headers.cookie || '')
     .split(';')
@@ -114,7 +126,7 @@ authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) 
       return res.status(429).json({ error: 'Too many wrong passwords. Try again in 15 minutes.' });
     }
     const { rows } = await query(
-      'SELECT "id", "username", "password_hash", "is_owner" FROM users WHERE lower("username") = lower($1)',
+      'SELECT "id", "username", "password_hash", "role" FROM users WHERE lower("username") = lower($1)',
       [name],
     );
     const user = rows[0];
@@ -126,10 +138,49 @@ authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) 
       return res.status(401).json({ error: GENERIC_FAIL });
     }
     setCookie(req, res, await makeSession(user), SESSION_MS);
-    res.json({ user: user.username, owner: user.is_owner });
+    res.json({ id: user.id, user: user.username, superAdmin: user.role === ROLES.superAdmin });
   } catch (err) {
     console.error('Login:', err);
     res.status(502).json({ error: "Couldn't reach the database to check your login. Try again in a moment." });
+  }
+});
+
+function sameText(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+// Whether the login screen should offer "Create an account".
+authRouter.get('/api/signup', async (_req, res) => {
+  res.json({ open: !!(await getInviteCode().catch(() => '')) });
+});
+
+authRouter.post('/api/signup', express.json({ limit: '10kb' }), async (req, res) => {
+  const { username, password, code } = req.body ?? {};
+  const name = typeof username === 'string' ? username.trim() : '';
+  const keys = [`signup:${clientAddress(req)}`];
+  try {
+    if (await lockedOut(keys)) {
+      return res.status(429).json({ error: 'Too many wrong invite codes. Try again in 15 minutes.' });
+    }
+    const invite = await getInviteCode();
+    if (!invite) return res.status(403).json({ error: 'Sign-up is closed.' });
+    // Case and spaces don't matter, so a code typed on a phone still works.
+    const tidy = (c) => c.trim().toUpperCase();
+    if (typeof code !== 'string' || !sameText(tidy(code), tidy(invite))) {
+      await countFailure(keys);
+      return res.status(403).json({ error: "That invite code isn't right." });
+    }
+    const problem = usernameProblem(name) ?? passwordProblem(password);
+    if (problem) return res.status(400).json({ error: problem });
+    const user = await createAccount(name, await hashPassword(password));
+    setCookie(req, res, await makeSession(user), SESSION_MS);
+    res.status(201).json({ id: user.id, user: user.username, superAdmin: false });
+  } catch (err) {
+    if (err instanceof UsernameTaken) return res.status(409).json({ error: err.message });
+    console.error('Sign-up:', err);
+    res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
   }
 });
 
@@ -141,7 +192,7 @@ authRouter.post('/api/logout', (req, res) => {
 authRouter.get('/api/session', async (req, res) => {
   const s = await readSession(req);
   if (!s) return res.status(401).json({ error: 'Not logged in.' });
-  res.json({ user: s.u, owner: !!s.o });
+  res.json({ user: s.u, superAdmin: isSuperAdmin(s) });
 });
 
 /** Every other /api route needs a valid session. */
@@ -151,14 +202,17 @@ export async function requireLogin(req, res, next) {
   if (!s) return res.status(401).json({ error: 'Not logged in.' });
   req.userId = s.id;
   req.username = s.u;
-  req.isOwner = !!s.o;
+  req.isSuperAdmin = isSuperAdmin(s);
   next();
 }
 
-/** For things that use the owner's own accounts: their PlayStation and Xbox, alerts to their phone. */
-export function ownerOnly(req, res, next) {
-  if (req.isOwner) return next();
-  res.status(403).json({ error: "This uses the owner's own account, so it's only available to them." });
+// Sessions from before roles carried an owner flag (o) instead.
+const isSuperAdmin = (s) => s.r === ROLES.superAdmin || s.o === true;
+
+/** Only for the super admin: their own PlayStation, Xbox and alerts, and the invite code. */
+export function superAdminOnly(req, res, next) {
+  if (req.isSuperAdmin) return next();
+  res.status(403).json({ error: 'Only the super admin can use this.' });
 }
 
 /** Routes for the logged-in user's own account (mounted after requireLogin). */
@@ -183,6 +237,35 @@ accountRouter.post('/api/account/password', express.json({ limit: '10kb' }), asy
     res.json({ ok: true });
   } catch (err) {
     console.error('Change password:', err);
+    res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+  }
+});
+
+// The invite code for sign-up (super admin only). Body for PUT: { code } to set
+// it, { generate: true } for a new random one, or { code: '' } to close sign-up.
+accountRouter.get('/api/admin/invite', superAdminOnly, async (_req, res) => {
+  try {
+    res.json({ code: await getInviteCode() });
+  } catch (err) {
+    console.error('Invite code:', err);
+    res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+  }
+});
+
+accountRouter.put('/api/admin/invite', superAdminOnly, express.json({ limit: '10kb' }), async (req, res) => {
+  const { code, generate } = req.body ?? {};
+  let next = '';
+  if (generate) next = randomInviteCode();
+  else if (code) {
+    const problem = inviteCodeProblem(code);
+    if (problem) return res.status(400).json({ error: problem });
+    next = code.trim();
+  }
+  try {
+    await setInviteCode(next);
+    res.json({ code: next });
+  } catch (err) {
+    console.error('Invite code:', err);
     res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
   }
 });

@@ -23,7 +23,7 @@ import { checkAlerts, notify, ntfyTopic, setAlerts, startAlertTimer } from './al
 import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
 import { xboxKey, xboxLibrary } from './xbox.mjs';
-import { accountRouter, authRouter, ownerOnly, requireLogin } from './auth.mjs';
+import { accountRouter, authRouter, requireLogin, superAdminOnly } from './auth.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
 const USER_AGENT = 'Savepoint/0.1 (self-hosted game library app)';
@@ -61,7 +61,7 @@ app.get('/api/cron/alerts', async (req, res) => {
 
 app.use(authRouter); // /api/login, /api/logout, /api/session
 app.use(requireLogin); // Everything below needs you to be logged in.
-app.use(accountRouter); // /api/account/password
+app.use(accountRouter); // /api/account/password, /api/admin/invite
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);
 app.use(express.json({ limit: '1mb' }));
@@ -77,16 +77,16 @@ app.get('/api/status', async (req, res) => {
     assistantModel: provider === 'gemini' ? GEMINI_MODEL : OLLAMA_MODEL,
     ollama: { ...ollama, model: OLLAMA_MODEL, url: OLLAMA_URL },
     steam: has('STEAM_API_KEY'),
-    // Owner-only features read as "not set up" for other accounts; `owner` says why.
-    owner: req.isOwner,
-    psn: has('PSN_NPSSO') && req.isOwner,
-    xbox: !!xboxKey() && req.isOwner,
+    // Super-admin-only features read as "not set up" for other accounts; `superAdmin` says why.
+    superAdmin: req.isSuperAdmin,
+    psn: has('PSN_NPSSO') && req.isSuperAdmin,
+    xbox: !!xboxKey() && req.isSuperAdmin,
     keyshops: has('GGDEALS_API_KEY'),
     prices: true,
     igdb: igdbConfigured(),
     critics: has('OPENCRITIC_RAPIDAPI_KEY'),
     deals: has('ITAD_API_KEY'),
-    ntfyTopic: (req.isOwner && ntfyTopic()) || null,
+    ntfyTopic: (req.isSuperAdmin && ntfyTopic()) || null,
   });
 });
 
@@ -254,7 +254,7 @@ function isoDurationToMinutes(d) {
 if (has('PSN_NPSSO')) setPsnAuth(getPsnAuth);
 
 // -> { titles: [{ name, earned, total, platinum }] } for every game with trophies.
-app.get('/api/psn/trophies', ownerOnly, async (_req, res) => {
+app.get('/api/psn/trophies', superAdminOnly, async (_req, res) => {
   if (!has('PSN_NPSSO')) return res.status(501).json({ error: 'PSN_NPSSO is not set on the server.' });
   try {
     const auth = await getPsnAuth();
@@ -286,7 +286,7 @@ app.get('/api/psn/trophies', ownerOnly, async (_req, res) => {
   }
 });
 
-app.get('/api/psn/library', ownerOnly, async (_req, res) => {
+app.get('/api/psn/library', superAdminOnly, async (_req, res) => {
   if (!has('PSN_NPSSO')) {
     return res.status(501).json({ error: 'PSN_NPSSO is not set on the server. Add it to .env and restart.' });
   }
@@ -324,8 +324,8 @@ app.get('/api/psn/library', ownerOnly, async (_req, res) => {
 
 // ---------------------------------------------------------------- Xbox
 
-// The owner's Xbox games, achievements and (where Xbox has it) play time, via OpenXBL.
-app.get('/api/xbox/library', ownerOnly, async (_req, res) => {
+// The super admin's Xbox games, achievements and (where Xbox has it) play time, via OpenXBL.
+app.get('/api/xbox/library', superAdminOnly, async (_req, res) => {
   if (!xboxKey()) {
     return res.status(501).json({ error: 'OPENXBL_API_KEY is not set on the server. Add it to .env and restart.' });
   }
@@ -404,7 +404,7 @@ app.post('/api/lengths', async (req, res) => {
 });
 
 // Body: { items: [{ id, title, steamAppId?, nsuid?, pc, switch, target }] } -> { checked, sent }
-app.post('/api/alerts', ownerOnly, async (req, res) => {
+app.post('/api/alerts', superAdminOnly, async (req, res) => {
   const items = (req.body?.items ?? [])
     .filter((i) => i && typeof i.id === 'string' && typeof i.title === 'string' && typeof i.target === 'number')
     .slice(0, 300)
@@ -424,7 +424,7 @@ app.post('/api/alerts', ownerOnly, async (req, res) => {
   }
 });
 
-app.post('/api/alerts/test', ownerOnly, async (_req, res) => {
+app.post('/api/alerts/test', superAdminOnly, async (_req, res) => {
   try {
     await notify({
       title: 'Savepoint',
