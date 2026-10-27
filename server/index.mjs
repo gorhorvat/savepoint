@@ -41,6 +41,7 @@ import { steamLoginRouter } from './steamLogin.mjs';
 import { friendsRouter } from './friends.mjs';
 import { gameStatsRouter } from './ffxiv.mjs';
 import { gw2Router } from './gw2.mjs';
+import { lolRouter } from './lol.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -86,6 +87,7 @@ app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(gameStatsRouter); // /api/games/*
 app.use(gw2Router); // /api/games/gw2/*
+app.use(lolRouter); // /api/games/lol/*
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);
 app.use(express.json({ limit: '1mb' }));

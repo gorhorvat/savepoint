@@ -24,6 +24,7 @@ import { computeStats } from '../lib/stats';
 import { useStore, type GameStatsId } from '../lib/store';
 import { FfxivStats } from './FfxivStats';
 import { Gw2Stats } from './Gw2Stats';
+import { LolStats } from './LolStats';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GENRE_COLORS = ['var(--sp-c1)', 'var(--sp-c2)', 'var(--sp-c3)', 'var(--sp-c4)', 'var(--sp-c5)'];
@@ -379,6 +380,7 @@ function GameTab({ id, onRemove }: { id: GameStatsId; onRemove: () => void }) {
     <Stack gap={48}>
       {id === 'ffxiv' && <FfxivStats />}
       {id === 'gw2' && <Gw2Stats />}
+      {id === 'lol' && <LolStats />}
       <Anchor
         component="button"
         type="button"

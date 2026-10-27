@@ -1,11 +1,13 @@
 // Game-specific stats (My Stats, a tab per game): FINAL FANTASY XIV, read by
-// the server from the character's public Lodestone pages, and Guild Wars 2,
-// read from ArenaNet's API with the account's own API key.
+// the server from the character's public Lodestone pages; Guild Wars 2, read
+// from ArenaNet's API with the account's own API key; League of Legends, from
+// Riot's API with the app's key and the player's Riot ID.
 import type { GameStatsId } from './store';
 
 export const STATS_GAMES: { id: GameStatsId; name: string; short: string }[] = [
   { id: 'ffxiv', name: 'FINAL FANTASY XIV Online', short: 'FFXIV' },
   { id: 'gw2', name: 'Guild Wars 2', short: 'GW2' },
+  { id: 'lol', name: 'League of Legends', short: 'LoL' },
 ];
 
 export interface FfxivJob {
@@ -93,6 +95,66 @@ export interface Gw2Account {
   collections: { label: string; owned: number; total: number | null }[];
 }
 
+export interface LolMatch {
+  id: string;
+  queue: string;
+  queueId: number;
+  end: string;
+  minutes: number;
+  championId: number;
+  champion: string;
+  image: string | null;
+  role: string | null;
+  win: boolean;
+  remake: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  damage: number;
+  gold: number;
+}
+
+export interface LolPlayer {
+  puuid: string;
+  platform: string;
+  gameName: string;
+  tagLine: string;
+  level: number | null;
+  icon: string | null;
+  ranked: {
+    queue: 'Solo/Duo' | 'Flex';
+    tier: string;
+    division: string;
+    lp: number;
+    wins: number;
+    losses: number;
+    hotStreak: boolean;
+  }[];
+  mastery: {
+    score: number | null;
+    champions: number;
+    points: number;
+    top: {
+      championId: number;
+      name: string;
+      image: string | null;
+      level: number;
+      points: number;
+      lastPlayed: string | null;
+    }[];
+  };
+  challenges: {
+    level: string | null;
+    points: number;
+    max: number | null;
+    percentile: number | null;
+    categories: { name: string; level: string | null; points: number; max: number | null }[];
+  } | null;
+  live: { queue: string; champion: string | null; image: string | null; since: string | null } | null;
+  matches: LolMatch[];
+}
+
 export interface GameConnection<T = FfxivCharacter> {
   game: GameStatsId;
   externalId: string;
@@ -174,4 +236,24 @@ export function ago(iso: string) {
   const h = Math.round(min / 60);
   if (h < 48) return `${h} h ago`;
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+export function fetchLolSetup(): Promise<{ configured: boolean; regions: { value: string; label: string }[] }> {
+  return call('/api/games/lol/setup');
+}
+
+export function connectLol(riotId: string, region: string): Promise<GameConnection<LolPlayer>> {
+  return call('/api/games/lol/connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ riotId, region }),
+  });
+}
+
+export function refreshLol(): Promise<GameConnection<LolPlayer>> {
+  return call('/api/games/lol/refresh', { method: 'POST' });
+}
+
+export async function disconnectLol(): Promise<void> {
+  await call('/api/games/lol', { method: 'DELETE' });
 }
