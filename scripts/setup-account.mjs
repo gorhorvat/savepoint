@@ -83,17 +83,26 @@ async function fromVerBuddy(user) {
   let url = (process.env.VERBUDDY_API_URL ?? '').trim();
   url = (await ask(`VerBuddy's backend address${url ? ` [${url}]` : ''}: `)) || url;
   url = url.replace(/\/+$/, '');
-  const name = await ask('VerBuddy username: ');
-  const password = await askSecret('VerBuddy password: ');
-  console.log('Logging in to VerBuddy (it may need half a minute to wake up)...');
-  const login = await fetch(`${url}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: name, password }),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!login.ok) throw new Error(`VerBuddy refused the login (${login.status}).`);
-  const { token } = await login.json();
+  let token = null;
+  for (let attempt = 1; !token; attempt++) {
+    const name = await ask('VerBuddy username (your VerBuddy login, not the Savepoint one): ');
+    const password = await askSecret('VerBuddy password: ');
+    console.log('Logging in to VerBuddy (it may need half a minute to wake up)...');
+    const login = await fetch(`${url}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: name, password }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (login.ok) {
+      ({ token } = await login.json());
+      break;
+    }
+    const { message } = await login.json().catch(() => ({}));
+    console.log(`VerBuddy refused the login (${login.status}${message ? `: ${message}` : ''}).`);
+    // VerBuddy locks an account for a few minutes after several wrong passwords.
+    if (attempt >= 3 || !(await yes('Try again?'))) throw new Error('Nothing copied.');
+  }
   const r = await fetch(`${url}/api/savepoint/state`, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(120_000),
