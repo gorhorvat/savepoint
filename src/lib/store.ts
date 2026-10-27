@@ -49,6 +49,9 @@ export interface Profile {
   favoriteFranchises: string[];
 }
 
+/** Games with their own stats tab in My Stats (see src/lib/gameStats.ts). */
+export type GameStatsId = 'ffxiv';
+
 interface State {
   entries: PlayEntry[];
   customGames: Record<string, Game>;
@@ -81,6 +84,8 @@ interface State {
   profile: Profile;
   /** Shops searched for physical wants, as domains ("amazon.de", "vinted.hr"). */
   vendors: string[];
+  /** Game-specific stats in My Stats: on or off, and the games with a tab of their own. */
+  gameStats: { enabled: boolean; games: GameStatsId[] };
 
   importLibrary: (
     platform: PlatformId,
@@ -130,6 +135,7 @@ interface State {
   removeWant: (id: string) => void;
   updateProfile: (patch: Partial<Profile>) => void;
   setVendors: (vendors: string[]) => void;
+  setGameStats: (patch: Partial<State['gameStats']>) => void;
 }
 
 function ensureGame(
@@ -217,6 +223,7 @@ export const useStore = create<State>()(
       chat: [],
       profile: { favoriteGenres: [], favoriteFranchises: [] },
       vendors: ['ebay.com'],
+      gameStats: { enabled: false, games: [] },
       showApps: false,
       suggested: { key: '', fetchedAt: '', games: {} },
       progress: {},
@@ -481,6 +488,7 @@ export const useStore = create<State>()(
       removeWant: (id) => set({ physicalWants: get().physicalWants.filter((w) => w.id !== id) }),
       updateProfile: (patch) => set({ profile: { ...get().profile, ...patch } }),
       setVendors: (vendors) => set({ vendors }),
+      setGameStats: (patch) => set((s) => ({ gameStats: { ...s.gameStats, ...patch } })),
 
       applyGenres: (results) => {
         const customGames = { ...get().customGames };

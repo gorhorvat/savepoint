@@ -1,4 +1,16 @@
-import { Anchor, Grid, Group, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import {
+  Anchor,
+  Grid,
+  Group,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Tabs,
+  Text,
+  Title,
+} from '@mantine/core';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BarList, Columns, Donut, StatTile, type Slice } from '../components/charts';
@@ -7,8 +19,10 @@ import { PhysicalPlatformIcon } from '../components/PhysicalPlatformIcon';
 import { PLATFORMS } from '../data/platforms';
 import { formatHoursNumber, formatPlaytime, formatPrice } from '../lib/format';
 import { useLibrary } from '../lib/library';
+import { STATS_GAMES } from '../lib/gameStats';
 import { computeStats } from '../lib/stats';
-import { useStore } from '../lib/store';
+import { useStore, type GameStatsId } from '../lib/store';
+import { FfxivStats } from './FfxivStats';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GENRE_COLORS = ['var(--sp-c1)', 'var(--sp-c2)', 'var(--sp-c3)', 'var(--sp-c4)', 'var(--sp-c5)'];
@@ -29,7 +43,7 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 
 const hours = (m: number) => formatPlaytime(m);
 
-export function StatsPage() {
+function OverviewStats() {
   const all = useLibrary({ includeApps: true });
   const physical = useStore((s) => s.physical);
   const wishlist = useStore((s) => s.wishlist);
@@ -41,15 +55,10 @@ export function StatsPage() {
     [all, physical, history, progress, achievements],
   );
   const [genreBy, setGenreBy] = useState<'hours' | 'games'>('hours');
-  const [yearView, setYearView] = useState<'year' | 'all'>('year');
+  const [yearGamesShown, setYearGamesShown] = useState(8);
 
   if (!stats.gamesPlayed && !stats.collection.copies) {
-    return (
-      <Stack>
-        <Title order={1}>My Stats</Title>
-        <Text c="dimmed">Import or add some games and your stats will show up here.</Text>
-      </Stack>
-    );
+    return <Text c="dimmed">Import or add some games and your stats will show up here.</Text>;
   }
 
   // Top five genres plus "Other": a donut stays readable up to six slices.
@@ -78,13 +87,6 @@ export function StatsPage() {
 
   return (
     <Stack gap={56}>
-      <div>
-        <Title order={1}>My Stats</Title>
-        <Text c="dimmed" mt={6} size="lg">
-          Where your play time goes, across every platform.
-        </Text>
-      </div>
-
       <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} spacing="md">
         <StatTile
           label="Hours played"
@@ -100,13 +102,13 @@ export function StatsPage() {
           <StatTile
             label={`Hours in ${y.year}`}
             value={formatHoursNumber(t.minutes)}
-            note={t.wholeYear ? `${y.played.length} games played` : `Recorded since ${sinceLabel}`}
+            note={t.wholeYear ? `${y.games.length} games played` : `Recorded since ${sinceLabel}`}
           />
         ) : (
           <StatTile
             label={`Played in ${y.year}`}
-            value={y.played.length}
-            note={`${y.played.length === 1 ? 'game' : 'games'} you touched this year`}
+            value={y.games.length}
+            note={`${y.games.length === 1 ? 'game' : 'games'} you played this year`}
           />
         )}
         <StatTile label="Top 5 games" value={`${Math.round(stats.topFiveShare * 100)}%`} note="of all your play time" />
@@ -183,80 +185,61 @@ export function StatsPage() {
       <Section
         title={`${y.year} so far`}
         note={
-          yearView === 'year'
-            ? t?.wholeYear
-              ? 'Hours played each month this year, recorded from the change between syncs.'
-              : `Hours played this year since Savepoint started recording on ${sinceLabel || 'your first import'}. Steam, PlayStation and Xbox only report lifetime totals, so earlier hours this year can't be dated.`
-            : `Games you played this year, by the month you last played them, with their all-time hours.`
+          t?.wholeYear
+            ? `Hours played each month this year, recorded from the change between syncs.`
+            : `Only hours played in ${y.year} count here. Steam, PlayStation and Xbox report lifetime totals, so Savepoint records ${y.year} hours from the change between syncs, starting ${sinceLabel || 'with your first import'}; earlier hours this year can't be dated.`
         }
       >
-        <Stack gap="md">
-          <SegmentedControl
-            size="xs"
-            value={yearView}
-            onChange={(v) => setYearView(v as 'year' | 'all')}
-            data={[
-              { value: 'year', label: 'This year' },
-              { value: 'all', label: 'All time' },
-            ]}
-            style={{ alignSelf: 'flex-start' }}
-          />
-          {yearView === 'year' && !t ? (
-            <Text size="sm" c="dimmed">
-              No hours recorded yet this year. They show up here after your next syncs.
+        <Grid gap="xl">
+          <Grid.Col span={{ base: 12, md: 7 }}>
+            {t ? (
+              <Columns columns={t.byMonth.map((m, i) => ({ label: MONTHS[i], value: m, display: hours(m) }))} />
+            ) : (
+              <Text size="sm" c="dimmed">
+                No hours recorded in {y.year} yet. They show up here after your next syncs.
+              </Text>
+            )}
+          </Grid.Col>
+          <Grid.Col span={{ base: 12, md: 5 }}>
+            <Text size="sm" fw={600} mb="xs">
+              Games played in {y.year}
             </Text>
-          ) : (
-            <Grid gap="xl">
-              <Grid.Col span={{ base: 12, md: 7 }}>
-                {yearView === 'year' && t ? (
-                  <Columns columns={t.byMonth.map((m, i) => ({ label: MONTHS[i], value: m, display: hours(m) }))} />
-                ) : (
-                  <Columns
-                    columns={y.byMonth.map((n, i) => ({
-                      label: MONTHS[i],
-                      value: n,
-                      display: `${n} ${n === 1 ? 'game' : 'games'}`,
-                    }))}
-                  />
-                )}
-              </Grid.Col>
-              <Grid.Col span={{ base: 12, md: 5 }}>
-                <Text size="sm" fw={600} mb="xs">
-                  {yearView === 'year'
-                    ? `Most played in ${y.year}`
-                    : `Games you played in ${y.year}, by all-time hours`}
-                </Text>
-                {yearView === 'year' && t ? (
-                  <BarList
-                    bars={t.top.map(({ item, minutes }) => ({
-                      label: item.game.title,
-                      value: minutes,
-                      display: hours(minutes),
-                      href: `/game/${item.game.id}`,
-                    }))}
-                  />
-                ) : y.played.length ? (
-                  <BarList
-                    bars={y.played.slice(0, 5).map((l) => ({
-                      label: l.game.title,
-                      value: l.totalMinutes,
-                      display: hours(l.totalMinutes),
-                      href: `/game/${l.game.id}`,
-                    }))}
-                  />
-                ) : (
-                  <Text size="sm" c="dimmed">
-                    Nothing played this year yet.
-                  </Text>
-                )}
-                <Text size="sm" c="dimmed" mt="md">
-                  {y.played.length} {y.played.length === 1 ? 'game' : 'games'} played this year
-                  {stats.finishedThisYear > 0 && `, ${stats.finishedThisYear} finished`}.
-                </Text>
-              </Grid.Col>
-            </Grid>
-          )}
-        </Stack>
+            {y.games.length ? (
+              <BarList
+                bars={y.games.slice(0, yearGamesShown).map(({ item, minutes }) => ({
+                  label: item.game.title,
+                  value: minutes,
+                  display: minutes
+                    ? hours(minutes)
+                    : item.lastPlayed
+                      ? `last played ${new Date(item.lastPlayed).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+                      : '',
+                  href: `/game/${item.game.id}`,
+                }))}
+              />
+            ) : (
+              <Text size="sm" c="dimmed">
+                Nothing played this year yet.
+              </Text>
+            )}
+            {y.games.length > yearGamesShown && (
+              <Anchor
+                component="button"
+                type="button"
+                size="sm"
+                mt="xs"
+                onClick={() => setYearGamesShown(y.games.length)}
+              >
+                Show all {y.games.length}
+              </Anchor>
+            )}
+            <Text size="sm" c="dimmed" mt="md">
+              {y.games.length} {y.games.length === 1 ? 'game' : 'games'} played this year
+              {t ? `, ${hours(t.minutes)} recorded` : ''}
+              {stats.finishedThisYear > 0 && `, ${stats.finishedThisYear} finished`}.
+            </Text>
+          </Grid.Col>
+        </Grid>
       </Section>
 
       <Grid gap={48}>
@@ -399,6 +382,107 @@ export function StatsPage() {
           </Section>
         </Grid.Col>
       </Grid>
+    </Stack>
+  );
+}
+
+/** A game's own tab: its stats, and a way to remove the tab. */
+function GameTab({ id, onRemove }: { id: GameStatsId; onRemove: () => void }) {
+  return (
+    <Stack gap={48}>
+      {id === 'ffxiv' && <FfxivStats />}
+      <Anchor
+        component="button"
+        type="button"
+        size="sm"
+        c="dimmed"
+        onClick={onRemove}
+        style={{ alignSelf: 'flex-start' }}
+      >
+        Remove this tab
+      </Anchor>
+    </Stack>
+  );
+}
+
+export function StatsPage() {
+  const gameStats = useStore((s) => s.gameStats) ?? { enabled: false, games: [] };
+  const setGameStats = useStore((s) => s.setGameStats);
+  const [tab, setTab] = useState<string>('overview');
+  const games = STATS_GAMES.filter((g) => gameStats.games.includes(g.id));
+  const addable = STATS_GAMES.filter((g) => !gameStats.games.includes(g.id));
+  const current = gameStats.enabled && games.some((g) => g.id === tab) ? tab : 'overview';
+
+  const header = (
+    <Group justify="space-between" align="flex-end" gap="md">
+      <div>
+        <Title order={1}>My Stats</Title>
+        <Text c="dimmed" mt={6} size="lg">
+          Where your play time goes, across every platform.
+        </Text>
+      </div>
+      <Switch
+        label="Game-specific stats"
+        checked={gameStats.enabled}
+        onChange={(e) => setGameStats({ enabled: e.currentTarget.checked })}
+      />
+    </Group>
+  );
+
+  if (!gameStats.enabled) {
+    return (
+      <Stack gap={40}>
+        {header}
+        <OverviewStats />
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack gap={40}>
+      {header}
+      <Tabs value={current} onChange={(v) => setTab(v ?? 'overview')} keepMounted={false}>
+        <Group justify="space-between" align="flex-end" gap="sm" wrap="wrap" mb={40}>
+          <Tabs.List style={{ flex: '1 1 auto' }}>
+            <Tabs.Tab value="overview">Overview</Tabs.Tab>
+            {games.map((g) => (
+              <Tabs.Tab key={g.id} value={g.id}>
+                {g.short}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+          {addable.length > 0 && (
+            <Select
+              size="sm"
+              placeholder="Add a game"
+              aria-label="Add a game"
+              data={addable.map((g) => ({ value: g.id, label: g.name }))}
+              value={null}
+              onChange={(v) => {
+                if (!v) return;
+                setGameStats({ games: [...gameStats.games, v as GameStatsId] });
+                setTab(v);
+              }}
+              w={240}
+              comboboxProps={{ position: 'bottom-end', width: 'target' }}
+            />
+          )}
+        </Group>
+        <Tabs.Panel value="overview">
+          <OverviewStats />
+        </Tabs.Panel>
+        {games.map((g) => (
+          <Tabs.Panel key={g.id} value={g.id}>
+            <GameTab
+              id={g.id}
+              onRemove={() => {
+                setGameStats({ games: gameStats.games.filter((x) => x !== g.id) });
+                setTab('overview');
+              }}
+            />
+          </Tabs.Panel>
+        ))}
+      </Tabs>
     </Stack>
   );
 }

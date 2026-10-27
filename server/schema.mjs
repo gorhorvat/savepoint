@@ -362,6 +362,18 @@ CREATE TABLE IF NOT EXISTS public_profiles (
   "updated_at" timestamptz NOT NULL DEFAULT now()
 );
 
+-- Game-specific stats (server/ffxiv.mjs): one connected account or character
+-- per game, with what was last read for it.
+CREATE TABLE IF NOT EXISTS game_connections (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "game" text NOT NULL,
+  "external_id" text NOT NULL,
+  "name" text,
+  "data" jsonb,
+  "fetched_at" timestamptz,
+  PRIMARY KEY ("user_id", "game")
+);
+
 -- App-wide settings, such as the invite code for sign-up.
 CREATE TABLE IF NOT EXISTS app_settings (
   "key" text PRIMARY KEY,
