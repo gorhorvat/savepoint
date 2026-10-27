@@ -11,6 +11,8 @@ export interface FfxivJob {
   name: string;
   role: 'Tank' | 'Healer' | 'Melee' | 'Ranged' | 'Caster' | 'Limited' | 'Crafter' | 'Gatherer';
   level: number;
+  /** The job's icon from the Lodestone (missing on data read before icons were added). */
+  icon?: string | null;
   exp: { current: number; max: number } | null;
 }
 

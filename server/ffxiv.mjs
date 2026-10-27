@@ -24,6 +24,15 @@ const selectors = structuredClone({ character, classjob, achievements: achieveme
 // pattern only takes the last word.
 selectors.character.GRAND_COMPANY.regex = '(?P<Name>.+?) / (?P<Rank>.*)';
 
+// Job icons: the selector files have none, but each job's <li> on the
+// class_job page starts with its icon, so it's read from the same <li> as the level.
+for (const def of Object.values(selectors.classjob)) {
+  const level = def?.LEVEL?.selector;
+  if (level?.includes(' > li:') && level.endsWith(' > div:nth-child(2)')) {
+    def.ICON = { selector: `${level.slice(0, -' > div:nth-child(2)'.length)} img`, attribute: 'src' };
+  }
+}
+
 const BASE = 'https://na.finalfantasyxiv.com/lodestone';
 // From the selector files' meta.json: mounts and minions only list their names
 // on the mobile pages.
@@ -121,6 +130,7 @@ export async function readCharacter(id) {
       name,
       role,
       level: level ?? 0,
+      icon: typeof d.ICON === 'string' ? d.ICON : null,
       exp: d.EXP && num(d.EXP.MaxEXP) ? { current: num(d.EXP.CurrentEXP) ?? 0, max: num(d.EXP.MaxEXP) } : null,
     };
   });
@@ -292,7 +302,9 @@ gameStatsRouter.post('/api/games/ffxiv/refresh', async (req, res) => {
     );
     const current = rows[0];
     if (!current) return res.status(404).json({ error: 'Connect a character first.' });
-    const fresh = Date.now() - new Date(current.fetched_at).getTime() < REFRESH_MS;
+    // Data read before job icons were added is refreshed right away.
+    const hasIcons = current.data?.jobs?.some((j) => 'icon' in j);
+    const fresh = hasIcons && Date.now() - new Date(current.fetched_at).getTime() < REFRESH_MS;
     if (fresh) {
       return res.json({
         game: 'ffxiv',

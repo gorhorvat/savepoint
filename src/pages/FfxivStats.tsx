@@ -280,9 +280,33 @@ function JobRow({ job }: { job: FfxivJob }) {
   return (
     <div>
       <Group justify="space-between" gap="xs" wrap="nowrap">
-        <Text size="sm" c={unlocked ? undefined : 'dimmed'} truncate>
-          {job.name}
-        </Text>
+        <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+          {job.icon ? (
+            <img
+              src={job.icon}
+              alt=""
+              width={24}
+              height={24}
+              loading="lazy"
+              style={{ flexShrink: 0, opacity: unlocked ? 1 : 0.4 }}
+            />
+          ) : (
+            <span
+              aria-hidden
+              style={{
+                width: 24,
+                height: 24,
+                flexShrink: 0,
+                borderRadius: '50%',
+                background: ROLE_COLOR[job.role],
+                opacity: unlocked ? 0.8 : 0.3,
+              }}
+            />
+          )}
+          <Text size="sm" c={unlocked ? undefined : 'dimmed'} truncate>
+            {job.name}
+          </Text>
+        </Group>
         <Text size="sm" className="num" fw={job.level >= cap ? 700 : 500} c={unlocked ? undefined : 'dimmed'}>
           {unlocked ? job.level : '—'}
         </Text>
