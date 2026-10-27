@@ -51,11 +51,6 @@ export interface Stats {
       byMonth: number[];
       top: { item: LibraryGame; minutes: number }[];
     };
-    /**
-     * Every game played this year with the hours recorded for it this year
-     * (0 when it was last played this year before recording began), most first.
-     */
-    games: { item: LibraryGame; minutes: number }[];
   };
   /** Finished/completed games, by status set per game. */
   finishedThisYear: number;
@@ -139,12 +134,6 @@ export function computeStats(
   const byMonth = Array.from({ length: 12 }, () => 0);
   for (const l of thisYear) if (l.lastPlayed) byMonth[new Date(l.lastPlayed).getMonth()] += 1;
 
-  const yearMinutes = new Map<string, number>();
-  for (const l of yearLog) yearMinutes.set(l.gameId, (yearMinutes.get(l.gameId) ?? 0) + l.minutes);
-  const yearGames = thisYear
-    .map((item) => ({ item, minutes: yearMinutes.get(item.game.id) ?? 0 }))
-    .sort((a, b) => b.minutes - a.minutes || (b.item.lastPlayed ?? '').localeCompare(a.item.lastPlayed ?? ''));
-
   let tracked: Stats['year']['tracked'];
   // Whether recording began by the year's first week, so its hours are complete.
   const coversYear = !!since && since.slice(0, 10) <= `${year}-01-07`;
@@ -208,7 +197,6 @@ export function computeStats(
       minutes: thisYear.reduce((n, l) => n + l.totalMinutes, 0),
       recorded: since ? { since, minutes: recordedMinutes } : undefined,
       tracked,
-      games: yearGames,
     },
     finishedThisYear: Object.values(progress).filter(
       (p) => (p.status === 'finished' || p.status === 'completed') && p.finishedAt?.startsWith(prefix),

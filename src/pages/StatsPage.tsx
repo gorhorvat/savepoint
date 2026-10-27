@@ -78,12 +78,8 @@ function OverviewStats() {
   }
 
   const y = stats.year;
-  const t = y.tracked;
   const unplayed = stats.collection.unplayed;
   const a = stats.achievements;
-  const sinceLabel = history.since
-    ? new Date(history.since).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-    : '';
 
   return (
     <Stack gap={56}>
@@ -98,19 +94,11 @@ function OverviewStats() {
           value={hours(stats.averageMinutes)}
           note={`Typical game: ${hours(stats.medianMinutes)}`}
         />
-        {t ? (
-          <StatTile
-            label={`Hours in ${y.year}`}
-            value={formatHoursNumber(t.minutes)}
-            note={t.wholeYear ? `${y.games.length} games played` : `Recorded since ${sinceLabel}`}
-          />
-        ) : (
-          <StatTile
-            label={`Played in ${y.year}`}
-            value={y.games.length}
-            note={`${y.games.length === 1 ? 'game' : 'games'} you played this year`}
-          />
-        )}
+        <StatTile
+          label={`Played in ${y.year}`}
+          value={y.played.length}
+          note={`${y.played.length === 1 ? 'game' : 'games'}, ${hours(y.minutes)} all time`}
+        />
         <StatTile label="Top 5 games" value={`${Math.round(stats.topFiveShare * 100)}%`} note="of all your play time" />
         <StatTile
           label="Physical copies"
@@ -184,19 +172,21 @@ function OverviewStats() {
 
       <Section
         title={`${y.year} so far`}
-        note={
-          t?.wholeYear
-            ? `Hours played each month this year, recorded from the change between syncs.`
-            : `Only hours played in ${y.year} count here. Steam, PlayStation and Xbox report lifetime totals, so Savepoint records ${y.year} hours from the change between syncs, starting ${sinceLabel || 'with your first import'}; earlier hours this year can't be dated.`
-        }
+        note={`Games you played in ${y.year}, with their all-time hours. The graph counts them by the month you last played each.`}
       >
         <Grid gap="xl">
           <Grid.Col span={{ base: 12, md: 7 }}>
-            {t ? (
-              <Columns columns={t.byMonth.map((m, i) => ({ label: MONTHS[i], value: m, display: hours(m) }))} />
+            {y.played.length ? (
+              <Columns
+                columns={y.byMonth.map((n, i) => ({
+                  label: MONTHS[i],
+                  value: n,
+                  display: `${n} ${n === 1 ? 'game' : 'games'}`,
+                }))}
+              />
             ) : (
               <Text size="sm" c="dimmed">
-                No hours recorded in {y.year} yet. They show up here after your next syncs.
+                Nothing played in {y.year} yet.
               </Text>
             )}
           </Grid.Col>
@@ -204,16 +194,12 @@ function OverviewStats() {
             <Text size="sm" fw={600} mb="xs">
               Games played in {y.year}
             </Text>
-            {y.games.length ? (
+            {y.played.length ? (
               <BarList
-                bars={y.games.slice(0, yearGamesShown).map(({ item, minutes }) => ({
+                bars={y.played.slice(0, yearGamesShown).map((item) => ({
                   label: item.game.title,
-                  value: minutes,
-                  display: minutes
-                    ? hours(minutes)
-                    : item.lastPlayed
-                      ? `last played ${new Date(item.lastPlayed).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
-                      : '',
+                  value: item.totalMinutes,
+                  display: hours(item.totalMinutes),
                   href: `/game/${item.game.id}`,
                 }))}
               />
@@ -222,20 +208,20 @@ function OverviewStats() {
                 Nothing played this year yet.
               </Text>
             )}
-            {y.games.length > yearGamesShown && (
+            {y.played.length > yearGamesShown && (
               <Anchor
                 component="button"
                 type="button"
                 size="sm"
                 mt="xs"
-                onClick={() => setYearGamesShown(y.games.length)}
+                onClick={() => setYearGamesShown(y.played.length)}
               >
-                Show all {y.games.length}
+                Show all {y.played.length}
               </Anchor>
             )}
             <Text size="sm" c="dimmed" mt="md">
-              {y.games.length} {y.games.length === 1 ? 'game' : 'games'} played this year
-              {t ? `, ${hours(t.minutes)} recorded` : ''}
+              {y.played.length} {y.played.length === 1 ? 'game' : 'games'} played this year, {hours(y.minutes)} in them
+              all time
               {stats.finishedThisYear > 0 && `, ${stats.finishedThisYear} finished`}.
             </Text>
           </Grid.Col>
