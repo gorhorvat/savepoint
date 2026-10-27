@@ -29,11 +29,12 @@ import { STORE_BY_ID } from '../data/stores';
 import {
   fetchAccount,
   fetchSteamWishlist,
-  sendTestAlert,
+  fetchAlertSettings,
   steamProfileUrl,
   usePrices,
   useServerStatus,
   type Account,
+  type AlertSettings,
 } from '../lib/api';
 import { formatLastPlayed, formatPrice, upcomingLabel } from '../lib/format';
 import { normalizeTitle } from '../lib/match';
@@ -297,56 +298,25 @@ function SteamSync() {
   );
 }
 
+/** A line on whether price alerts are on, pointing to Settings. */
 function PriceAlerts() {
-  const [status] = useServerStatus();
-  const [sending, setSending] = useState(false);
-  const targets = useStore((s) => s.wishlist.filter((w) => w.targetPrice != null).length);
-  const topic = status?.ntfyTopic;
-  if (!status?.online) return null;
-  if (status.superAdmin === false) {
-    return (
-      <Text size="sm" c="dimmed">
-        Price alerts go to the super admin&apos;s phone, so they&apos;re only on for their account. Target prices still
-        mark games that hit them here.
-      </Text>
-    );
-  }
-  if (!topic) {
-    return (
-      <Text size="sm" c="dimmed">
-        To get a phone notification when a game hits its target, set <Code>NTFY_TOPIC</Code> in <Code>.env</Code> and
-        restart the server.
-      </Text>
-    );
-  }
-  const test = async () => {
-    setSending(true);
-    try {
-      await sendTestAlert();
-      notifications.show({ message: 'Test notification sent. It should arrive on your phone in a few seconds.' });
-    } catch (err) {
-      notifications.show({ color: 'red', title: "Couldn't send", message: (err as Error).message });
-    } finally {
-      setSending(false);
-    }
-  };
+  const [settings, setSettings] = useState<AlertSettings | null>(null);
+  useEffect(() => {
+    fetchAlertSettings()
+      .then(setSettings)
+      .catch(() => {});
+  }, []);
+  if (!settings) return null;
   return (
-    <Stack gap="xs">
-      <Text size="sm">
-        Savepoint checks your target prices every six hours while the server runs and notifies your phone through the
-        free ntfy app. Install ntfy, tap +, and subscribe to <Code>{topic}</Code>.
-      </Text>
-      <Group gap="sm">
-        <Button size="xs" variant="light" onClick={test} loading={sending}>
-          Send a test notification
-        </Button>
-        <Text size="xs" c="dimmed">
-          {targets
-            ? `Watching ${targets} ${targets === 1 ? 'game' : 'games'} with a target price.`
-            : 'Set a target price on a game below to start.'}
-        </Text>
-      </Group>
-    </Stack>
+    <Text size="sm" c="dimmed">
+      {settings.topic
+        ? `Price alerts are on: your phone hears about it when a game hits its target price. `
+        : 'Set a target price on a game to see when it gets there. For a phone notification, '}
+      <Anchor component={Link} to="/settings#alerts">
+        {settings.topic ? 'Alert settings' : 'turn on price alerts in Settings'}
+      </Anchor>
+      {settings.topic ? '' : '.'}
+    </Text>
   );
 }
 

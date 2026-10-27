@@ -13,7 +13,16 @@ import { howLongToBeat } from './hltb.mjs';
 import { criticScore } from './opencritic.mjs';
 import { igdbConfigured, igdbGame, lookupIgdb } from './igdb.mjs';
 import { itadDeal } from './itad.mjs';
-import { checkAlerts, notify, ntfyTopic, setAlerts, startAlertTimer } from './alerts.mjs';
+import {
+  alertTopic,
+  checkAlerts,
+  newAlertTopic,
+  notify,
+  setAlerts,
+  startAlertTimer,
+  turnOffAlerts,
+  watchedCount,
+} from './alerts.mjs';
 import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
 import { xboxLibrary } from './xbox.mjs';
@@ -27,7 +36,7 @@ import {
   resetPsnSession,
   xboxKeyFor,
 } from './platformLogins.mjs';
-import { accountRouter, authRouter, requireLogin, superAdminOnly } from './auth.mjs';
+import { accountRouter, authRouter, requireLogin } from './auth.mjs';
 import { steamLoginRouter } from './steamLogin.mjs';
 import { query } from './db.mjs';
 
@@ -88,7 +97,7 @@ app.get('/api/status', async (req, res) => {
     assistantModel: provider === 'gemini' ? GEMINI_MODEL : OLLAMA_MODEL,
     ollama: { ...ollama, model: OLLAMA_MODEL, url: OLLAMA_URL },
     steam: has('STEAM_API_KEY'),
-    // Price alerts and the invite code are the super admin's.
+    // The invite code is the super admin's.
     superAdmin: req.isSuperAdmin,
     // This account's own PlayStation and Xbox connections.
     ...(await platformLogins(req.userId)
@@ -104,7 +113,6 @@ app.get('/api/status', async (req, res) => {
     igdb: igdbConfigured(),
     critics: has('OPENCRITIC_RAPIDAPI_KEY'),
     deals: has('ITAD_API_KEY'),
-    ntfyTopic: (req.isSuperAdmin && ntfyTopic()) || null,
   });
 });
 
@@ -396,36 +404,72 @@ app.post('/api/lengths', async (req, res) => {
   res.json({ results });
 });
 
+// ---------------------------------------------------------------- Price alerts (per account)
+
+const alertsFailed = (res, err) => {
+  console.error('Price alerts:', err);
+  res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+};
+
+// -> { topic (null = off), watching }
+app.get('/api/alerts/settings', async (req, res) => {
+  try {
+    res.json({ topic: await alertTopic(req.userId), watching: await watchedCount(req.userId) });
+  } catch (err) {
+    alertsFailed(res, err);
+  }
+});
+
+// Turns alerts on, or replaces the topic with a new random one. -> { topic }
+app.post('/api/alerts/settings', async (req, res) => {
+  try {
+    res.json({ topic: await newAlertTopic(req.userId) });
+  } catch (err) {
+    alertsFailed(res, err);
+  }
+});
+
+app.delete('/api/alerts/settings', async (req, res) => {
+  try {
+    await turnOffAlerts(req.userId);
+    res.status(204).end();
+  } catch (err) {
+    alertsFailed(res, err);
+  }
+});
+
 // Body: { items: [{ id, title, steamAppId?, nsuid?, pc, switch, target }] } -> { checked, sent }
-app.post('/api/alerts', superAdminOnly, async (req, res) => {
+app.post('/api/alerts', async (req, res) => {
   const items = (req.body?.items ?? [])
-    .filter((i) => i && typeof i.id === 'string' && typeof i.title === 'string' && typeof i.target === 'number')
+    .filter((i) => i && typeof i.id === 'string' && i.id && typeof i.title === 'string' && Number.isFinite(i.target))
     .slice(0, 300)
     .map((i) => ({
       id: i.id,
-      title: i.title,
-      steamAppId: Number(i.steamAppId) || undefined,
-      nsuid: i.nsuid ? String(i.nsuid) : undefined,
+      title: i.title.slice(0, 300),
+      steamAppId: Number.isInteger(Number(i.steamAppId)) && Number(i.steamAppId) > 0 ? Number(i.steamAppId) : null,
+      nsuid: i.nsuid ? String(i.nsuid).slice(0, 40) : null,
       pc: !!i.pc,
       switch: !!i.switch,
       target: i.target,
     }));
   try {
-    res.json(await setAlerts(items));
+    res.json(await setAlerts(req.userId, items));
   } catch (err) {
     res.status(502).json({ error: `Price check failed: ${err.message}` });
   }
 });
 
-app.post('/api/alerts/test', superAdminOnly, async (_req, res) => {
+app.post('/api/alerts/test', async (req, res) => {
   try {
-    await notify({
+    const topic = await alertTopic(req.userId);
+    if (!topic) return res.status(409).json({ error: 'Turn on price alerts first.' });
+    await notify(topic, {
       title: 'Savepoint',
       message: 'Price alerts are set up. You will get a message like this when a game hits your target.',
     });
     res.json({ ok: true });
   } catch (err) {
-    res.status(502).json({ error: err.message });
+    res.status(502).json({ error: `Couldn't send it: ${err.message}` });
   }
 });
 

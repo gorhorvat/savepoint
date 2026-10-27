@@ -2,6 +2,7 @@ import { Anchor, Group, Paper, Stack, TagsInput, Text, Title } from '@mantine/co
 import { IconExternalLink } from '@tabler/icons-react';
 import { useStore } from '../lib/store';
 import { normalizeVendor, searchesDirectly, SHOP_SUGGESTIONS, vendorSearchUrl } from '../lib/vendors';
+import { AlertsSection } from './AlertsSection';
 import { PlatformsSection } from './PlatformsSection';
 
 function ShopsSection() {
@@ -62,10 +63,11 @@ export function SettingsPage() {
       <div>
         <Title order={1}>Settings</Title>
         <Text c="dimmed" mt={6} size="lg">
-          Shops for your physical wants, and the platforms your play time comes from.
+          Shops for your physical wants, price alerts, and the platforms your play time comes from.
         </Text>
       </div>
       <ShopsSection />
+      <AlertsSection />
       <PlatformsSection />
     </Stack>
   );

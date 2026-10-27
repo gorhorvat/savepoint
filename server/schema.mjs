@@ -316,6 +316,27 @@ CREATE TABLE IF NOT EXISTS platform_logins (
   PRIMARY KEY ("user_id", "platform")
 );
 
+-- Price alerts: each account's ntfy topic, and the games it watches with
+-- their target prices (server/alerts.mjs).
+CREATE TABLE IF NOT EXISTS alert_topics (
+  "user_id" integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  "topic" text NOT NULL UNIQUE,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS price_alerts (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "game_id" text NOT NULL,
+  "title" text NOT NULL,
+  "steam_app_id" integer,
+  "nsuid" text,
+  "pc" boolean NOT NULL DEFAULT false,
+  "switch" boolean NOT NULL DEFAULT false,
+  "target" double precision NOT NULL,
+  -- The price last notified about, so the same drop isn't sent twice.
+  "last_sent_price" double precision,
+  PRIMARY KEY ("user_id", "game_id")
+);
+
 -- App-wide settings, such as the invite code for sign-up.
 CREATE TABLE IF NOT EXISTS app_settings (
   "key" text PRIMARY KEY,

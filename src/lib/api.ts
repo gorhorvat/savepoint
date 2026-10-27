@@ -22,15 +22,13 @@ export interface ServerStatus {
   critics?: boolean;
   /** IsThereAnyDeal prices are set up. */
   deals?: boolean;
-  /** ntfy topic for price alerts, when set. */
-  ntfyTopic?: string | null;
   /** False when the API server isn't running at all. */
   online: boolean;
   /** This account has connected its own Xbox (OpenXBL key). */
   xbox?: boolean;
   /** The gamertag it's connected as, when known. */
   xboxAccount?: string | null;
-  /** True for the super admin, who gets price alerts and manages the invite code. */
+  /** True for the super admin, who manages the invite code. */
   superAdmin?: boolean;
 }
 
@@ -431,6 +429,26 @@ export async function syncAlerts(items: AlertItem[]): Promise<{ checked: number;
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error ?? `Price check failed (${r.status})`);
   return body;
+}
+
+export interface AlertSettings {
+  /** This account's ntfy topic; null when alerts are off. */
+  topic: string | null;
+  /** Games with a target price the server watches. */
+  watching: number;
+}
+
+export function fetchAlertSettings(): Promise<AlertSettings> {
+  return getJson<AlertSettings>('/api/alerts/settings');
+}
+
+/** Turns alerts on, or swaps the topic for a new random one. Returns the topic. */
+export async function newAlertTopic(): Promise<string> {
+  return ((await sendJson('/api/alerts/settings', 'POST')) as { topic: string }).topic;
+}
+
+export async function turnOffAlerts(): Promise<void> {
+  await sendJson('/api/alerts/settings', 'DELETE');
 }
 
 export async function sendTestAlert(): Promise<void> {

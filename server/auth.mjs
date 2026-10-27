@@ -3,8 +3,7 @@
 // People with the invite code can create an account from the login screen;
 // the super admin sets or changes that code in Profile.
 // `npm run setup-account` creates accounts and resets passwords from the
-// command line. The super admin can also use the features tied to their own
-// accounts: their PlayStation and Xbox, and price alerts to their phone.
+// command line. The super admin also manages the invite code.
 //
 // A successful login sets a signed, HttpOnly cookie with the user's id; every
 // other /api route requires it. It lasts 30 days.
@@ -228,7 +227,7 @@ export async function requireLogin(req, res, next) {
 // Sessions from before roles carried an owner flag (o) instead.
 const isSuperAdmin = (s) => s.r === ROLES.superAdmin || s.o === true;
 
-/** Only for the super admin: their own PlayStation, Xbox and alerts, and the invite code. */
+/** Only for the super admin: the invite code. */
 export function superAdminOnly(req, res, next) {
   if (req.isSuperAdmin) return next();
   res.status(403).json({ error: 'Only the super admin can use this.' });
