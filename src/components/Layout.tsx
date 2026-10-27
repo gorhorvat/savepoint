@@ -19,9 +19,12 @@ import {
   IconSettings,
   IconSparkles,
   IconSun,
+  IconUsers,
 } from '@tabler/icons-react';
-import type { ReactNode } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { NavLink, Link, useLocation } from 'react-router-dom';
+import { fetchFriendSummary, FRIENDS_CHANGED } from '../lib/friends';
+import { usePublicProfileSync } from '../lib/publicProfile';
 import { useAutoSync } from '../lib/autoSync';
 import { useDetailsBackfill } from '../lib/details';
 import { usePlayHistory } from '../lib/history';
@@ -66,6 +69,42 @@ export function Logo({ size = 22 }: { size?: number }) {
   );
 }
 
+/** Friends in the header, with the number of friend requests waiting. */
+function FriendsButton() {
+  const [incoming, setIncoming] = useState(0);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const check = () =>
+      fetchFriendSummary()
+        .then((s) => setIncoming(s.incoming))
+        .catch(() => {});
+    check();
+    const timer = setInterval(check, 120_000);
+    window.addEventListener(FRIENDS_CHANGED, check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(FRIENDS_CHANGED, check);
+    };
+  }, [pathname]);
+  const label = incoming ? `Friends: ${incoming} ${incoming === 1 ? 'request' : 'requests'}` : 'Friends';
+  return (
+    <Tooltip label={label}>
+      <ActionIcon
+        component={Link}
+        to="/friends"
+        variant="subtle"
+        color="gray"
+        size="lg"
+        aria-label={label}
+        pos="relative"
+      >
+        <IconUsers size={20} />
+        {incoming > 0 && <span className="header-count num">{incoming}</span>}
+      </ActionIcon>
+    </Tooltip>
+  );
+}
+
 function SchemeToggle() {
   const { setColorScheme } = useMantineColorScheme();
   const computed = useComputedColorScheme('light');
@@ -96,6 +135,7 @@ export function Layout({ children }: { children: ReactNode }) {
   useAchievementsSync();
   useLengthBackfill();
   usePriceAlertsSync();
+  usePublicProfileSync();
 
   return (
     <AppShell
@@ -123,6 +163,7 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
           <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
             <SchemeToggle />
+            <FriendsButton />
             <Tooltip label="Settings">
               <ActionIcon component={Link} to="/settings" variant="subtle" color="gray" size="lg" aria-label="Settings">
                 <IconSettings size={20} />

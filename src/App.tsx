@@ -3,7 +3,10 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { StateGate } from './components/StateGate';
 import { AssistantPage } from './pages/AssistantPage';
+import { AddFriendPage } from './pages/AddFriendPage';
 import { DiscoverPage } from './pages/DiscoverPage';
+import { FriendProfilePage } from './pages/FriendProfilePage';
+import { FriendsPage } from './pages/FriendsPage';
 import { GamePage } from './pages/GamePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { PhysicalPage } from './pages/PhysicalPage';
@@ -37,6 +40,9 @@ export default function App() {
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/friends" element={<FriendsPage />} />
+          <Route path="/friends/:id" element={<FriendProfilePage />} />
+          <Route path="/add/:code" element={<AddFriendPage />} />
           {/* Platforms is a section of Settings now; keep old links working. */}
           <Route path="/platforms" element={<Navigate to="/settings" replace />} />
           <Route path="*" element={<LibraryPage />} />

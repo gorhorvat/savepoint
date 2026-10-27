@@ -63,6 +63,10 @@ Either way, each question includes your library, your taste profile, and about 3
 
 When the app opens, it re-syncs each connected source whose last sync is more than 6 hours old: your Steam library, your PlayStation library, and your Steam wishlist. The Sync buttons on the Platforms and Wishlist pages still work any time. Switch and Epic play time is entered by hand. Prices are fetched when a page opens and cached on the server for 30 minutes. Steam's full game list, used for search, is re-downloaded weekly.
 
+## Friends
+
+Friends (the people icon in the header) add each other by username or a personal friend link (`/add/<code>`, replaceable at any time). Friends see each other's level and rank, picture, favourites, most-played games and hours, and wishlist; each account's app sends that summary whenever it changes. Whether a friend is online, on which platform, and what they're playing comes from the platforms they've connected: Steam (when their profile is public), and PlayStation and Xbox through their own connections, each looked up at most once a minute.
+
 ## Data
 
 Your library, wishlist, play history and the rest are saved in a Postgres database (Neon's free plan, `DATABASE_URL`), so every device sees the same data. The tables are created automatically on first use; `server/schema.mjs` lists them and how the app's data maps onto them. Disconnecting a platform removes the games imported from it.

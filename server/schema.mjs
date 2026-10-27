@@ -337,6 +337,31 @@ CREATE TABLE IF NOT EXISTS price_alerts (
   PRIMARY KEY ("user_id", "game_id")
 );
 
+-- PlayStation's internal account id, for looking up its online status.
+ALTER TABLE platform_logins ADD COLUMN IF NOT EXISTS "account_id" text;
+
+-- Friends (server/friends.mjs). A request is a row from requester to
+-- addressee; accepting it makes them friends both ways.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "friend_code" text UNIQUE;
+CREATE TABLE IF NOT EXISTS friendships (
+  "requester_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "addressee_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "status" text NOT NULL DEFAULT 'pending',
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "accepted_at" timestamptz,
+  PRIMARY KEY ("requester_id", "addressee_id"),
+  CHECK ("requester_id" <> "addressee_id")
+);
+CREATE INDEX IF NOT EXISTS friendships_addressee ON friendships ("addressee_id");
+
+-- What friends see of an account: level, rank, picture, favourites, top games,
+-- hours and wishlist, as the app worked them out (sent whenever they change).
+CREATE TABLE IF NOT EXISTS public_profiles (
+  "user_id" integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  "data" jsonb NOT NULL,
+  "updated_at" timestamptz NOT NULL DEFAULT now()
+);
+
 -- App-wide settings, such as the invite code for sign-up.
 CREATE TABLE IF NOT EXISTS app_settings (
   "key" text PRIMARY KEY,

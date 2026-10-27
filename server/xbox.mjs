@@ -149,3 +149,20 @@ export async function xboxLibrary(key, scope) {
 
   return titles.map(({ titleId, ...t }) => ({ ...t, externalId: titleId, minutes: minutes.get(titleId) ?? 0 }));
 }
+
+/**
+ * Whether the key's Xbox account is online and what it's playing. OpenXBL's
+ * /presence answers with Xbox's presence record(s); read defensively.
+ */
+export async function xboxPresence(key) {
+  const data = await xbl(key, '/presence');
+  const record = [data, ...(Array.isArray(data) ? data : []), data?.content, ...(data?.content ?? [])].find(
+    (r) => r && typeof r === 'object' && typeof r.state === 'string',
+  );
+  if (!record) return { online: false, playing: null };
+  const online = record.state.toLowerCase() === 'online';
+  const titles = (record.devices ?? []).flatMap((d) => d.titles ?? []);
+  // The dashboard ("Home") and apps aren't games being played.
+  const game = titles.find((t) => t.name && t.placement === 'Full' && !/^(home|online)$/i.test(t.name));
+  return { online, playing: online ? (game?.name ?? null) : null };
+}

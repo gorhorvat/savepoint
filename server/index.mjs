@@ -38,6 +38,7 @@ import {
 } from './platformLogins.mjs';
 import { accountRouter, authRouter, requireLogin } from './auth.mjs';
 import { steamLoginRouter } from './steamLogin.mjs';
+import { friendsRouter } from './friends.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -80,6 +81,7 @@ app.use(requireLogin); // Everything below needs you to be logged in.
 app.use(platformContext); // Lets game search use the searcher's own PlayStation sign-in.
 app.use(accountRouter); // /api/account, /api/account/*, /api/admin/invite
 app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
+app.use(friendsRouter); // /api/friends/*, /api/profile/public
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);
 app.use(express.json({ limit: '1mb' }));

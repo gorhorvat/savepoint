@@ -70,7 +70,8 @@ async function save(userId, platform, secret, account, expiresAt = null) {
      VALUES ($1, $2, $3, $4, $5, now())
      ON CONFLICT ("user_id", "platform") DO UPDATE SET "secret" = EXCLUDED."secret",
        "account_name" = COALESCE(EXCLUDED."account_name", platform_logins."account_name"),
-       "expires_at" = EXCLUDED."expires_at", "updated_at" = now()`,
+       "expires_at" = EXCLUDED."expires_at", "updated_at" = now(),
+       "account_id" = CASE WHEN EXCLUDED."account_name" IS NULL THEN platform_logins."account_id" END`,
     [userId, platform, await encrypt(secret), account, expiresAt],
   );
 }
@@ -174,6 +175,21 @@ export async function fillMissingNames(userId, { force = false } = {}) {
     const name = await xboxAccount(await xboxKeyFor(userId)).catch(() => null);
     if (name) await update('xbox', name);
   }
+}
+
+/** The account's PlayStation account id (for its online status), looked up once and kept. */
+export async function psnAccountIdFor(userId, auth) {
+  const { rows } = await query(
+    'SELECT "account_id" FROM platform_logins WHERE "user_id" = $1 AND "platform" = \'playstation\'',
+    [userId],
+  );
+  if (rows[0]?.account_id) return rows[0].account_id;
+  const { accountId } = await getUserTrophyProfileSummary(auth, 'me');
+  await query('UPDATE platform_logins SET "account_id" = $2 WHERE "user_id" = $1 AND "platform" = \'playstation\'', [
+    userId,
+    accountId,
+  ]);
+  return accountId;
 }
 
 /** Forget a cached PSN session (after an error), so the next call signs in again. */
