@@ -45,7 +45,7 @@ const LOCKOUT_MS = 15 * 60 * 1000;
 const failures = diskCache('login-failures', LOCKOUT_MS);
 
 let secret = null;
-async function getSecret() {
+export async function getSecret() {
   if (secret) return secret;
   if (process.env.SESSION_SECRET?.trim()) return (secret = process.env.SESSION_SECRET.trim());
   // No lasting disk on Vercel: a generated secret would log you out on every new instance.

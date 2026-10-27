@@ -304,6 +304,18 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Each account's own PlayStation and Xbox sign-ins (PlayStation refresh token,
+-- OpenXBL key), encrypted (server/platformLogins.mjs).
+CREATE TABLE IF NOT EXISTS platform_logins (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "platform" text NOT NULL,
+  "secret" text NOT NULL,
+  "account_name" text,
+  "expires_at" timestamptz,
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("user_id", "platform")
+);
+
 -- App-wide settings, such as the invite code for sign-up.
 CREATE TABLE IF NOT EXISTS app_settings (
   "key" text PRIMARY KEY,

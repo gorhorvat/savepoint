@@ -11,7 +11,10 @@ export interface ServerStatus {
   assistantModel: string;
   ollama: { reachable: boolean; installed: boolean; model: string; url: string };
   steam: boolean;
+  /** This account has connected its own PlayStation. */
   psn: boolean;
+  /** The PlayStation online ID it's connected as, when known. */
+  psnAccount?: string | null;
   prices: boolean;
   /** IGDB (game info and screenshots) is set up. */
   igdb?: boolean;
@@ -23,9 +26,11 @@ export interface ServerStatus {
   ntfyTopic?: string | null;
   /** False when the API server isn't running at all. */
   online: boolean;
-  /** Xbox import (OpenXBL key) is set up and usable by this account. */
+  /** This account has connected its own Xbox (OpenXBL key). */
   xbox?: boolean;
-  /** True for the super admin; other accounts can't use their PlayStation, Xbox or alerts, or the invite code. */
+  /** The gamertag it's connected as, when known. */
+  xboxAccount?: string | null;
+  /** True for the super admin, who gets price alerts and manages the invite code. */
   superAdmin?: boolean;
 }
 
@@ -470,6 +475,37 @@ export async function unlinkSteam(): Promise<string | null> {
   } catch {
     return "Can't reach the Savepoint server.";
   }
+}
+
+/** Connects this account's own PlayStation with an NPSSO token. Throws with the reason. */
+export async function connectPsn(npsso: string): Promise<void> {
+  await sendJson('/api/psn/connect', 'POST', { npsso });
+}
+
+/** Connects this account's own Xbox with an OpenXBL API key. Throws with the reason. */
+export async function connectXbox(key: string): Promise<void> {
+  await sendJson('/api/xbox/connect', 'POST', { key });
+}
+
+/** Forgets this account's PlayStation or Xbox connection. */
+export async function disconnectPlatform(platform: 'playstation' | 'xbox'): Promise<void> {
+  await sendJson(platform === 'playstation' ? '/api/psn/connect' : '/api/xbox/connect', 'DELETE');
+}
+
+async function sendJson(url: string, method: string, body?: object): Promise<unknown> {
+  let r: Response;
+  try {
+    r = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("Can't reach the Savepoint server.");
+  }
+  const data = r.status === 204 ? {} : await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((data as { error?: string }).error ?? `Failed (${r.status}).`);
+  return data;
 }
 
 /** The invite code for sign-up ('' = sign-up closed). Super admin only. */

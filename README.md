@@ -30,13 +30,15 @@ The app works without any keys; live PC prices need none. Suggestions need `STEA
 
 ## Platforms
 
-| Platform        | How play time gets in                      | Needs                                   |
-| --------------- | ------------------------------------------ | --------------------------------------- |
-| Steam           | Connect Steam (Steam's login), then import | `STEAM_API_KEY`, public "Game details"  |
-| PlayStation     | PSN import (unofficial API via `psn-api`)  | `PSN_NPSSO` token                       |
-| Xbox            | OpenXBL import (unofficial)                | `OPENXBL_API_KEY`                       |
-| Nintendo Switch | Added by hand                              | Nothing (Nintendo has no public API)    |
-| Epic Games      | Added by hand                              | Nothing (Epic doesn't expose play time) |
+| Platform        | How play time gets in                      | Needs                                    |
+| --------------- | ------------------------------------------ | ---------------------------------------- |
+| Steam           | Connect Steam (Steam's login), then import | `STEAM_API_KEY`, public "Game details"   |
+| PlayStation     | PSN import (unofficial API via `psn-api`)  | Each user's own NPSSO token, in Settings |
+| Xbox            | OpenXBL import (unofficial)                | Each user's own OpenXBL key, in Settings |
+| Nintendo Switch | Added by hand                              | Nothing (Nintendo has no public API)     |
+| Epic Games      | Added by hand                              | Nothing (Epic doesn't expose play time)  |
+
+Each account connects its own PlayStation and Xbox in Settings, Platforms, following the steps shown there: the NPSSO token from Sony's site, or an API key from xbl.io. Savepoint stores them encrypted (with a key derived from `SESSION_SECRET`, so changing that means connecting again), keeps only PlayStation's renewable token rather than the NPSSO itself, and never shows them again. Disconnect removes the connection and the games imported from it. The PlayStation Store part of game search uses the searching user's own PlayStation connection, and is left out for users without one.
 
 A game played on more than one platform is merged into one entry, matched by Steam app ID or normalized title.
 

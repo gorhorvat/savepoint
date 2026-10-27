@@ -9,6 +9,7 @@ import {
   Modal,
   NumberInput,
   Paper,
+  PasswordInput,
   SimpleGrid,
   Stack,
   Text,
@@ -24,6 +25,9 @@ import { PlatformIcon } from '../components/PlatformBadge';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import { applyXboxAchievements, runAchievementsSync } from '../lib/achievements';
 import {
+  connectPsn,
+  connectXbox,
+  disconnectPlatform,
   fetchAccount,
   importPsn,
   importSteam,
@@ -68,7 +72,7 @@ function PlatformPanel({ platform, method, children }: { platform: PlatformId; m
   );
 }
 
-function ServerHint({ status, envVar }: { status: ServerStatus | null; envVar: string }) {
+function ServerHint({ status, envVar }: { status: ServerStatus | null; envVar?: string }) {
   if (!status) return null;
   if (!status.online) {
     return (
@@ -77,6 +81,7 @@ function ServerHint({ status, envVar }: { status: ServerStatus | null; envVar: s
       </Alert>
     );
   }
+  if (!envVar) return null;
   return (
     <Alert variant="light" color="gray" radius="md">
       Add <Code>{envVar}</Code> to the <Code>.env</Code> file, then restart the server.
@@ -189,166 +194,226 @@ function SteamPanel({ status }: { status: ServerStatus | null }) {
   );
 }
 
-function PsnPanel({ status }: { status: ServerStatus | null }) {
-  const conn = useStore((s) => s.connections.playstation);
-  const importLibrary = useStore((s) => s.importLibrary);
-  const disconnect = useStore((s) => s.disconnect);
+/** The steps, a field for the key and Connect, for a platform that isn't connected yet. */
+function ConnectForm({
+  label,
+  placeholder,
+  steps,
+  note,
+  onConnect,
+}: {
+  label: string;
+  placeholder: string;
+  steps: ReactNode[];
+  note: string;
+  onConnect: (value: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const run = async () => {
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const res = await importPsn();
-      const r = importLibrary('playstation', 'psn', res.games);
-      notifications.show({
-        title: 'PlayStation imported',
-        message: `${r.added} played games.${r.removedSample ? ' The sample library was removed.' : ''}`,
-      });
-      // A manual sync refreshes trophies (and their grades) straight away.
-      void runAchievementsSync({ forcePsn: true });
-    } catch (e) {
-      setError((e as Error).message);
+      await onConnect(value);
+      setValue('');
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <PlatformPanel platform="playstation" method="PSN, unofficial">
-      {status?.superAdmin === false ? (
-        <Text size="sm" c="dimmed">
-          PlayStation import signs in with the super admin&apos;s PlayStation account, so it&apos;s only available to
-          them. You can still log PlayStation hours by hand on a game&apos;s page.
+    <form onSubmit={submit}>
+      <Stack gap="sm">
+        <List size="sm" type="ordered" spacing={4}>
+          {steps.map((step, i) => (
+            <List.Item key={i}>{step}</List.Item>
+          ))}
+        </List>
+        <PasswordInput
+          label={label}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => setValue(e.currentTarget.value)}
+          error={error}
+          autoComplete="off"
+          required
+        />
+        <Text size="xs" c="dimmed">
+          {note}
         </Text>
-      ) : status && !status.psn ? (
-        <>
-          <ServerHint status={status} envVar="PSN_NPSSO" />
-          {status.online && (
-            <List size="sm" c="dimmed" type="ordered" spacing={4}>
-              <List.Item>
-                Sign in at{' '}
-                <Anchor href="https://www.playstation.com" target="_blank" rel="noopener noreferrer">
-                  playstation.com
-                </Anchor>
-                .
-              </List.Item>
-              <List.Item>
-                Open{' '}
-                <Anchor href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noopener noreferrer">
-                  ca.account.sony.com/api/v1/ssocookie
-                </Anchor>{' '}
-                and copy the <Code>npsso</Code> value.
-              </List.Item>
-              <List.Item>
-                Set it as <Code>PSN_NPSSO</Code>. It's a sign-in token, so keep it private.
-              </List.Item>
-            </List>
-          )}
-        </>
+        <Button type="submit" loading={busy} w="fit-content">
+          Connect
+        </Button>
+      </Stack>
+    </form>
+  );
+}
+
+const external = (href: string, text: string) => (
+  <Anchor href={href} target="_blank" rel="noopener noreferrer">
+    {text}
+  </Anchor>
+);
+
+/** Import button, Disconnect, and any error, once a platform is connected. */
+function ConnectedControls({
+  account,
+  synced,
+  importLabel,
+  onImport,
+  onDisconnect,
+}: {
+  account: string | null | undefined;
+  synced: boolean;
+  importLabel: string;
+  onImport: () => Promise<void>;
+  onDisconnect: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<'import' | 'disconnect' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const act = (which: 'import' | 'disconnect', fn: () => Promise<void>) => async () => {
+    setBusy(which);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      <Text size="sm">Connected{account ? ` as ${account}` : ''}.</Text>
+      {error && (
+        <Text size="sm" c="red">
+          {error}
+        </Text>
+      )}
+      <Group gap="sm">
+        <Button
+          onClick={act('import', onImport)}
+          loading={busy === 'import'}
+          leftSection={synced ? <IconRefresh size={18} /> : <IconDownload size={18} />}
+        >
+          {synced ? 'Sync again' : importLabel}
+        </Button>
+        <Button variant="subtle" color="gray" loading={busy === 'disconnect'} onClick={act('disconnect', onDisconnect)}>
+          Disconnect
+        </Button>
+      </Group>
+      <Text size="xs" c="dimmed">
+        Disconnect removes the connection and the games imported from it.
+      </Text>
+    </>
+  );
+}
+
+function PsnPanel({ status, refresh }: { status: ServerStatus | null; refresh: () => void }) {
+  const conn = useStore((s) => s.connections.playstation);
+  const importLibrary = useStore((s) => s.importLibrary);
+  const disconnect = useStore((s) => s.disconnect);
+
+  const run = async () => {
+    const res = await importPsn();
+    const r = importLibrary('playstation', 'psn', res.games);
+    notifications.show({
+      title: 'PlayStation imported',
+      message: `${r.added} played games.${r.removedSample ? ' The sample library was removed.' : ''}`,
+    });
+    // A manual sync refreshes trophies (and their grades) straight away.
+    void runAchievementsSync({ forcePsn: true });
+  };
+
+  return (
+    <PlatformPanel platform="playstation" method="PSN, unofficial">
+      {!status?.online ? (
+        <ServerHint status={status} />
+      ) : status.psn ? (
+        <ConnectedControls
+          account={status.psnAccount}
+          synced={!!conn}
+          importLabel="Import from PlayStation"
+          onImport={run}
+          onDisconnect={async () => {
+            await disconnectPlatform('playstation');
+            disconnect('playstation');
+            refresh();
+          }}
+        />
       ) : (
-        <>
-          <Text size="sm">Imports PS4 and PS5 play time for the account the token belongs to.</Text>
-          {error && (
-            <Text size="sm" c="red">
-              {error}
-            </Text>
-          )}
-          <Group gap="sm">
-            <Button
-              onClick={run}
-              loading={busy}
-              leftSection={conn ? <IconRefresh size={18} /> : <IconDownload size={18} />}
-            >
-              {conn ? 'Sync again' : 'Import from PlayStation'}
-            </Button>
-            {conn && (
-              <Button variant="subtle" color="gray" onClick={() => disconnect('playstation')}>
-                Disconnect
-              </Button>
-            )}
-          </Group>
-        </>
+        <ConnectForm
+          label="NPSSO token"
+          placeholder="Paste the npsso value"
+          steps={[
+            <>Sign in at {external('https://www.playstation.com', 'playstation.com')}.</>,
+            <>
+              In the same browser, open {external('https://ca.account.sony.com/api/v1/ssocookie', "Sony's token page")}.
+              It shows <Code>{'{"npsso":"…"}'}</Code>.
+            </>,
+            <>Copy the value in quotes after npsso and paste it here.</>,
+          ]}
+          note="The token works like a sign-in to your PlayStation account. Savepoint keeps it encrypted, only reads your games and trophies with it, and never shows it again. Sony lets it last about two months; then connect again."
+          onConnect={async (npsso) => {
+            await connectPsn(npsso);
+            refresh();
+            await run();
+          }}
+        />
       )}
     </PlatformPanel>
   );
 }
 
-function XboxPanel({ status }: { status: ServerStatus | null }) {
+function XboxPanel({ status, refresh }: { status: ServerStatus | null; refresh: () => void }) {
   const conn = useStore((s) => s.connections.xbox);
   const importLibrary = useStore((s) => s.importLibrary);
   const disconnect = useStore((s) => s.disconnect);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const run = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await importXbox();
-      const r = importLibrary('xbox', 'xbox', res.games);
-      applyXboxAchievements(res.games);
-      notifications.show({ title: 'Xbox imported', message: `${r.added} games.` });
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    const res = await importXbox();
+    const r = importLibrary('xbox', 'xbox', res.games);
+    applyXboxAchievements(res.games);
+    notifications.show({ title: 'Xbox imported', message: `${r.added} games.` });
   };
 
   return (
     <PlatformPanel platform="xbox" method="OpenXBL, unofficial">
-      {status?.superAdmin === false ? (
-        <Text size="sm" c="dimmed">
-          Xbox import uses the super admin&apos;s Xbox account, so it&apos;s only available to them. You can still log
-          Xbox hours by hand on a game&apos;s page.
-        </Text>
-      ) : status && !status.xbox ? (
-        <>
-          <ServerHint status={status} envVar="OPENXBL_API_KEY" />
-          {status.online && (
-            <List size="sm" c="dimmed" type="ordered" spacing={4}>
-              <List.Item>
-                Sign in at{' '}
-                <Anchor href="https://xbl.io" target="_blank" rel="noopener noreferrer">
-                  xbl.io
-                </Anchor>{' '}
-                with the Microsoft account you use on Xbox.
-              </List.Item>
-              <List.Item>Create an API key there (the free plan is enough).</List.Item>
-              <List.Item>
-                Set it as <Code>OPENXBL_API_KEY</Code>. It reads your account, so keep it private.
-              </List.Item>
-            </List>
-          )}
-        </>
+      {!status?.online ? (
+        <ServerHint status={status} />
+      ) : status.xbox ? (
+        <ConnectedControls
+          account={status.xboxAccount}
+          synced={!!conn}
+          importLabel="Import from Xbox"
+          onImport={run}
+          onDisconnect={async () => {
+            await disconnectPlatform('xbox');
+            disconnect('xbox');
+            refresh();
+          }}
+        />
       ) : (
-        <>
-          <Text size="sm">
-            Imports your Xbox games with achievements and gamerscore. Xbox only shares play time for some games, so
-            others show without hours.
-          </Text>
-          {error && (
-            <Text size="sm" c="red">
-              {error}
-            </Text>
-          )}
-          <Group gap="sm">
-            <Button
-              onClick={run}
-              loading={busy}
-              leftSection={conn ? <IconRefresh size={18} /> : <IconDownload size={18} />}
-            >
-              {conn ? 'Sync again' : 'Import from Xbox'}
-            </Button>
-            {conn && (
-              <Button variant="subtle" color="gray" onClick={() => disconnect('xbox')}>
-                Disconnect
-              </Button>
-            )}
-          </Group>
-        </>
+        <ConnectForm
+          label="OpenXBL API key"
+          placeholder="Paste your API key"
+          steps={[
+            <>Go to {external('https://xbl.io', 'xbl.io')} and sign in with the Microsoft account you use on Xbox.</>,
+            <>In your profile there, create an API key (the free plan is enough).</>,
+            <>Copy the key and paste it here.</>,
+          ]}
+          note="Microsoft has no public way for apps to read your games, so this goes through OpenXBL. The key only reads your own Xbox account. Savepoint keeps it encrypted and never shows it again. Xbox only shares play time for some games."
+          onConnect={async (key) => {
+            await connectXbox(key);
+            refresh();
+            await run();
+          }}
+        />
       )}
     </PlatformPanel>
   );
@@ -449,7 +514,7 @@ function ManualPanel({ platform, why, where }: { platform: PlatformId; why: stri
 
 /** The Platforms section of Settings: connect Steam and PlayStation, add Switch and Epic hours by hand. */
 export function PlatformsSection() {
-  const [status] = useServerStatus();
+  const [status, refreshStatus] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
   const removeDemo = useStore((s) => s.removeDemo);
 
@@ -478,8 +543,8 @@ export function PlatformsSection() {
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
         <SteamPanel status={status} />
-        <PsnPanel status={status} />
-        <XboxPanel status={status} />
+        <PsnPanel status={status} refresh={refreshStatus} />
+        <XboxPanel status={status} refresh={refreshStatus} />
         <ManualPanel
           platform="switch"
           why="Nintendo has no public API for play time."

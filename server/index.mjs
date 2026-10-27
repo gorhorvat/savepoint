@@ -5,14 +5,8 @@ import express from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import {
-  exchangeNpssoForAccessCode,
-  exchangeAccessCodeForAuthTokens,
-  exchangeRefreshTokenForAuthTokens,
-  getUserPlayedGames,
-  getUserTitles,
-} from 'psn-api';
-import { NINTENDO_GENRES, lookupDetails, nintendoPrice, searchGames, setPsnAuth, steamWishlist } from './search.mjs';
+import { getUserPlayedGames, getUserTitles } from 'psn-api';
+import { NINTENDO_GENRES, lookupDetails, nintendoPrice, searchGames, steamWishlist } from './search.mjs';
 import { lookupGameFacts } from './gameFacts.mjs';
 import { discoverPool } from './discover.mjs';
 import { howLongToBeat } from './hltb.mjs';
@@ -22,7 +16,16 @@ import { itadDeal } from './itad.mjs';
 import { checkAlerts, notify, ntfyTopic, setAlerts, startAlertTimer } from './alerts.mjs';
 import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
-import { xboxKey, xboxLibrary } from './xbox.mjs';
+import { xboxLibrary } from './xbox.mjs';
+import {
+  NotConnected,
+  platformContext,
+  platformLoginRouter,
+  platformLogins,
+  psnAuthFor,
+  resetPsnSession,
+  xboxKeyFor,
+} from './platformLogins.mjs';
 import { accountRouter, authRouter, requireLogin, superAdminOnly } from './auth.mjs';
 import { steamLoginRouter } from './steamLogin.mjs';
 import { query } from './db.mjs';
@@ -64,7 +67,9 @@ app.get('/api/cron/alerts', async (req, res) => {
 app.use(authRouter); // /api/login, /api/logout, /api/session, /api/signup
 app.use(steamLoginRouter); // /api/auth/steam/*
 app.use(requireLogin); // Everything below needs you to be logged in.
+app.use(platformContext); // Lets game search use the searcher's own PlayStation sign-in.
 app.use(accountRouter); // /api/account, /api/account/*, /api/admin/invite
+app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);
 app.use(express.json({ limit: '1mb' }));
@@ -80,10 +85,17 @@ app.get('/api/status', async (req, res) => {
     assistantModel: provider === 'gemini' ? GEMINI_MODEL : OLLAMA_MODEL,
     ollama: { ...ollama, model: OLLAMA_MODEL, url: OLLAMA_URL },
     steam: has('STEAM_API_KEY'),
-    // Super-admin-only features read as "not set up" for other accounts; `superAdmin` says why.
+    // Price alerts and the invite code are the super admin's.
     superAdmin: req.isSuperAdmin,
-    psn: has('PSN_NPSSO') && req.isSuperAdmin,
-    xbox: !!xboxKey() && req.isSuperAdmin,
+    // This account's own PlayStation and Xbox connections.
+    ...(await platformLogins(req.userId)
+      .then((l) => ({
+        psn: !!l.playstation,
+        xbox: !!l.xbox,
+        psnAccount: l.playstation?.account,
+        xboxAccount: l.xbox?.account,
+      }))
+      .catch(() => ({ psn: false, xbox: false }))),
     keyshops: has('GGDEALS_API_KEY'),
     prices: true,
     igdb: igdbConfigured(),
@@ -225,27 +237,6 @@ app.get('/api/steam/achievements', async (req, res) => {
 
 // ---------------------------------------------------------------- PlayStation
 
-let psnAuth = null; // { accessToken, refreshToken, expiresAt, refreshExpiresAt }
-
-async function getPsnAuth() {
-  const now = Date.now();
-  if (psnAuth && psnAuth.expiresAt > now + 60_000) return psnAuth;
-  let tokens;
-  if (psnAuth && psnAuth.refreshExpiresAt > now + 60_000) {
-    tokens = await exchangeRefreshTokenForAuthTokens(psnAuth.refreshToken);
-  } else {
-    const code = await exchangeNpssoForAccessCode(process.env.PSN_NPSSO.trim());
-    tokens = await exchangeAccessCodeForAuthTokens(code);
-  }
-  psnAuth = {
-    accessToken: tokens.accessToken,
-    refreshToken: tokens.refreshToken,
-    expiresAt: now + tokens.expiresIn * 1000,
-    refreshExpiresAt: now + tokens.refreshTokenExpiresIn * 1000,
-  };
-  return psnAuth;
-}
-
 // "PT228H56M33S" -> minutes
 function isoDurationToMinutes(d) {
   const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?/.exec(d || '');
@@ -253,13 +244,16 @@ function isoDurationToMinutes(d) {
   return Number(m[1] || 0) * 60 + Number(m[2] || 0) + Math.round(Number(m[3] || 0) / 60);
 }
 
-if (has('PSN_NPSSO')) setPsnAuth(getPsnAuth);
+/** Sends NotConnected as 409 (the client offers to connect), anything else as 502. */
+function platformError(res, err, what) {
+  if (err instanceof NotConnected) return res.status(409).json({ error: err.message });
+  res.status(502).json({ error: `${what}: ${err.message}` });
+}
 
 // -> { titles: [{ name, earned, total, platinum }] } for every game with trophies.
-app.get('/api/psn/trophies', superAdminOnly, async (_req, res) => {
-  if (!has('PSN_NPSSO')) return res.status(501).json({ error: 'PSN_NPSSO is not set on the server.' });
+app.get('/api/psn/trophies', async (req, res) => {
   try {
-    const auth = await getPsnAuth();
+    const auth = await psnAuthFor(req.userId);
     const all = [];
     for (let offset = 0, page = 0; page < 20; page++) {
       const r = await getUserTitles(auth, 'me', { limit: 800, offset });
@@ -283,17 +277,14 @@ app.get('/api/psn/trophies', superAdminOnly, async (_req, res) => {
       })),
     });
   } catch (err) {
-    psnAuth = null;
-    res.status(502).json({ error: `PlayStation trophies failed: ${err.message}` });
+    resetPsnSession(req.userId);
+    platformError(res, err, 'PlayStation trophies failed');
   }
 });
 
-app.get('/api/psn/library', superAdminOnly, async (_req, res) => {
-  if (!has('PSN_NPSSO')) {
-    return res.status(501).json({ error: 'PSN_NPSSO is not set on the server. Add it to .env and restart.' });
-  }
+app.get('/api/psn/library', async (req, res) => {
   try {
-    const auth = await getPsnAuth();
+    const auth = await psnAuthFor(req.userId);
     const titles = [];
     let offset = 0;
     // Page through the full played-games list (200 per page).
@@ -317,24 +308,19 @@ app.get('/api/psn/library', superAdminOnly, async (_req, res) => {
         .filter((g) => g.minutes > 0),
     });
   } catch (err) {
-    psnAuth = null;
-    res.status(502).json({
-      error: `PlayStation sign-in failed: ${err.message}. Your NPSSO token may have expired; get a fresh one and restart the server.`,
-    });
+    resetPsnSession(req.userId);
+    platformError(res, err, 'PlayStation import failed');
   }
 });
 
 // ---------------------------------------------------------------- Xbox
 
-// The super admin's Xbox games, achievements and (where Xbox has it) play time, via OpenXBL.
-app.get('/api/xbox/library', superAdminOnly, async (_req, res) => {
-  if (!xboxKey()) {
-    return res.status(501).json({ error: 'OPENXBL_API_KEY is not set on the server. Add it to .env and restart.' });
-  }
+// This account's Xbox games, achievements and (where Xbox has it) play time, via its own OpenXBL key.
+app.get('/api/xbox/library', async (req, res) => {
   try {
-    res.json({ games: await xboxLibrary() });
+    res.json({ games: await xboxLibrary(await xboxKeyFor(req.userId), req.userId) });
   } catch (err) {
-    res.status(502).json({ error: `Xbox import failed: ${err.message}` });
+    platformError(res, err, 'Xbox import failed');
   }
 });
 
