@@ -32,7 +32,7 @@ async function key() {
   return cipherKey;
 }
 
-async function encrypt(text) {
+export async function encrypt(text) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', await key(), iv);
   const data = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
@@ -41,7 +41,7 @@ async function encrypt(text) {
     .join('.');
 }
 
-async function decrypt(stored) {
+export async function decrypt(stored) {
   const [version, iv, tag, data] = String(stored).split('.');
   if (version !== 'v1') throw new Error('Unknown format');
   const decipher = createDecipheriv('aes-256-gcm', await key(), Buffer.from(iv, 'base64url'));

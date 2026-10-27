@@ -20,6 +20,7 @@ import { IconDots, IconExternalLink, IconRefresh, IconUnlink } from '@tabler/ico
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { StatTile } from '../components/charts';
 import {
+  ago,
   connectFfxiv,
   disconnectFfxiv,
   fetchGameConnections,
@@ -32,20 +33,7 @@ import {
   type FfxivSearchResult,
   type GameConnection,
 } from '../lib/gameStats';
-
-function Section({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
-  return (
-    <section>
-      <Title order={2}>{title}</Title>
-      {note && (
-        <Text size="sm" c="dimmed" mt={4}>
-          {note}
-        </Text>
-      )}
-      <div style={{ marginTop: 16 }}>{children}</div>
-    </section>
-  );
-}
+import { Section } from '../components/GameSection';
 
 const ROLES: { role: FfxivJob['role']; label: string }[] = [
   { role: 'Tank', label: 'Tanks' },
@@ -76,15 +64,6 @@ const maxLevel = (job: FfxivJob) => (job.role === 'Limited' ? null : 100);
 const LIMITED = new Set(['BLUEMAGE', 'BEASTMASTER']);
 const withRole = (job: FfxivJob): FfxivJob => (LIMITED.has(job.key) ? { ...job, role: 'Limited' } : job);
 
-function ago(iso: string) {
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min} min ago`;
-  const h = Math.round(min / 60);
-  if (h < 48) return `${h} h ago`;
-  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 const fmt = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString());
 
 /** FINAL FANTASY XIV in My Stats: connect a character, then its Lodestone data by category. */
@@ -94,7 +73,7 @@ export function FfxivStats() {
 
   useEffect(() => {
     fetchGameConnections()
-      .then((all) => setConn(all.find((c) => c.game === 'ffxiv') ?? null))
+      .then((all) => setConn((all.find((c) => c.game === 'ffxiv') as GameConnection | undefined) ?? null))
       .catch((e: Error) => {
         setError(e.message);
         setConn(null);

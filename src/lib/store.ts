@@ -50,7 +50,7 @@ export interface Profile {
 }
 
 /** Games with their own stats tab in My Stats (see src/lib/gameStats.ts). */
-export type GameStatsId = 'ffxiv';
+export type GameStatsId = 'ffxiv' | 'gw2';
 
 interface State {
   entries: PlayEntry[];

@@ -373,6 +373,9 @@ CREATE TABLE IF NOT EXISTS game_connections (
   "fetched_at" timestamptz,
   PRIMARY KEY ("user_id", "game")
 );
+-- An API key for the game, when it needs one (Guild Wars 2), encrypted like
+-- platform_logins.secret.
+ALTER TABLE game_connections ADD COLUMN IF NOT EXISTS "secret" text;
 
 -- App-wide settings, such as the invite code for sign-up.
 CREATE TABLE IF NOT EXISTS app_settings (
