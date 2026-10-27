@@ -8,7 +8,6 @@ import {
   Image,
   Loader,
   Menu,
-  Progress,
   SegmentedControl,
   SimpleGrid,
   Stack,
@@ -70,8 +69,12 @@ const ROLE_COLOR: Record<FfxivJob['role'], string> = {
   Gatherer: 'var(--mantine-color-yellow-6)',
 };
 
-/** The level cap: Blue Mage stops lower than the rest. */
-const maxLevel = (job: FfxivJob) => (job.role === 'Limited' ? 80 : 100);
+/** The level cap, or null for limited jobs (their caps differ and change). */
+const maxLevel = (job: FfxivJob) => (job.role === 'Limited' ? null : 100);
+
+/** Limited jobs, also for data saved before Beastmaster was listed as one. */
+const LIMITED = new Set(['BLUEMAGE', 'BEASTMASTER']);
+const withRole = (job: FfxivJob): FfxivJob => (LIMITED.has(job.key) ? { ...job, role: 'Limited' } : job);
 
 function ago(iso: string) {
   const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -275,50 +278,47 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function JobRow({ job }: { job: FfxivJob }) {
-  const cap = maxLevel(job);
   const unlocked = job.level > 0;
+  const cap = maxLevel(job);
   return (
-    <div>
-      <Group justify="space-between" gap="xs" wrap="nowrap">
-        <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-          {job.icon ? (
-            <img
-              src={job.icon}
-              alt=""
-              width={24}
-              height={24}
-              loading="lazy"
-              style={{ flexShrink: 0, opacity: unlocked ? 1 : 0.4 }}
-            />
-          ) : (
-            <span
-              aria-hidden
-              style={{
-                width: 24,
-                height: 24,
-                flexShrink: 0,
-                borderRadius: '50%',
-                background: ROLE_COLOR[job.role],
-                opacity: unlocked ? 0.8 : 0.3,
-              }}
-            />
-          )}
-          <Text size="sm" c={unlocked ? undefined : 'dimmed'} truncate>
-            {job.name}
-          </Text>
-        </Group>
-        <Text size="sm" className="num" fw={job.level >= cap ? 700 : 500} c={unlocked ? undefined : 'dimmed'}>
-          {unlocked ? job.level : '—'}
+    <Group justify="space-between" gap={6} wrap="nowrap" h={22}>
+      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+        {job.icon ? (
+          <img
+            src={job.icon}
+            alt=""
+            width={20}
+            height={20}
+            loading="lazy"
+            style={{ flexShrink: 0, opacity: unlocked ? 1 : 0.35 }}
+          />
+        ) : (
+          <span
+            aria-hidden
+            style={{
+              width: 10,
+              height: 10,
+              margin: 5,
+              flexShrink: 0,
+              borderRadius: '50%',
+              background: ROLE_COLOR[job.role],
+              opacity: unlocked ? 0.9 : 0.3,
+            }}
+          />
+        )}
+        <Text size="sm" c={unlocked ? undefined : 'dimmed'} truncate>
+          {job.name}
         </Text>
       </Group>
-      <Progress
-        value={unlocked ? (job.level / cap) * 100 : 0}
-        size={4}
-        mt={4}
-        color={ROLE_COLOR[job.role]}
-        aria-label={`${job.name} level ${job.level} of ${cap}`}
-      />
-    </div>
+      <Text
+        size="sm"
+        className="num"
+        fw={cap && job.level >= cap ? 700 : 500}
+        c={!unlocked ? 'dimmed' : cap && job.level >= cap ? ROLE_COLOR[job.role] : undefined}
+      >
+        {unlocked ? job.level : '—'}
+      </Text>
+    </Group>
   );
 }
 
@@ -358,7 +358,7 @@ function CollectionGrid({ what, c }: { what: string; c: FfxivCollection }) {
 }
 
 function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c: GameConnection | null) => void }) {
-  const ch: FfxivCharacter = conn.data;
+  const ch: FfxivCharacter = { ...conn.data, jobs: conn.data.jobs.map(withRole) };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -384,9 +384,9 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
   }
 
   const combat = ch.jobs.filter((j) => !['Crafter', 'Gatherer', 'Limited'].includes(j.role));
-  const capped = combat.filter((j) => j.level >= maxLevel(j)).length;
+  const capped = combat.filter((j) => j.level >= 100).length;
   const handLand = ch.jobs.filter((j) => j.role === 'Crafter' || j.role === 'Gatherer');
-  const handLandCapped = handLand.filter((j) => j.level >= maxLevel(j)).length;
+  const handLandCapped = handLand.filter((j) => j.level >= 100).length;
   const a = ch.achievements;
   const bozja = ch.fieldOperations.bozja;
   const eureka = ch.fieldOperations.eureka;
@@ -480,13 +480,13 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
       </Section>
 
       <Section title="Jobs">
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing={32} verticalSpacing={32}>
+        <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing={28} verticalSpacing={24}>
           {ROLES.map(({ role, label }) => {
             const jobs = ch.jobs.filter((j) => j.role === role);
             if (!jobs.length) return null;
             return (
-              <Stack key={role} gap="sm">
-                <Text fw={700} size="sm">
+              <Stack key={role} gap={4}>
+                <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
                   {label}
                 </Text>
                 {jobs.map((j) => (
@@ -496,12 +496,12 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
             );
           })}
           {(bozja || eureka) && (
-            <Stack gap="sm">
-              <Text fw={700} size="sm">
+            <Stack gap={4}>
+              <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
                 Field operations
               </Text>
               {eureka && (
-                <Group justify="space-between" gap="xs" wrap="nowrap">
+                <Group justify="space-between" gap="xs" wrap="nowrap" h={22}>
                   <Text size="sm">{eureka.name}</Text>
                   <Text size="sm" className="num">
                     {fmt(eureka.level)}
@@ -509,7 +509,7 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
                 </Group>
               )}
               {bozja && (
-                <Group justify="space-between" gap="xs" wrap="nowrap">
+                <Group justify="space-between" gap="xs" wrap="nowrap" h={22}>
                   <Text size="sm">{bozja.name}</Text>
                   <Text size="sm" className="num">
                     {fmt(bozja.level)}

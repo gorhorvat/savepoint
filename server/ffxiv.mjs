@@ -81,7 +81,7 @@ const JOBS = [
   ['SAMURAI', 'Samurai', 'Melee'],
   ['REAPER', 'Reaper', 'Melee'],
   ['VIPER', 'Viper', 'Melee'],
-  ['BEASTMASTER', 'Beastmaster', 'Melee'],
+  ['BEASTMASTER', 'Beastmaster', 'Limited'],
   ['BARD', 'Bard', 'Ranged'],
   ['MACHINIST', 'Machinist', 'Ranged'],
   ['DANCER', 'Dancer', 'Ranged'],
