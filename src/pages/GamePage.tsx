@@ -44,6 +44,7 @@ import type { AchievementProgress, EntrySource, Game, PlatformId } from '../type
 const SOURCE_LABEL: Record<EntrySource, string> = {
   steam: 'Imported from Steam',
   psn: 'Imported from PlayStation Network',
+  xbox: 'Imported from Xbox',
   manual: 'Added by you',
   demo: 'Sample data',
 };
@@ -194,6 +195,7 @@ function AchievementLine({ progress, platform }: { progress?: AchievementProgres
       <IconTrophy size={14} color="var(--mantine-color-dimmed)" />
       <Text size="xs" c="dimmed" className="num">
         {progress.earned} of {progress.total} {noun} ({pct}%){progress.platinum && ', platinum'}
+        {progress.totalGamerscore ? `, ${progress.gamerscore ?? 0} of ${progress.totalGamerscore} G` : ''}
       </Text>
     </Group>
   );

@@ -23,6 +23,8 @@ export interface ServerStatus {
   ntfyTopic?: string | null;
   /** False when the API server isn't running at all. */
   online: boolean;
+  /** Xbox import (OpenXBL key) is set up and usable by this account. */
+  xbox?: boolean;
   /** True for the owner's account (VerBuddy SuperAdmin); other admins can't use owner-only features. */
   owner?: boolean;
 }
@@ -99,6 +101,10 @@ export function fetchPsnTrophies() {
 
 export function importPsn() {
   return getJson<{ games: ImportedGame[] }>('/api/psn/library');
+}
+
+export function importXbox() {
+  return getJson<{ games: ImportedGame[] }>('/api/xbox/library');
 }
 
 // ---------------------------------------------------------------- genres

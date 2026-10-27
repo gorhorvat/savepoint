@@ -22,7 +22,8 @@ import { GameSearch } from '../components/GameSearch';
 import { ListImport } from '../components/ListImport';
 import { PlatformIcon } from '../components/PlatformBadge';
 import { PLATFORM_BY_ID } from '../data/platforms';
-import { importPsn, importSteam, useServerStatus, type FoundGame, type ServerStatus } from '../lib/api';
+import { applyXboxAchievements, runAchievementsSync } from '../lib/achievements';
+import { importPsn, importSteam, importXbox, useServerStatus, type FoundGame, type ServerStatus } from '../lib/api';
 import { formatLastPlayed } from '../lib/format';
 import { useStore } from '../lib/store';
 import type { PlatformId } from '../types';
@@ -150,6 +151,8 @@ function PsnPanel({ status }: { status: ServerStatus | null }) {
         title: 'PlayStation imported',
         message: `${r.added} played games.${r.removedSample ? ' The sample library was removed.' : ''}`,
       });
+      // A manual sync refreshes trophies (and their grades) straight away.
+      void runAchievementsSync({ forcePsn: true });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -207,6 +210,85 @@ function PsnPanel({ status }: { status: ServerStatus | null }) {
             </Button>
             {conn && (
               <Button variant="subtle" color="gray" onClick={() => disconnect('playstation')}>
+                Disconnect
+              </Button>
+            )}
+          </Group>
+        </>
+      )}
+    </PlatformPanel>
+  );
+}
+
+function XboxPanel({ status }: { status: ServerStatus | null }) {
+  const conn = useStore((s) => s.connections.xbox);
+  const importLibrary = useStore((s) => s.importLibrary);
+  const disconnect = useStore((s) => s.disconnect);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await importXbox();
+      const r = importLibrary('xbox', 'xbox', res.games);
+      applyXboxAchievements(res.games);
+      notifications.show({ title: 'Xbox imported', message: `${r.added} games.` });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <PlatformPanel platform="xbox" method="OpenXBL, unofficial">
+      {status?.owner === false ? (
+        <Text size="sm" c="dimmed">
+          Xbox import uses the owner&apos;s Xbox account, so it&apos;s only available to them. You can still log Xbox
+          hours by hand on a game&apos;s page.
+        </Text>
+      ) : status && !status.xbox ? (
+        <>
+          <ServerHint status={status} envVar="OPENXBL_API_KEY" />
+          {status.online && (
+            <List size="sm" c="dimmed" type="ordered" spacing={4}>
+              <List.Item>
+                Sign in at{' '}
+                <Anchor href="https://xbl.io" target="_blank" rel="noopener noreferrer">
+                  xbl.io
+                </Anchor>{' '}
+                with the Microsoft account you use on Xbox.
+              </List.Item>
+              <List.Item>Create an API key there (the free plan is enough).</List.Item>
+              <List.Item>
+                Set it as <Code>OPENXBL_API_KEY</Code>. It reads your account, so keep it private.
+              </List.Item>
+            </List>
+          )}
+        </>
+      ) : (
+        <>
+          <Text size="sm">
+            Imports your Xbox games with achievements and gamerscore. Xbox only shares play time for some games, so
+            others show without hours.
+          </Text>
+          {error && (
+            <Text size="sm" c="red">
+              {error}
+            </Text>
+          )}
+          <Group gap="sm">
+            <Button
+              onClick={run}
+              loading={busy}
+              leftSection={conn ? <IconRefresh size={18} /> : <IconDownload size={18} />}
+            >
+              {conn ? 'Sync again' : 'Import from Xbox'}
+            </Button>
+            {conn && (
+              <Button variant="subtle" color="gray" onClick={() => disconnect('xbox')}>
                 Disconnect
               </Button>
             )}
@@ -342,6 +424,7 @@ export function PlatformsSection() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
         <SteamPanel status={status} />
         <PsnPanel status={status} />
+        <XboxPanel status={status} />
         <ManualPanel
           platform="switch"
           why="Nintendo has no public API for play time."

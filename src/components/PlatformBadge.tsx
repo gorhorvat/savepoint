@@ -1,11 +1,11 @@
 import { Group, Text, Tooltip } from '@mantine/core';
-import { IconDeviceNintendo } from '@tabler/icons-react';
+import { IconBrandXbox, IconDeviceNintendo } from '@tabler/icons-react';
 import { siEpicgames, siPlaystation, siSteam } from 'simple-icons';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import type { PlatformId } from '../types';
 
-// Brand logos from simple-icons. Nintendo had its logo removed from that set,
-// so Switch uses a console icon instead.
+// Brand logos from simple-icons. Nintendo and Microsoft had theirs removed from
+// that set, so Switch uses a console icon and Xbox Tabler's Xbox icon.
 const LOGOS: Partial<Record<PlatformId, { path: string }>> = {
   steam: siSteam,
   epic: siEpicgames,
@@ -27,6 +27,9 @@ export function PlatformIcon({
   const fill = color ?? PLATFORM_BY_ID[platform].colorVar;
   const a11y = label ? { role: 'img', 'aria-label': PLATFORM_BY_ID[platform].name } : { 'aria-hidden': true };
   const logo = LOGOS[platform];
+  if (platform === 'xbox') {
+    return <IconBrandXbox size={size + 2} stroke={1.8} color={fill} style={{ flexShrink: 0 }} {...a11y} />;
+  }
   if (!logo) {
     return <IconDeviceNintendo size={size + 2} stroke={1.8} color={fill} style={{ flexShrink: 0 }} {...a11y} />;
   }
@@ -86,8 +89,18 @@ export function PlatformList({
     <Group gap={10} wrap="wrap" align="center">
       {platforms.map((p) =>
         p === 'switch' && switchVersions?.includes('Switch 2') ? (
-          <Tooltip key={p} label={switchVersions.includes('Switch') ? 'Nintendo Switch and Switch 2' : 'Nintendo Switch 2'} withArrow>
-            <Group gap={2} wrap="nowrap" component="span" style={{ display: 'inline-flex' }} aria-label="Nintendo Switch 2">
+          <Tooltip
+            key={p}
+            label={switchVersions.includes('Switch') ? 'Nintendo Switch and Switch 2' : 'Nintendo Switch 2'}
+            withArrow
+          >
+            <Group
+              gap={2}
+              wrap="nowrap"
+              component="span"
+              style={{ display: 'inline-flex' }}
+              aria-label="Nintendo Switch 2"
+            >
               <PlatformIcon platform="switch" size={size} />
               <Text span size="xs" fw={700} c="var(--sp-switch)">
                 {switchVersions.includes('Switch') ? '1+2' : '2'}

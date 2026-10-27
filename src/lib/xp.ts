@@ -7,8 +7,10 @@ import { resolveGame, useStore } from './store';
 // - PlayStation trophies use Sony's own level points per grade.
 // - Steam achievements have no grades, so each is worth the same, and
 //   completing every achievement in a game earns a platinum-sized bonus.
-// - Play time counts only when Steam or PlayStation reported it; hours added
-//   by hand (Switch, Epic) and non-game apps earn nothing.
+// - Xbox achievements are worth their gamerscore (a full game is 1,000 G,
+//   close to what a platinum PlayStation game earns).
+// - Play time counts only when Steam, PlayStation or Xbox reported it; hours
+//   added by hand (Switch, Epic) and non-game apps earn nothing.
 
 export const XP = {
   bronze: 15,
@@ -19,15 +21,17 @@ export const XP = {
   ungradedTrophy: 25,
   steamAchievement: 20,
   steamPerfect: 300,
+  perGamerscore: 1,
   perHour: 10,
 } as const;
 
-const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn']);
+const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox']);
 
 export interface XpBreakdown {
   total: number;
   trophies: { bronze: number; silver: number; gold: number; platinum: number; ungraded: number; xp: number };
   steam: { achievements: number; perfectGames: number; xp: number };
+  xbox: { achievements: number; gamerscore: number; xp: number };
   hours: { confirmed: number; unconfirmed: number; xp: number };
 }
 
@@ -82,6 +86,7 @@ export function computeXp(
 
   const trophies = { bronze: 0, silver: 0, gold: 0, platinum: 0, ungraded: 0, xp: 0 };
   const steam = { achievements: 0, perfectGames: 0, xp: 0 };
+  const xbox = { achievements: 0, gamerscore: 0, xp: 0 };
   for (const [id, per] of Object.entries(achievements)) {
     if (!isGame(id)) continue;
     const ps = per.playstation;
@@ -100,6 +105,11 @@ export function computeXp(
       steam.achievements += st.earned;
       if (st.total > 0 && st.earned === st.total) steam.perfectGames++;
     }
+    const xb = per.xbox;
+    if (xb) {
+      xbox.achievements += xb.earned;
+      xbox.gamerscore += xb.gamerscore ?? 0;
+    }
   }
   trophies.xp =
     trophies.bronze * XP.bronze +
@@ -108,6 +118,7 @@ export function computeXp(
     trophies.platinum * XP.platinum +
     trophies.ungraded * XP.ungradedTrophy;
   steam.xp = steam.achievements * XP.steamAchievement + steam.perfectGames * XP.steamPerfect;
+  xbox.xp = xbox.gamerscore * XP.perGamerscore;
 
   let confirmed = 0;
   let unconfirmed = 0;
@@ -122,7 +133,7 @@ export function computeXp(
     xp: Math.floor(confirmed / 60) * XP.perHour,
   };
 
-  return { total: trophies.xp + steam.xp + hours.xp, trophies, steam, hours };
+  return { total: trophies.xp + steam.xp + xbox.xp + hours.xp, trophies, steam, xbox, hours };
 }
 
 /** Your XP and level, from your own data. */

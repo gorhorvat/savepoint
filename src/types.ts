@@ -1,4 +1,4 @@
-export type PlatformId = 'steam' | 'epic' | 'playstation' | 'switch';
+export type PlatformId = 'steam' | 'epic' | 'playstation' | 'xbox' | 'switch';
 
 export type StoreId =
   | 'steam'
@@ -50,7 +50,7 @@ export interface Game {
   comingSoon?: boolean;
 }
 
-export type EntrySource = 'demo' | 'steam' | 'psn' | 'manual';
+export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'manual';
 
 /** Where a game stands for you. "completed" = everything done (100%). */
 export type PlayStatus = 'playing' | 'backlog' | 'finished' | 'completed' | 'dropped';
@@ -86,6 +86,9 @@ export interface AchievementProgress {
   platinum?: boolean;
   /** PlayStation only: earned trophies by grade (for XP). */
   grades?: TrophyGrades;
+  /** Xbox only: gamerscore earned and available. */
+  gamerscore?: number;
+  totalGamerscore?: number;
   /** Total play minutes when this was checked, to skip unchanged games. */
   minutesAt?: number;
   checkedAt: string;

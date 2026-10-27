@@ -27,6 +27,8 @@ export interface ImportedGame {
   imageUrl?: string;
   /** Set by the import when the platform says this title isn't a game. */
   isApp?: boolean;
+  /** Xbox: achievements and gamerscore, which come with the game list. */
+  achievements?: { earned: number; total: number; gamerscore: number; totalGamerscore: number };
 }
 
 export interface Connection {

@@ -13,6 +13,7 @@
      lightness differences (Steam light, PS deep) carry the distinction too. */
   --sp-steam: #1f86c7;
   --sp-playstation: #2346d6;
+  --sp-xbox: #107c10;
   --sp-switch: #e60012;
   --sp-epic: #121730;
 
@@ -53,6 +54,7 @@ html:root[data-mantine-color-scheme='light'] {
 
   --sp-steam: #66c0f4;
   --sp-playstation: #5b7cff;
+  --sp-xbox: #4cc23a;
   --sp-switch: #ff3b47;
   --sp-epic: #e8ecfa;
 

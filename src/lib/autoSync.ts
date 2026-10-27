@@ -1,6 +1,7 @@
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
-import { fetchStatus, fetchSteamWishlist, importPsn, importSteam } from './api';
+import { applyXboxAchievements } from './achievements';
+import { fetchStatus, fetchSteamWishlist, importPsn, importSteam, importXbox } from './api';
 import { useStore } from './store';
 
 const MAX_AGE = 6 * 60 * 60 * 1000;
@@ -10,7 +11,7 @@ let started = false;
 
 /**
  * When the app opens, re-syncs every connected source whose last sync is
- * more than 6 hours old: Steam library, PlayStation library, Steam wishlist.
+ * more than 6 hours old: Steam, PlayStation and Xbox libraries, Steam wishlist.
  * Runs once per page load, silently; the manual sync buttons still work.
  */
 export async function autoSync(): Promise<void> {
@@ -37,6 +38,16 @@ export async function autoSync(): Promise<void> {
       run: async () => {
         const res = await importPsn();
         useStore.getState().importLibrary('playstation', 'psn', res.games);
+      },
+    });
+  }
+  if (status.xbox && connections.xbox?.lastSync && stale(connections.xbox.lastSync)) {
+    jobs.push({
+      name: 'Xbox library',
+      run: async () => {
+        const res = await importXbox();
+        useStore.getState().importLibrary('xbox', 'xbox', res.games);
+        applyXboxAchievements(res.games);
       },
     });
   }

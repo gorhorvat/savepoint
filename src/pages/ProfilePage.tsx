@@ -214,9 +214,18 @@ function LevelSection() {
       } completed`,
       xp: xp.steam.xp,
     },
+    ...(xp.xbox.achievements
+      ? [
+          {
+            label: 'Xbox achievements',
+            detail: `${fmt(xp.xbox.achievements)} achievements, ${fmt(xp.xbox.gamerscore)} gamerscore`,
+            xp: xp.xbox.xp,
+          },
+        ]
+      : []),
     {
       label: 'Play time',
-      detail: `${fmt(xp.hours.confirmed)} hours confirmed by Steam and PlayStation`,
+      detail: `${fmt(xp.hours.confirmed)} hours confirmed by Steam, PlayStation and Xbox`,
       xp: xp.hours.xp,
     },
   ];
@@ -265,9 +274,9 @@ function LevelSection() {
         ))}
       </Stack>
       <Text size="sm" c="dimmed" mt="md" maw={680}>
-        XP only counts what Steam and PlayStation confirm: trophies earn Sony&apos;s points (bronze {XP.bronze}, silver{' '}
-        {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
-        {XP.steamPerfect} for completing a game, and {XP.perHour} per hour played.
+        XP only counts what Steam, PlayStation and Xbox confirm: trophies earn Sony&apos;s points (bronze {XP.bronze},
+        silver {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
+        {XP.steamPerfect} for completing a game, Xbox achievements their gamerscore, and {XP.perHour} per hour played.
         {xp.hours.unconfirmed >= 1 &&
           ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand (Switch, Epic) don't count, and neither do apps.`}
       </Text>

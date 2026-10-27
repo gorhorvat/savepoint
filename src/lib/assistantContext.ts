@@ -113,6 +113,7 @@ const PLATFORM_WORDS: [RegExp, PlatformId][] = [
   [/\bswitch\b|\bnintendo\b/i, 'switch'],
   [/\bsteam\b|\bpc\b/i, 'steam'],
   [/\bps[45]?\b|\bplaystation\b/i, 'playstation'],
+  [/\bxbox\b/i, 'xbox'],
   [/\bepic\b/i, 'epic'],
 ];
 

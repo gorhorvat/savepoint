@@ -24,4 +24,6 @@ export const DIGITAL: Partial<Record<PhysicalPlatform, PlatformId>> = {
   'Switch 2': 'switch',
   Switch: 'switch',
   PC: 'steam',
+  'Xbox Series X|S': 'xbox',
+  'Xbox One': 'xbox',
 };

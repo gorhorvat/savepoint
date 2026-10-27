@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { AchievementProgress } from '../types';
 import { fetchPsnTrophies, fetchStatus, fetchSteamAchievements } from './api';
 import { normalizeTitle } from './match';
-import { resolveGame, useStore } from './store';
+import { resolveGame, useStore, type ImportedGame } from './store';
 
 const PSN_MAX_AGE = 6 * 60 * 60 * 1000;
 let running = false;
@@ -14,7 +14,7 @@ type Result = Omit<AchievementProgress, 'checkedAt'>;
  * Steam is one request per game, so only games whose play time changed since
  * the last check are asked again; PlayStation is one request for everything.
  */
-export async function runAchievementsSync(): Promise<void> {
+export async function runAchievementsSync({ forcePsn = false } = {}): Promise<void> {
   if (running) return;
   const { entries, connections, achievements, achievementsSync } = useStore.getState();
   const steamProfile = connections.steam?.account;
@@ -25,9 +25,10 @@ export async function runAchievementsSync(): Promise<void> {
       e.minutes > 0 &&
       achievements[e.gameId]?.steam?.minutesAt !== e.minutes,
   );
+  // A manual PlayStation sync refreshes trophies right away; otherwise every 6 hours.
   const psnDue =
     !!connections.playstation?.lastSync &&
-    (!achievementsSync || Date.now() - Date.parse(achievementsSync) > PSN_MAX_AGE);
+    (forcePsn || !achievementsSync || Date.now() - Date.parse(achievementsSync) > PSN_MAX_AGE);
   if ((!steamProfile || !steamTodo.length) && !psnDue) return;
 
   running = true;
@@ -87,4 +88,20 @@ export function useAchievementsSync() {
   useEffect(() => {
     void runAchievementsSync();
   }, [entries]);
+}
+
+/**
+ * Xbox sends achievements and gamerscore with its game list, so they're saved
+ * straight after an Xbox import: matched to the imported games by title.
+ */
+export function applyXboxAchievements(games: ImportedGame[]) {
+  const byTitle = new Map(games.filter((g) => g.achievements).map((g) => [normalizeTitle(g.name), g.achievements!]));
+  const { entries, customGames, genreOverrides, details } = useStore.getState();
+  const out: Record<string, Result> = {};
+  for (const e of entries.filter((x) => x.platform === 'xbox' && x.source === 'xbox')) {
+    const title = resolveGame(e.gameId, customGames, genreOverrides, details)?.title;
+    const a = title && byTitle.get(normalizeTitle(title));
+    if (a) out[e.gameId] = { ...a, minutesAt: e.minutes };
+  }
+  useStore.getState().applyAchievements('xbox', out);
 }

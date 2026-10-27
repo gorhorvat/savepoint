@@ -22,6 +22,7 @@ import { itadDeal } from './itad.mjs';
 import { checkAlerts, notify, ntfyTopic, setAlerts, startAlertTimer } from './alerts.mjs';
 import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
+import { xboxKey, xboxLibrary } from './xbox.mjs';
 import { authRouter, ownerOnly, requireLogin } from './auth.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -78,6 +79,7 @@ app.get('/api/status', async (req, res) => {
     // Owner-only features read as "not set up" for other admins; `owner` says why.
     owner: req.isOwner,
     psn: has('PSN_NPSSO') && req.isOwner,
+    xbox: !!xboxKey() && req.isOwner,
     keyshops: has('GGDEALS_API_KEY'),
     prices: true,
     igdb: igdbConfigured(),
@@ -316,6 +318,20 @@ app.get('/api/psn/library', ownerOnly, async (_req, res) => {
     res.status(502).json({
       error: `PlayStation sign-in failed: ${err.message}. Your NPSSO token may have expired; get a fresh one and restart the server.`,
     });
+  }
+});
+
+// ---------------------------------------------------------------- Xbox
+
+// The owner's Xbox games, achievements and (where Xbox has it) play time, via OpenXBL.
+app.get('/api/xbox/library', ownerOnly, async (_req, res) => {
+  if (!xboxKey()) {
+    return res.status(501).json({ error: 'OPENXBL_API_KEY is not set on the server. Add it to .env and restart.' });
+  }
+  try {
+    res.json({ games: await xboxLibrary() });
+  } catch (err) {
+    res.status(502).json({ error: `Xbox import failed: ${err.message}` });
   }
 });
 

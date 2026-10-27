@@ -212,7 +212,7 @@ function GameRow({
         </Group>
         <Group gap={10} mt={4} wrap="nowrap">
           <Text size="xs" c="dimmed" truncate>
-            {item.totalMinutes === 0
+            {item.totalMinutes === 0 && !item.lastPlayed
               ? 'Not played yet'
               : item.lastPlayed
                 ? `Last played ${formatLastPlayed(item.lastPlayed)}`
