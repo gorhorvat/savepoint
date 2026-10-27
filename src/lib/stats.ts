@@ -30,6 +30,8 @@ export interface Stats {
     year: number;
     /** Games last played this year. */
     played: LibraryGame[];
+    /** Played games with no last-played date (the platform didn't say). */
+    undated: number;
     /** Games by the month they were last played (this year). */
     byMonth: number[];
     /** Lifetime hours of the games played this year. */
@@ -193,6 +195,7 @@ export function computeStats(
     year: {
       year,
       played: [...thisYear].sort((a, b) => b.totalMinutes - a.totalMinutes),
+      undated: played.filter((l) => !l.lastPlayed).length,
       byMonth,
       minutes: thisYear.reduce((n, l) => n + l.totalMinutes, 0),
       recorded: since ? { since, minutes: recordedMinutes } : undefined,

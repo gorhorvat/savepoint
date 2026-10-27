@@ -95,7 +95,7 @@ export function importSteam() {
 }
 
 export function fetchSteamAchievements(appids: number[]) {
-  return getJson<{ results: Record<string, { earned: number; total: number }> }>(
+  return getJson<{ results: Record<string, { earned: number; total: number }>; private?: boolean }>(
     `/api/steam/achievements?appids=${appids.join(',')}`,
   );
 }

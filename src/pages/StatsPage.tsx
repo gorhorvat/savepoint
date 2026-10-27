@@ -52,6 +52,7 @@ function OverviewStats() {
   const history = useStore((s) => s.history);
   const progress = useStore((s) => s.progress);
   const achievements = useStore((s) => s.achievements);
+  const steamConnection = useStore((s) => s.connections.steam);
   const stats = useMemo(
     () => computeStats(all, physical, { log: history.log, since: history.since, progress, achievements }),
     [all, physical, history, progress, achievements],
@@ -81,6 +82,10 @@ function OverviewStats() {
 
   const y = stats.year;
   const unplayed = stats.collection.unplayed;
+  const lastGame = all
+    .filter((l) => l.lastPlayed && !l.isApp)
+    .reduce<(typeof all)[number] | null>((a, b) => (!a || b.lastPlayed! > a.lastPlayed! ? b : a), null);
+  const steamPrivate = !!steamConnection?.achievementsPrivate;
   const a = stats.achievements;
 
   return (
@@ -187,9 +192,29 @@ function OverviewStats() {
                 }))}
               />
             ) : (
-              <Text size="sm" c="dimmed">
-                Nothing played in {y.year} yet.
-              </Text>
+              <Stack gap={6}>
+                <Text size="sm" c="dimmed">
+                  Nothing played in {y.year} yet.
+                </Text>
+                {lastGame?.lastPlayed && (
+                  <Text size="sm" c="dimmed">
+                    Your most recent game was {lastGame.game.title}, last played{' '}
+                    {new Date(lastGame.lastPlayed).toLocaleDateString(undefined, {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                    .
+                  </Text>
+                )}
+                {y.undated > 0 && (
+                  <Text size="sm" c="dimmed">
+                    {y.undated === 1 ? 'One game has' : `${y.undated} games have`} no last-played date from the
+                    platform, so {y.undated === 1 ? "it can't" : "they can't"} be placed in a year. Steam only sends
+                    these dates when the profile&apos;s Game details are public.
+                  </Text>
+                )}
+              </Stack>
             )}
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 5 }}>
@@ -327,7 +352,9 @@ function OverviewStats() {
               </Stack>
             ) : (
               <Text size="sm" c="dimmed">
-                Achievements and trophies load in the background after a Steam or PlayStation sync.
+                {steamPrivate
+                  ? "Steam won't share this account's achievements because its Game details are private. In Steam, open your profile's Privacy Settings, set Game details to Public, then sync Steam again."
+                  : 'Achievements and trophies load in the background after a Steam or PlayStation sync.'}
               </Text>
             )}
           </Section>

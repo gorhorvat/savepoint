@@ -17,7 +17,11 @@ type Result = Omit<AchievementProgress, 'checkedAt'>;
 export async function runAchievementsSync({ forcePsn = false } = {}): Promise<void> {
   if (running) return;
   const { entries, connections, achievements, achievementsSync } = useStore.getState();
-  const steamConnected = !!connections.steam;
+  // While Steam says the profile's Game details are private, ask again every 6 hours, not on every change.
+  const steamPrivate =
+    !!connections.steam?.achievementsPrivate &&
+    Date.now() - Date.parse(connections.steam.achievementsPrivate) < PSN_MAX_AGE;
+  const steamConnected = !!connections.steam && !steamPrivate;
   const steamTodo = entries.filter(
     (e) =>
       e.platform === 'steam' &&
@@ -45,7 +49,9 @@ export async function runAchievementsSync({ forcePsn = false } = {}): Promise<vo
       }
       const appids = [...byApp.keys()];
       for (let i = 0; i < appids.length; i += 40) {
-        const { results } = await fetchSteamAchievements(appids.slice(i, i + 40));
+        const { results, private: hidden } = await fetchSteamAchievements(appids.slice(i, i + 40));
+        useStore.getState().setSteamAchievementsPrivate(!!hidden);
+        if (hidden) break;
         const out: Record<string, Result> = {};
         for (const [appid, r] of Object.entries(results)) {
           const hit = byApp.get(Number(appid));

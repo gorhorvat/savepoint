@@ -208,7 +208,13 @@ app.get('/api/steam/library', async (req, res) => {
         steamAppId: g.appid,
         name: g.name,
         minutes: g.playtime_forever,
-        lastPlayed: g.rtime_last_played ? new Date(g.rtime_last_played * 1000).toISOString() : null,
+        // Some profiles come without last-played dates; a game played in the
+        // last two weeks still says so (playtime_2weeks), which dates it to now.
+        lastPlayed: g.rtime_last_played
+          ? new Date(g.rtime_last_played * 1000).toISOString()
+          : g.playtime_2weeks > 0
+            ? new Date().toISOString()
+            : null,
         isApp: types.has(g.appid) && types.get(g.appid) !== 0,
       })),
     });
@@ -233,14 +239,22 @@ app.get('/api/steam/achievements', async (req, res) => {
     return res.status(err instanceof NotFound ? 409 : 502).json({ error: err.message });
   }
   const results = {};
-  for (let i = 0; i < appids.length; i += 4) {
+  // Steam answers "Profile is not public" while the account's Game details are
+  // private: that's reported as such, not recorded as games without achievements.
+  let hidden = false;
+  for (let i = 0; i < appids.length && !hidden; i += 4) {
     await Promise.all(
       appids.slice(i, i + 4).map(async (appid) => {
         try {
           const url = new URL('https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/');
           url.search = new URLSearchParams({ key: process.env.STEAM_API_KEY, steamid: id, appid: String(appid) });
           const r = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(10000) });
-          const list = (await r.json().catch(() => ({}))).playerstats?.achievements;
+          const stats = (await r.json().catch(() => ({}))).playerstats;
+          if (/not public/i.test(stats?.error ?? '')) {
+            hidden = true;
+            return;
+          }
+          const list = stats?.achievements;
           // Games without achievements answer with an error; record them as 0 so they aren't asked again.
           results[appid] = list
             ? { earned: list.filter((a) => a.achieved).length, total: list.length }
@@ -251,7 +265,7 @@ app.get('/api/steam/achievements', async (req, res) => {
       }),
     );
   }
-  res.json({ results });
+  res.json({ results: hidden ? {} : results, private: hidden });
 });
 
 // ---------------------------------------------------------------- PlayStation

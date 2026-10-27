@@ -38,6 +38,8 @@ export interface Connection {
   wishlistSync?: string;
   count: number;
   account?: string;
+  /** Steam: when Steam last refused achievements because the profile's Game details are private. */
+  achievementsPrivate?: string;
 }
 
 export interface Profile {
@@ -136,6 +138,8 @@ interface State {
   updateProfile: (patch: Partial<Profile>) => void;
   setVendors: (vendors: string[]) => void;
   setGameStats: (patch: Partial<State['gameStats']>) => void;
+  /** Steam said the Game details are private (true), or shared achievements again (false). */
+  setSteamAchievementsPrivate: (hidden: boolean) => void;
 }
 
 function ensureGame(
@@ -489,6 +493,27 @@ export const useStore = create<State>()(
       updateProfile: (patch) => set({ profile: { ...get().profile, ...patch } }),
       setVendors: (vendors) => set({ vendors }),
       setGameStats: (patch) => set((s) => ({ gameStats: { ...s.gameStats, ...patch } })),
+      setSteamAchievementsPrivate: (hidden) => {
+        const steam = get().connections.steam;
+        // Private again: the time is renewed, so the next try waits another 6 hours.
+        if (!steam || (!hidden && !steam.achievementsPrivate)) return;
+        const next: Connection = { ...steam };
+        if (hidden) next.achievementsPrivate = new Date().toISOString();
+        else delete next.achievementsPrivate;
+        // While private, Steam games may have been recorded as having no
+        // achievements because of it: drop those so they're asked again.
+        const achievements = { ...get().achievements };
+        if (hidden) {
+          for (const [id, per] of Object.entries(achievements)) {
+            if (per.steam && !per.steam.total) {
+              const rest = { ...per };
+              delete rest.steam;
+              achievements[id] = rest;
+            }
+          }
+        }
+        set({ connections: { ...get().connections, steam: next }, achievements });
+      },
 
       applyGenres: (results) => {
         const customGames = { ...get().customGames };
