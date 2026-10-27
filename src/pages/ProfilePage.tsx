@@ -432,8 +432,12 @@ function InviteSection() {
   );
 }
 
-/** Steam as a way to log in: shown once linked, from the login screen's Sign in through Steam. */
+/**
+ * Steam as a way to log in (set up from the login screen's Sign in through
+ * Steam). Separate from the Steam library import in Settings, Platforms.
+ */
 function SteamLoginSection({ account, onChange }: { account: Account; onChange: () => void }) {
+  const libraryConnected = useStore((s) => !!s.connections.steam);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -454,12 +458,12 @@ function SteamLoginSection({ account, onChange }: { account: Account; onChange: 
       <Stack gap="sm">
         <Group gap="xs">
           <IconBrandSteam size={20} />
-          <Text fw={600}>Sign in through Steam</Text>
+          <Text fw={600}>Log in with Steam</Text>
         </Group>
         {account.steamId ? (
           <>
             <Text size="sm" c="dimmed">
-              Linked to{' '}
+              Set up for{' '}
               <Anchor href={`https://steamcommunity.com/profiles/${account.steamId}/`} target="_blank" rel="noreferrer">
                 this Steam account
               </Anchor>
@@ -486,8 +490,11 @@ function SteamLoginSection({ account, onChange }: { account: Account; onChange: 
           </>
         ) : (
           <Text size="sm" c="dimmed">
-            Not linked. To log in with Steam, log out, choose Sign in through Steam, then &ldquo;I already have an
-            account&rdquo; to link it once.
+            {libraryConnected
+              ? 'Your Steam library is connected, but Steam isn\u2019t set up as a way to log in yet. '
+              : 'Not set up. '}
+            To log in with Steam: log out, choose Sign in through Steam, then &ldquo;I already have an account&rdquo;
+            and log in once.
           </Text>
         )}
         {error && (
