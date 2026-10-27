@@ -382,7 +382,13 @@ function InviteSection() {
                 <Text className="num" fw={700} fz="lg" style={{ letterSpacing: '0.04em', wordBreak: 'break-all' }}>
                   {code}
                 </Text>
-                <Button size="xs" variant="default" leftSection={<IconCopy size={14} />} onClick={copy}>
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<IconCopy size={14} />}
+                  onClick={copy}
+                  style={{ flexShrink: 0 }}
+                >
                   Copy
                 </Button>
               </Group>

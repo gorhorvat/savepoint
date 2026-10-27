@@ -111,7 +111,13 @@ function AddFriend({ onSent }: { onSent: () => void }) {
               <Text size="sm" className="num" style={{ wordBreak: 'break-all' }}>
                 {friendLink(code)}
               </Text>
-              <Button size="xs" variant="default" leftSection={<IconCopy size={14} />} onClick={copy}>
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<IconCopy size={14} />}
+                onClick={copy}
+                style={{ flexShrink: 0 }}
+              >
                 Copy
               </Button>
             </Group>

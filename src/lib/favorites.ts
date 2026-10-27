@@ -77,8 +77,6 @@ export function seriesInLibrary(titles: string[]): string[] {
     const prev = counts.get(key);
     counts.set(key, { name: prev?.name ?? base, n: (prev?.n ?? 0) + 1 });
   }
-  return [...counts.values()]
-    .filter((c) => c.n >= 2)
-    .sort((a, b) => b.n - a.n)
-    .map((c) => c.name);
+  // Series you have several games of first, then the rest alphabetically.
+  return [...counts.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)).map((c) => c.name);
 }

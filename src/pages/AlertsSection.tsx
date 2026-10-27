@@ -105,7 +105,13 @@ export function AlertsSection() {
                   In ntfy, tap <b>+</b> and subscribe to this topic:
                   <Group gap="xs" mt={6} wrap="nowrap">
                     <Code style={{ fontSize: 14, wordBreak: 'break-all' }}>{topic}</Code>
-                    <Button size="xs" variant="default" leftSection={<IconCopy size={14} />} onClick={copy}>
+                    <Button
+                      size="xs"
+                      variant="default"
+                      leftSection={<IconCopy size={14} />}
+                      onClick={copy}
+                      style={{ flexShrink: 0 }}
+                    >
                       Copy
                     </Button>
                   </Group>

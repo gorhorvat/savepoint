@@ -41,6 +41,7 @@ export function StatsPage() {
     [all, physical, history, progress, achievements],
   );
   const [genreBy, setGenreBy] = useState<'hours' | 'games'>('hours');
+  const [yearView, setYearView] = useState<'year' | 'all'>('year');
 
   if (!stats.gamesPlayed && !stats.collection.copies) {
     return (
@@ -99,7 +100,7 @@ export function StatsPage() {
           <StatTile
             label={`Hours in ${y.year}`}
             value={formatHoursNumber(t.minutes)}
-            note={`Recorded since ${sinceLabel}`}
+            note={t.wholeYear ? `${y.played.length} games played` : `Recorded since ${sinceLabel}`}
           />
         ) : (
           <StatTile
@@ -182,60 +183,80 @@ export function StatsPage() {
       <Section
         title={`${y.year} so far`}
         note={
-          t
-            ? `Hours played each month, recorded from the change between syncs since ${sinceLabel}. Earlier hours can't be dated, so they aren't counted here.`
-            : `Games by the month you last played them. Steam and PlayStation only report lifetime totals, so hours can't be dated before Savepoint started recording on ${sinceLabel || 'your first import'}${
-                y.recorded ? ` (${hours(y.recorded.minutes)} recorded since)` : ''
-              }. Real hours per month show here from ${y.year + 1}, the first full year Savepoint records.`
+          yearView === 'year'
+            ? t?.wholeYear
+              ? 'Hours played each month this year, recorded from the change between syncs.'
+              : `Hours played this year since Savepoint started recording on ${sinceLabel || 'your first import'}. Steam, PlayStation and Xbox only report lifetime totals, so earlier hours this year can't be dated.`
+            : `Games you played this year, by the month you last played them, with their all-time hours.`
         }
       >
-        <Grid gap="xl">
-          <Grid.Col span={{ base: 12, md: 7 }}>
-            {t ? (
-              <Columns columns={t.byMonth.map((m, i) => ({ label: MONTHS[i], value: m, display: hours(m) }))} />
-            ) : (
-              <Columns
-                columns={y.byMonth.map((n, i) => ({
-                  label: MONTHS[i],
-                  value: n,
-                  display: `${n} ${n === 1 ? 'game' : 'games'}`,
-                }))}
-              />
-            )}
-          </Grid.Col>
-          <Grid.Col span={{ base: 12, md: 5 }}>
-            <Text size="sm" fw={600} mb="xs">
-              {t ? `Most played in ${y.year}` : `Games you played in ${y.year}, by all-time hours`}
+        <Stack gap="md">
+          <SegmentedControl
+            size="xs"
+            value={yearView}
+            onChange={(v) => setYearView(v as 'year' | 'all')}
+            data={[
+              { value: 'year', label: 'This year' },
+              { value: 'all', label: 'All time' },
+            ]}
+            style={{ alignSelf: 'flex-start' }}
+          />
+          {yearView === 'year' && !t ? (
+            <Text size="sm" c="dimmed">
+              No hours recorded yet this year. They show up here after your next syncs.
             </Text>
-            {t ? (
-              <BarList
-                bars={t.top.map(({ item, minutes }) => ({
-                  label: item.game.title,
-                  value: minutes,
-                  display: hours(minutes),
-                  href: `/game/${item.game.id}`,
-                }))}
-              />
-            ) : y.played.length ? (
-              <BarList
-                bars={y.played.slice(0, 5).map((l) => ({
-                  label: l.game.title,
-                  value: l.totalMinutes,
-                  display: hours(l.totalMinutes),
-                  href: `/game/${l.game.id}`,
-                }))}
-              />
-            ) : (
-              <Text size="sm" c="dimmed">
-                Nothing played this year yet.
-              </Text>
-            )}
-            <Text size="sm" c="dimmed" mt="md">
-              {y.played.length} {y.played.length === 1 ? 'game' : 'games'} played this year
-              {stats.finishedThisYear > 0 && `, ${stats.finishedThisYear} finished`}.
-            </Text>
-          </Grid.Col>
-        </Grid>
+          ) : (
+            <Grid gap="xl">
+              <Grid.Col span={{ base: 12, md: 7 }}>
+                {yearView === 'year' && t ? (
+                  <Columns columns={t.byMonth.map((m, i) => ({ label: MONTHS[i], value: m, display: hours(m) }))} />
+                ) : (
+                  <Columns
+                    columns={y.byMonth.map((n, i) => ({
+                      label: MONTHS[i],
+                      value: n,
+                      display: `${n} ${n === 1 ? 'game' : 'games'}`,
+                    }))}
+                  />
+                )}
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 5 }}>
+                <Text size="sm" fw={600} mb="xs">
+                  {yearView === 'year'
+                    ? `Most played in ${y.year}`
+                    : `Games you played in ${y.year}, by all-time hours`}
+                </Text>
+                {yearView === 'year' && t ? (
+                  <BarList
+                    bars={t.top.map(({ item, minutes }) => ({
+                      label: item.game.title,
+                      value: minutes,
+                      display: hours(minutes),
+                      href: `/game/${item.game.id}`,
+                    }))}
+                  />
+                ) : y.played.length ? (
+                  <BarList
+                    bars={y.played.slice(0, 5).map((l) => ({
+                      label: l.game.title,
+                      value: l.totalMinutes,
+                      display: hours(l.totalMinutes),
+                      href: `/game/${l.game.id}`,
+                    }))}
+                  />
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    Nothing played this year yet.
+                  </Text>
+                )}
+                <Text size="sm" c="dimmed" mt="md">
+                  {y.played.length} {y.played.length === 1 ? 'game' : 'games'} played this year
+                  {stats.finishedThisYear > 0 && `, ${stats.finishedThisYear} finished`}.
+                </Text>
+              </Grid.Col>
+            </Grid>
+          )}
+        </Stack>
       </Section>
 
       <Grid gap={48}>

@@ -50,7 +50,11 @@ export function Donut({ slices, center }: { slices: Slice[]; center?: ReactNode 
             {slices.map((s, i) => {
               const dash = Math.max(0.5, lengths[i] - gap);
               return (
-                <Tooltip key={s.label} label={`${s.label}: ${s.display} (${Math.round((s.value / total) * 100)}%)`} withArrow>
+                <Tooltip
+                  key={s.label}
+                  label={`${s.label}: ${s.display} (${Math.round((s.value / total) * 100)}%)`}
+                  withArrow
+                >
                   <circle
                     cx="95"
                     cy="95"
@@ -88,7 +92,10 @@ export function Donut({ slices, center }: { slices: Slice[]; center?: ReactNode 
         {slices.map((s) => (
           <Group key={s.label} gap={8} wrap="nowrap" justify="space-between">
             <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-              <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+              <span
+                aria-hidden
+                style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }}
+              />
               <Text size="sm" truncate>
                 {s.label}
               </Text>
@@ -124,7 +131,15 @@ export function BarList({ bars }: { bars: Bar[] }) {
             <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
               {b.icon}
               {b.href ? (
-                <Text component={Link} to={b.href} size="sm" fw={500} truncate c="inherit" style={{ textDecoration: 'none' }}>
+                <Text
+                  component={Link}
+                  to={b.href}
+                  size="sm"
+                  fw={500}
+                  truncate
+                  c="inherit"
+                  style={{ textDecoration: 'none' }}
+                >
                   {b.label}
                 </Text>
               ) : (
@@ -156,7 +171,13 @@ export function BarList({ bars }: { bars: Bar[] }) {
 }
 
 /** Columns along a baseline. Only the tallest column carries a value label; the rest are on hover. */
-export function Columns({ columns, height = 140 }: { columns: { label: string; value: number; display: string }[]; height?: number }) {
+export function Columns({
+  columns,
+  height = 140,
+}: {
+  columns: { label: string; value: number; display: string }[];
+  height?: number;
+}) {
   const max = Math.max(1, ...columns.map((c) => c.value));
   const peak = columns.findIndex((c) => c.value === max && c.value > 0);
   return (
@@ -173,9 +194,17 @@ export function Columns({ columns, height = 140 }: { columns: { label: string; v
       >
         {columns.map((c, i) => (
           <Tooltip key={c.label} label={`${c.label}: ${c.display}`} withArrow>
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+              }}
+            >
               {i === peak && (
-                <Text size="xs" c="dimmed" className="num" mb={2}>
+                <Text size="xs" c="dimmed" className="num" mb={2} style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
                   {c.display}
                 </Text>
               )}
@@ -193,7 +222,14 @@ export function Columns({ columns, height = 140 }: { columns: { label: string; v
           </Tooltip>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`, gap: 2, marginTop: 6 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+          gap: 2,
+          marginTop: 6,
+        }}
+      >
         {columns.map((c) => (
           <Text key={c.label} size="xs" c="dimmed" ta="center" truncate>
             {c.label}

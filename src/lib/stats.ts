@@ -39,9 +39,14 @@ export interface Stats {
      * platforms report lifetime totals, so earlier hours can't be dated).
      */
     recorded?: { since: string; minutes: number };
-    /** Real hours per month this year: only once tracking covers the whole year. */
+    /**
+     * Hours played this year, per month and per game, from what Savepoint
+     * recorded (the change between syncs). `wholeYear` is false when recording
+     * began after the year started, so earlier hours this year are missing.
+     */
     tracked?: {
       since: string;
+      wholeYear: boolean;
       minutes: number;
       byMonth: number[];
       top: { item: LibraryGame; minutes: number }[];
@@ -119,18 +124,21 @@ export function computeStats(
   }));
 
   const year = now.getFullYear();
-  const thisYear = played.filter((l) => l.lastPlayed && new Date(l.lastPlayed).getFullYear() === year);
-  const byMonth = Array.from({ length: 12 }, () => 0);
-  for (const l of thisYear) byMonth[new Date(l.lastPlayed!).getMonth()] += 1;
-
   const prefix = `${year}-`;
   const yearLog = log.filter((l) => l.date.startsWith(prefix));
+  // Played this year: last played this year, or with hours recorded this year.
+  const loggedThisYear = new Set(yearLog.filter((l) => l.minutes > 0).map((l) => l.gameId));
+  const thisYear = played.filter(
+    (l) => (l.lastPlayed && new Date(l.lastPlayed).getFullYear() === year) || loggedThisYear.has(l.game.id),
+  );
+  const byMonth = Array.from({ length: 12 }, () => 0);
+  for (const l of thisYear) if (l.lastPlayed) byMonth[new Date(l.lastPlayed).getMonth()] += 1;
+
   let tracked: Stats['year']['tracked'];
-  // A year's hours are only real if tracking began by its first week; a
-  // partial year would show a few days as if they were the whole year.
+  // Whether recording began by the year's first week, so its hours are complete.
   const coversYear = !!since && since.slice(0, 10) <= `${year}-01-07`;
   const recordedMinutes = log.filter((l) => !since || l.date >= since.slice(0, 10)).reduce((n, l) => n + l.minutes, 0);
-  if (since && coversYear && yearLog.length) {
+  if (since && yearLog.length) {
     const byId = new Map(all.map((l) => [l.game.id, l]));
     const perGame = new Map<string, number>();
     const monthly = Array.from({ length: 12 }, () => 0);
@@ -142,6 +150,7 @@ export function computeStats(
     }
     tracked = {
       since,
+      wholeYear: coversYear,
       minutes: monthly.reduce((a, b) => a + b, 0),
       byMonth: monthly,
       top: [...perGame]
