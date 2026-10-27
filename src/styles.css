@@ -316,6 +316,11 @@ h3,
   border: 1px solid var(--sp-fav) !important;
 }
 
+/* Sub-genres are outlined everywhere; favourite ones too, in rose. */
+.fav-chip--sub {
+  background: transparent !important;
+}
+
 .fav-chip svg {
   flex-shrink: 0;
 }
@@ -626,4 +631,50 @@ h3,
   50% {
     transform: translateY(-6px);
   }
+}
+
+/* ------------------------------------------------------------------ level */
+
+.level-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+/* The level number, pinned to the ring like a console's level badge. */
+.level-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--mantine-primary-color-filled);
+  color: #1a1300;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--sp-shell);
+}
+
+.profile-link {
+  display: inline-flex;
+  margin-left: 6px;
+  border-radius: 50%;
+}
+
+.profile-link:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+.xp-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--sp-line);
+}
+
+.xp-row:last-child {
+  border-bottom: none;
 }

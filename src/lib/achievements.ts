@@ -62,7 +62,15 @@ export async function runAchievementsSync(): Promise<void> {
       for (const e of now.filter((x) => x.platform === 'playstation' && x.source === 'psn')) {
         const title = resolveGame(e.gameId, customGames, genreOverrides, details)?.title;
         const t = title && byTitle.get(normalizeTitle(title));
-        if (t) out[e.gameId] = { earned: t.earned, total: t.total, platinum: t.platinum, minutesAt: e.minutes };
+        if (t) {
+          out[e.gameId] = {
+            earned: t.earned,
+            total: t.total,
+            platinum: t.platinum,
+            grades: t.grades,
+            minutesAt: e.minutes,
+          };
+        }
       }
       useStore.getState().applyAchievements('playstation', out, true);
     }

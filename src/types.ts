@@ -71,12 +71,21 @@ export interface PlayLogEntry {
   minutes: number;
 }
 
+export interface TrophyGrades {
+  bronze: number;
+  silver: number;
+  gold: number;
+  platinum: number;
+}
+
 /** Achievement or trophy progress for one game on one platform. */
 export interface AchievementProgress {
   earned: number;
   total: number;
   /** PlayStation only: the platinum trophy is earned. */
   platinum?: boolean;
+  /** PlayStation only: earned trophies by grade (for XP). */
+  grades?: TrophyGrades;
   /** Total play minutes when this was checked, to skip unchanged games. */
   minutesAt?: number;
   checkedAt: string;

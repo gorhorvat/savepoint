@@ -29,7 +29,7 @@ import { useAchievementsSync } from '../lib/achievements';
 import { useLengthBackfill } from '../lib/lengths';
 import { usePriceAlertsSync } from '../lib/alerts';
 import { useGenreBackfill } from '../lib/genreLookup';
-import { ProfileAvatar } from './ProfileAvatar';
+import { LevelAvatar } from './ProfileAvatar';
 import { useStore } from '../lib/store';
 
 const NAV: { to: string; label: string; short?: string; icon: typeof IconBooks; end?: boolean }[] = [
@@ -128,19 +128,9 @@ export function Layout({ children }: { children: ReactNode }) {
                 <IconSettings size={20} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Profile">
-              <ActionIcon
-                component={Link}
-                to="/profile"
-                variant="transparent"
-                size="lg"
-                radius="xl"
-                aria-label="Profile"
-                ml={4}
-              >
-                <ProfileAvatar size={32} />
-              </ActionIcon>
-            </Tooltip>
+            <Link to="/profile" className="profile-link" aria-label="Profile">
+              <LevelAvatar size={mobile ? 28 : 32} />
+            </Link>
           </Group>
         </Group>
       </AppShell.Header>

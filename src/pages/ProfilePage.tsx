@@ -1,4 +1,16 @@
-import { Avatar, Button, FileButton, Group, MultiSelect, Paper, Stack, TagsInput, Text, Title } from '@mantine/core';
+import {
+  Avatar,
+  Button,
+  FileButton,
+  Group,
+  MultiSelect,
+  Paper,
+  Progress,
+  Stack,
+  TagsInput,
+  Text,
+  Title,
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconLogout, IconPhoto, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -7,6 +19,7 @@ import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } f
 import { useLibrary } from '../lib/library';
 import { logOut } from '../lib/serverStorage';
 import { useStore } from '../lib/store';
+import { nextRank, useXp, XP } from '../lib/xp';
 
 /** Center-crops and shrinks a picture to a small JPEG, so it stays light to save and sync. */
 async function toAvatar(file: File): Promise<string> {
@@ -178,16 +191,101 @@ function FavoritesSection() {
   );
 }
 
+const fmt = (n: number) => Math.round(n).toLocaleString();
+
+/** Level, rank and where your XP comes from. */
+function LevelSection() {
+  const xp = useXp();
+  const t = xp.trophies;
+  const graded = t.bronze + t.silver + t.gold;
+  const rows: { label: string; detail: string; xp: number }[] = [
+    {
+      label: 'PlayStation trophies',
+      detail: graded
+        ? `${fmt(t.platinum)} platinum, ${fmt(t.gold)} gold, ${fmt(t.silver)} silver, ${fmt(t.bronze)} bronze` +
+          (t.ungraded ? `, ${fmt(t.ungraded)} not graded yet` : '')
+        : `${fmt(t.platinum)} platinum and ${fmt(t.ungraded)} other trophies (exact grades arrive with the next PlayStation sync)`,
+      xp: t.xp,
+    },
+    {
+      label: 'Steam achievements',
+      detail: `${fmt(xp.steam.achievements)} achievements, ${fmt(xp.steam.perfectGames)} ${
+        xp.steam.perfectGames === 1 ? 'game' : 'games'
+      } completed`,
+      xp: xp.steam.xp,
+    },
+    {
+      label: 'Play time',
+      detail: `${fmt(xp.hours.confirmed)} hours confirmed by Steam and PlayStation`,
+      xp: xp.hours.xp,
+    },
+  ];
+
+  return (
+    <section aria-label="Level">
+      <Group gap="xl" align="flex-end" wrap="wrap">
+        <div>
+          <Text c="dimmed" fw={600}>
+            Level
+          </Text>
+          <Text className="display num" fz={88} lh={0.9} c="var(--mantine-primary-color-filled)">
+            {xp.level}
+          </Text>
+        </div>
+        <Stack gap={6} style={{ flex: '1 1 260px' }} mb={6}>
+          <Group justify="space-between" align="baseline">
+            <Text fw={800} fz={28} style={{ fontStretch: '78%' }}>
+              {xp.rank}
+            </Text>
+            <Text size="sm" c="dimmed" className="num">
+              {fmt(xp.total)} XP
+            </Text>
+          </Group>
+          <Progress value={(xp.into / xp.needed) * 100} size="md" radius="xl" aria-label="Progress to the next level" />
+          <Text size="sm" c="dimmed" className="num">
+            {fmt(xp.needed - xp.into)} XP to level {xp.level + 1}
+            {nextRank(xp.level) && `, ${nextRank(xp.level)!.name} at level ${nextRank(xp.level)!.level}`}
+          </Text>
+        </Stack>
+      </Group>
+
+      <Stack gap={4} mt="xl">
+        {rows.map((r) => (
+          <Group key={r.label} justify="space-between" wrap="nowrap" gap="md" className="xp-row">
+            <div style={{ minWidth: 0 }}>
+              <Text fw={600}>{r.label}</Text>
+              <Text size="sm" c="dimmed">
+                {r.detail}
+              </Text>
+            </div>
+            <Text fw={700} className="num" style={{ flexShrink: 0 }}>
+              {fmt(r.xp)} XP
+            </Text>
+          </Group>
+        ))}
+      </Stack>
+      <Text size="sm" c="dimmed" mt="md" maw={680}>
+        XP only counts what Steam and PlayStation confirm: trophies earn Sony&apos;s points (bronze {XP.bronze}, silver{' '}
+        {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
+        {XP.steamPerfect} for completing a game, and {XP.perHour} per hour played.
+        {xp.hours.unconfirmed >= 1 &&
+          ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand (Switch, Epic) don't count, and neither do apps.`}
+      </Text>
+    </section>
+  );
+}
+
 export function ProfilePage() {
   return (
     <Stack gap={48}>
       <div>
         <Title order={1}>Profile</Title>
         <Text c="dimmed" mt={6} size="lg">
-          Your picture, and what you love playing.
+          Your picture, your level, and what you love playing.
         </Text>
       </div>
       <PictureSection />
+      <LevelSection />
       <FavoritesSection />
       <Button
         variant="subtle"

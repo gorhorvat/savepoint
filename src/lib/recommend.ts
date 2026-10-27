@@ -1,5 +1,5 @@
 import type { Game, PlatformId } from '../types';
-import { favoriteBoost, type Favorites } from './favorites';
+import { favoriteBoost, favoriteFranchise, isFavoriteGenre, type Favorites } from './favorites';
 import type { LibraryGame } from './library';
 import { ownedKey, ownedKeys } from './match';
 import { tasteFactor } from './progress';
@@ -58,10 +58,52 @@ export function tasteMatcher(profile: TasteProfile): (game: Game) => number {
   };
 }
 
+/**
+ * How well a game fits you, as an absolute 0–100 (not relative to other
+ * suggestions). Sub-genres ("Survival horror") say much more about a game
+ * than broad genres ("Action"), so favourites of each kind count differently:
+ * - 100: a favourite franchise, two favourite sub-genres, or a favourite
+ *   sub-genre plus the game's main broad genre (the store's first) as a favourite;
+ * - 80–95: one favourite sub-genre, by how well the rest fits what you play;
+ * - 60–90: only favourite broad genres (they cover half of all games, so on
+ *   their own they never reach 100);
+ * - 0–80: no favourites, by how much of the game is genres you spend your
+ *   hours in.
+ * Otherwise the order genres are listed in doesn't matter: stores sort them
+ * by player votes, which says little about what the game means to you.
+ */
+export function matchPercent(game: Game, profile: TasteProfile, favs?: Favorites): number {
+  const isFav = (name: string) => !!favs && isFavoriteGenre(name, favs);
+  const favSubs = game.subgenres.filter(isFav);
+  const favBroad = game.genres.filter(isFav);
+  if (favs && favoriteFranchise(game, favs)) return 100;
+  const mainIsFav = !!game.genres[0] && isFav(game.genres[0]);
+  if (favSubs.length >= 2 || (favSubs.length >= 1 && mainIsFav)) return 100;
+
+  // Taste: each genre counts by how much you play it (your top one = 1).
+  // Sub-genres say more about a game than broad genres, so they weigh more.
+  const gw = new Map(profile.genres.map((x) => [x.name, x.weight]));
+  const sw = new Map(profile.subgenres.map((x) => [x.name, x.weight]));
+  const traits = [
+    ...game.subgenres.map((s) => ({ name: s, weight: 1, taste: sw.get(s) ?? gw.get(s) ?? 0 })),
+    ...game.genres.map((g) => ({ name: g, weight: 0.5, taste: gw.get(g) ?? sw.get(g) ?? 0 })),
+  ].filter((t) => !isFav(t.name));
+  const total = traits.reduce((n, t) => n + t.weight, 0);
+  // A game tagged only "Action" says little: it takes about two specific
+  // genres' worth of information to reach the top of the range.
+  const evidence = Math.max(total, 2.5);
+  // Square root: a genre you play half as much as your favourite still fits well.
+  const taste = traits.reduce((n, t) => n + t.weight * Math.sqrt(t.taste), 0) / evidence;
+
+  if (favSubs.length) return Math.round(80 + 15 * taste);
+  if (favBroad.length) return Math.round(60 + 30 * taste);
+  return Math.round(80 * taste);
+}
+
 export interface Recommendation {
   game: Game;
   score: number;
-  /** 0..100 relative to the best recommendation. */
+  /** 0..100: how well it fits you (see matchPercent). */
   fit: number;
   because?: LibraryGame;
   sharedTraits: string[];
@@ -99,7 +141,8 @@ export function recommend(
     alsoOwned?: string[];
   },
 ): Recommendation[] {
-  const fit = tasteMatcher(tasteProfile(lib));
+  const profile = tasteProfile(lib);
+  const fit = tasteMatcher(profile);
   const played = new Set(lib.map((l) => l.game.id));
   // Suggestions get their own ids, so also skip games you own by app id, and by
   // title on any platform and in any version (Gold, Cloud, Deluxe…).
@@ -136,7 +179,7 @@ export function recommend(
     recs.push({
       game,
       score,
-      fit: 0,
+      fit: matchPercent(game, profile, opts.favorites),
       because,
       sharedTraits: [...new Set(sharedTraits)],
       onYourPlatforms,
@@ -144,7 +187,7 @@ export function recommend(
       favoriteGenres: fav.genres,
     });
   }
-  recs.sort((a, b) => b.score - a.score);
-  const top = recs[0]?.score ?? 1;
-  return recs.map((r) => ({ ...r, fit: Math.round((r.score / top) * 100) }));
+  // Best match first; games not on your platforms sink; ties go to the finer score.
+  const rank = (r: Recommendation) => r.fit * (r.onYourPlatforms.length ? 1 : 0.4);
+  return recs.sort((a, b) => rank(b) - rank(a) || b.score - a.score);
 }

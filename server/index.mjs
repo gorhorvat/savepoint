@@ -269,6 +269,12 @@ app.get('/api/psn/trophies', ownerOnly, async (_req, res) => {
         earned: sum(t.earnedTrophies),
         total: sum(t.definedTrophies),
         platinum: t.earnedTrophies?.platinum > 0,
+        grades: t.earnedTrophies && {
+          bronze: t.earnedTrophies.bronze,
+          silver: t.earnedTrophies.silver,
+          gold: t.earnedTrophies.gold,
+          platinum: t.earnedTrophies.platinum,
+        },
       })),
     });
   } catch (err) {

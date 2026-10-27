@@ -28,13 +28,17 @@ export function GenreChips({ game, limit, size = 'sm' }: { game: Game; limit?: n
     <Group gap={4} wrap="wrap">
       {all.map(({ g, sub, fav }) =>
         fav ? (
-          <Tooltip key={`${sub}-${g}`} label="One of your favourite genres" withArrow>
+          <Tooltip
+            key={`${sub}-${g}`}
+            label={sub ? 'One of your favourite sub-genres' : 'One of your favourite genres'}
+            withArrow
+          >
             <Badge
               size={size}
               radius="xs"
               tt="none"
               fw={600}
-              className="fav-chip"
+              className={sub ? 'fav-chip fav-chip--sub' : 'fav-chip'}
               leftSection={<IconHeartFilled size={size === 'xs' ? 9 : 11} />}
             >
               {g}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { STORES } from '../data/stores';
-import type { ChatMessage, Game, StoreId, StorePrice } from '../types';
+import type { ChatMessage, Game, StoreId, StorePrice, TrophyGrades } from '../types';
 import type { ImportedGame } from './store';
 
 export interface ServerStatus {
@@ -92,7 +92,9 @@ export function fetchSteamAchievements(profile: string, appids: number[]) {
 }
 
 export function fetchPsnTrophies() {
-  return getJson<{ titles: { name: string; earned: number; total: number; platinum: boolean }[] }>('/api/psn/trophies');
+  return getJson<{
+    titles: { name: string; earned: number; total: number; platinum: boolean; grades?: TrophyGrades }[];
+  }>('/api/psn/trophies');
 }
 
 export function importPsn() {
