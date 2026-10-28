@@ -80,6 +80,9 @@ async function remove(userId, platform) {
   await query('DELETE FROM platform_logins WHERE "user_id" = $1 AND "platform" = $2', [userId, platform]);
 }
 
+// For other sign-ins kept the same way (Twitch: server/streaming.mjs).
+export { load as loadLogin, save as saveLogin, remove as removeLogin };
+
 /** { playstation: { account, expiresAt } | null, xbox: { account } | null } for Settings. */
 export async function platformLogins(userId) {
   const { rows } = await query(

@@ -24,7 +24,7 @@ import { FranchiseBadge } from '../components/GenreChips';
 import { ShareExport, type ListExport } from '../components/ShareExport';
 import { GameSearch } from '../components/GameSearch';
 import { PhysicalPlatformIcon } from '../components/PhysicalPlatformIcon';
-import { CONDITIONS, DIGITAL, PHYSICAL_PLATFORMS } from '../data/physical';
+import { CONDITIONS, DIGITAL, PHYSICAL_PLATFORM_GROUPS, PHYSICAL_PLATFORMS } from '../data/physical';
 import type { FoundGame } from '../lib/api';
 import { formatPrice } from '../lib/format';
 import { vendorSearchUrl } from '../lib/vendors';
@@ -70,8 +70,10 @@ function PlatformTag({ platform }: { platform: PhysicalPlatform }) {
   );
 }
 
-/** Best guess at the physical platform from where a game is sold. */
+/** Best guess at the physical platform: the only console it came out on, else from where it's sold. */
 function defaultPlatform(f: FoundGame): PhysicalPlatform | null {
+  const consoles = (f.physicalPlatforms ?? []).filter((p) => p !== 'PC');
+  if (consoles.length === 1) return consoles[0];
   if (f.availableOn.includes('switch')) return f.switchVersions?.includes('Switch') ? 'Switch' : 'Switch 2';
   if (f.availableOn.includes('playstation')) return 'PS5';
   return null;
@@ -104,9 +106,11 @@ function PhysicalForm({
   const [v, setV] = useState<FormValues>(initial ?? { title: '', platform: null });
   const set = (patch: Partial<FormValues>) => setV((prev) => ({ ...prev, ...patch }));
   const [searching, setSearching] = useState(!initial?.title);
+  const [releasedOn, setReleasedOn] = useState<PhysicalPlatform[]>([]);
 
   const pick = (f: FoundGame) => {
     set({ gameId: saveFound(f), title: f.title, platform: v.platform ?? defaultPlatform(f) });
+    setReleasedOn(f.physicalPlatforms ?? []);
     setSearching(false);
   };
 
@@ -114,7 +118,13 @@ function PhysicalForm({
     <Stack gap="sm">
       {searching ? (
         <>
-          <GameSearch actionLabel="Select" onPick={pick} placeholder="Search for the game" autoFocus />
+          <GameSearch
+            actionLabel="Select"
+            onPick={pick}
+            placeholder="Search any game, older consoles included"
+            autoFocus
+            allPlatforms
+          />
           <Anchor component="button" size="sm" onClick={() => setSearching(false)} w="fit-content">
             Not listed? Type the title instead
           </Anchor>
@@ -124,7 +134,10 @@ function PhysicalForm({
           <TextInput
             label="Title"
             value={v.title}
-            onChange={(e) => set({ title: e.currentTarget.value, gameId: undefined })}
+            onChange={(e) => {
+              set({ title: e.currentTarget.value, gameId: undefined });
+              setReleasedOn([]);
+            }}
             style={{ flex: 1 }}
             required
           />
@@ -136,10 +149,11 @@ function PhysicalForm({
       <Group grow align="flex-start">
         <Select
           label="Platform"
-          data={PHYSICAL_PLATFORMS}
+          data={PHYSICAL_PLATFORM_GROUPS}
           value={v.platform}
           onChange={(p) => set({ platform: p as PhysicalPlatform | null })}
           allowDeselect={false}
+          searchable
           required
         />
         {mode === 'item' ? (
@@ -163,6 +177,29 @@ function PhysicalForm({
           />
         )}
       </Group>
+      {!searching && releasedOn.length > 1 && (
+        <Group gap={6} wrap="wrap" mt={-4}>
+          <Text size="xs" c="dimmed">
+            Released on
+          </Text>
+          {releasedOn.map((p) => (
+            <Badge
+              key={p}
+              component="button"
+              type="button"
+              size="sm"
+              radius="xs"
+              tt="none"
+              variant={v.platform === p ? 'filled' : 'outline'}
+              color={v.platform === p ? undefined : 'gray'}
+              style={{ cursor: 'pointer' }}
+              onClick={() => set({ platform: p })}
+            >
+              {p}
+            </Badge>
+          ))}
+        </Group>
+      )}
       <TextInput
         label="Edition"
         placeholder="e.g. Collector's Edition, Steelbook"
@@ -412,7 +449,11 @@ export function PhysicalPage() {
         <Select
           aria-label="Filter by platform"
           placeholder="All platforms"
-          data={PHYSICAL_PLATFORMS}
+          data={PHYSICAL_PLATFORM_GROUPS.map((g) => ({
+            group: g.group,
+            items: g.items.filter((p) => [...physical, ...wants].some((x) => x.platform === p)),
+          })).filter((g) => g.items.length)}
+          searchable
           value={platform}
           onChange={setPlatform}
           clearable

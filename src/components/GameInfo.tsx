@@ -11,6 +11,45 @@ const TIER_COLOR: Record<string, string> = {
   Weak: 'var(--sp-c2)',
 };
 
+/** 0 to 100 -> the tier colour it falls in. */
+const scoreColor = (n: number) =>
+  n >= 84 ? TIER_COLOR.Mighty : n >= 74 ? TIER_COLOR.Strong : n >= 65 ? TIER_COLOR.Fair : TIER_COLOR.Weak;
+
+type Outlet = NonNullable<NonNullable<GameInfo['critic']>['outlets']>[number];
+
+/** Individual reviews from big outlets, each linking to the review. */
+function OutletScores({ outlets }: { outlets: Outlet[] }) {
+  return (
+    <Stack gap={4} miw={200}>
+      <Text size="xs" c="dimmed" tt="uppercase" fw={600} lts={0.4}>
+        Critics
+      </Text>
+      {outlets.map((o) => (
+        <Group key={o.outlet} gap={8} wrap="nowrap" justify="space-between">
+          <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+            <span
+              aria-hidden
+              style={{ width: 8, height: 8, borderRadius: 2, flexShrink: 0, background: scoreColor(o.normalized) }}
+            />
+            {o.url ? (
+              <Anchor href={o.url} target="_blank" rel="noopener noreferrer" size="sm" c="inherit" truncate>
+                {o.outlet}
+              </Anchor>
+            ) : (
+              <Text size="sm" truncate>
+                {o.outlet}
+              </Text>
+            )}
+          </Group>
+          <Text size="sm" fw={600} className="num" style={{ whiteSpace: 'nowrap' }}>
+            {o.score}
+          </Text>
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
 /** Critic score and typical length, with how far along you are. */
 export function GameFacts({ info, playedMinutes }: { info: GameInfo; playedMinutes?: number }) {
   const { critic, length } = info;
@@ -45,6 +84,7 @@ export function GameFacts({ info, playedMinutes }: { info: GameInfo; playedMinut
           </Anchor>
         </div>
       )}
+      {critic?.outlets && critic.outlets.length > 0 && <OutletScores outlets={critic.outlets} />}
       {length?.main && (
         <div>
           <Text className="display num" fw={700} fz={26} lh={1}>

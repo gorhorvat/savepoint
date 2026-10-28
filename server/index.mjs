@@ -6,7 +6,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { getUserPlayedGames, getUserTitles } from 'psn-api';
-import { NINTENDO_GENRES, lookupDetails, nintendoPrice, searchGames, steamWishlist } from './search.mjs';
+import { NINTENDO_GENRES, lookupDetails, nintendoPrice, searchAllPlatforms, searchGames, steamWishlist } from './search.mjs';
 import { lookupGameFacts } from './gameFacts.mjs';
 import { discoverPool } from './discover.mjs';
 import { howLongToBeat } from './hltb.mjs';
@@ -23,6 +23,7 @@ import {
   turnOffAlerts,
   watchedCount,
 } from './alerts.mjs';
+import { bigDeals, checkDealAlerts, dealSettings, freeGiveaways, saveDealSettings } from './dealAlerts.mjs';
 import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
 import { xboxLibrary } from './xbox.mjs';
@@ -39,6 +40,9 @@ import {
 import { accountRouter, authRouter, requireLogin } from './auth.mjs';
 import { steamLoginRouter } from './steamLogin.mjs';
 import { friendsRouter } from './friends.mjs';
+import { giftsRouter } from './gifts.mjs';
+import { streamingRouter } from './streaming.mjs';
+import { latestNews } from './news.mjs';
 import { gameStatsRouter } from './ffxiv.mjs';
 import { gw2Router } from './gw2.mjs';
 import { lolRouter } from './lol.mjs';
@@ -71,7 +75,9 @@ app.get('/api/cron/alerts', async (req, res) => {
     return res.status(401).json({ error: 'Not allowed.' });
   }
   try {
-    res.json(await checkAlerts());
+    const prices = await checkAlerts();
+    const deals = await checkDealAlerts().catch((err) => ({ error: err.message }));
+    res.json({ ...prices, deals });
   } catch (err) {
     logCrash('cron/alerts', err);
     res.status(502).json({ error: err.message });
@@ -85,6 +91,8 @@ app.use(platformContext); // Lets game search use the searcher's own PlayStation
 app.use(accountRouter); // /api/account, /api/account/*, /api/admin/invite
 app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
+app.use(giftsRouter); // /api/gifts/*
+app.use(streamingRouter); // /api/streams, /api/streaming/*, /api/auth/twitch/*
 app.use(gameStatsRouter); // /api/games/*
 app.use(gw2Router); // /api/games/gw2/*
 app.use(lolRouter); // /api/games/lol/*
@@ -365,7 +373,8 @@ app.get('/api/search', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 2) return res.json({ results: [] });
   try {
-    res.json({ results: await searchGames(q) });
+    // ?all=1: older consoles too (IGDB), for physical copies.
+    res.json({ results: req.query.all === '1' ? await searchAllPlatforms(q) : await searchGames(q) });
   } catch (err) {
     res.status(502).json({ error: `Search failed: ${err.message}` });
   }
@@ -478,6 +487,56 @@ app.post('/api/alerts', async (req, res) => {
     res.json(await setAlerts(req.userId, items));
   } catch (err) {
     res.status(502).json({ error: `Price check failed: ${err.message}` });
+  }
+});
+
+// Free game and big deal alerts -> { freeGames, bigDeals }
+app.get('/api/alerts/deals', async (req, res) => {
+  try {
+    res.json(await dealSettings(req.userId));
+  } catch (err) {
+    alertsFailed(res, err);
+  }
+});
+
+// Body: { freeGames?, bigDeals? } -> the saved settings. Checks right away, so
+// what's on now arrives without waiting for the daily check.
+app.put('/api/alerts/deals', async (req, res) => {
+  try {
+    res.json(await saveDealSettings(req.userId, req.body ?? {}));
+    void checkDealAlerts({ userId: req.userId }).catch(() => {});
+  } catch (err) {
+    alertsFailed(res, err);
+  }
+});
+
+// Current free games (GamerPower), for the homepage. -> { giveaways }
+app.get('/api/deals/free', async (_req, res) => {
+  try {
+    res.set('Cache-Control', 'private, max-age=1800');
+    res.json({ giveaways: (await freeGiveaways()).filter((g) => g.kind === 'game').slice(0, 30) });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Gaming news for the homepage. ?sources=ign,pcgamer (all when empty) -> { items }
+app.get('/api/news', async (req, res) => {
+  const ids = String(req.query.sources || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  res.set('Cache-Control', 'private, max-age=900');
+  res.json({ items: await latestNews(ids, 20) });
+});
+
+// Current big deals (IsThereAnyDeal), for the homepage. -> { deals }
+app.get('/api/deals/big', async (_req, res) => {
+  try {
+    res.set('Cache-Control', 'private, max-age=1800');
+    res.json({ deals: (await bigDeals({ minCut: 75, historicalLow: true, wellReviewed: true })).slice(0, 30) });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
   }
 });
 
@@ -1021,7 +1080,10 @@ async function streamGemini(res, system, history, signal) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   app.listen(PORT, () => {
     console.log(`Savepoint API on http://localhost:${PORT}`);
-    startAlertTimer();
+    startAlertTimer(async () => {
+      await checkAlerts();
+      await checkDealAlerts();
+    });
     console.log(
       assistantProvider() === 'gemini'
         ? `Assistant: ${GEMINI_MODEL} via the Gemini API`

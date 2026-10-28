@@ -13,9 +13,11 @@ import type {
   PlayEntry,
   PlayLogEntry,
   Progress,
+  StreamTaste,
   WishlistItem,
 } from '../types';
 import type { FoundGame, GameLength, GenreResult } from './api';
+import type { HomepageSettings } from './homepage';
 import { legacyMatcher, slug } from './match';
 import { hydrationDone, serverStorage } from './serverStorage';
 
@@ -88,6 +90,12 @@ interface State {
   vendors: string[];
   /** Game-specific stats in My Stats: on or off, and the games with a tab of their own. */
   gameStats: { enabled: boolean; games: GameStatsId[] };
+  /** Kick channels you watch (slugs), typed in Settings: Kick can't share who you follow. */
+  kickChannels: string[];
+  /** The games your favourite streamers play (see lib/streaming.ts); null until worked out. */
+  streamTaste: StreamTaste | null;
+  /** What the homepage shows, in order (lib/homepage.ts); unset = the default. */
+  homepage?: HomepageSettings;
 
   importLibrary: (
     platform: PlatformId,
@@ -138,6 +146,9 @@ interface State {
   updateProfile: (patch: Partial<Profile>) => void;
   setVendors: (vendors: string[]) => void;
   setGameStats: (patch: Partial<State['gameStats']>) => void;
+  setKickChannels: (slugs: string[]) => void;
+  setStreamTaste: (taste: StreamTaste | null) => void;
+  setHomepage: (homepage: HomepageSettings) => void;
   /** Steam said the Game details are private (true), or shared achievements again (false). */
   setSteamAchievementsPrivate: (hidden: boolean) => void;
 }
@@ -228,6 +239,8 @@ export const useStore = create<State>()(
       profile: { favoriteGenres: [], favoriteFranchises: [] },
       vendors: ['ebay.com'],
       gameStats: { enabled: false, games: [] },
+      kickChannels: [],
+      streamTaste: null,
       showApps: false,
       suggested: { key: '', fetchedAt: '', games: {} },
       progress: {},
@@ -353,9 +366,10 @@ export const useStore = create<State>()(
       toggleWishlist: (gameId) => {
         const has = get().wishlist.some((w) => w.gameId === gameId);
         // A Play next suggestion isn't saved anywhere yet; keep it once it's wishlisted.
-        const { customGames, suggested } = get();
-        if (!has && !customGames[gameId] && suggested.games[gameId]) {
-          set({ customGames: { ...customGames, [gameId]: suggested.games[gameId] } });
+        const { customGames, suggested, streamTaste } = get();
+        const unsaved = suggested.games[gameId] ?? watchedGames(streamTaste)[gameId];
+        if (!has && !customGames[gameId] && unsaved) {
+          set({ customGames: { ...customGames, [gameId]: unsaved } });
         }
         set({
           wishlist: has
@@ -493,6 +507,9 @@ export const useStore = create<State>()(
       updateProfile: (patch) => set({ profile: { ...get().profile, ...patch } }),
       setVendors: (vendors) => set({ vendors }),
       setGameStats: (patch) => set((s) => ({ gameStats: { ...s.gameStats, ...patch } })),
+      setKickChannels: (kickChannels) => set({ kickChannels }),
+      setStreamTaste: (streamTaste) => set({ streamTaste }),
+      setHomepage: (homepage) => set({ homepage }),
       setSteamAchievementsPrivate: (hidden) => {
         const steam = get().connections.steam;
         // Private again: the time is renewed, so the next try waits another 6 hours.
@@ -604,6 +621,40 @@ export function localDay(d = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+const watchedCache = new WeakMap<StreamTaste, Record<string, Game>>();
+
+/**
+ * The games your favourite streamers play, as game records (ids "w-…"), so
+ * they can be suggested, opened and wishlisted like suggestion-pool games.
+ * Same objects until the taste changes.
+ */
+export function watchedGames(taste: StreamTaste | null): Record<string, Game> {
+  if (!taste) return {};
+  const hit = watchedCache.get(taste);
+  if (hit) return hit;
+  const games: Record<string, Game> = {};
+  for (const w of taste.games) {
+    const id = `w-${slug(w.title)}`;
+    games[id] = {
+      id,
+      title: w.title,
+      genres: w.genres,
+      subgenres: w.subgenres,
+      tags: w.tags,
+      availableOn: w.availableOn,
+      steamAppId: w.steamAppId,
+      imageUrl: w.imageUrl,
+      year: w.year,
+      developer: w.developer,
+      genreSource: w.genres.length + w.subgenres.length ? 'igdb' : undefined,
+      kind: 'game',
+      custom: true,
+    };
+  }
+  watchedCache.set(taste, games);
+  return games;
+}
+
 type GenreOverride = State['genreOverrides'][string];
 const resolved = new WeakMap<Game, { override?: GenreOverride; detail?: GameDetails; game: Game }>();
 
@@ -618,7 +669,8 @@ export function resolveGame(
   overrides: State['genreOverrides'],
   details: State['details'] = {},
 ): Game | undefined {
-  const base = customGames[id] ?? useStore.getState().suggested.games[id];
+  const { suggested, streamTaste } = useStore.getState();
+  const base = customGames[id] ?? suggested.games[id] ?? watchedGames(streamTaste)[id];
   if (!base) return undefined;
   const override = overrides[id];
   const detail = details[id];

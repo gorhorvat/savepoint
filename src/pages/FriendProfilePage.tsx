@@ -1,9 +1,10 @@
 import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconHeartFilled, IconUserMinus } from '@tabler/icons-react';
+import { IconArrowLeft, IconGift, IconHeartFilled, IconUserMinus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Cover } from '../components/Cover';
+import { GiftWantModal, GiftWishModal } from '../components/GiftModal';
 import { PlatformIcon } from '../components/PlatformBadge';
 import { FriendAvatar } from '../components/ProfileAvatar';
 import { PLATFORM_BY_ID } from '../data/platforms';
@@ -14,6 +15,7 @@ import {
   removeFriend,
   type FriendProfile,
   type ProfileGame,
+  type ProfileWant,
 } from '../lib/friends';
 import type { Game, PlatformId } from '../types';
 
@@ -30,7 +32,32 @@ const asGame = (g: ProfileGame, i: number): Game => ({
   availableOn: (g.platforms ?? []).filter((p): p is PlatformId => p in PLATFORM_BY_ID),
 });
 
-function Shelf({ title, games, meta }: { title: string; games: ProfileGame[]; meta: (g: ProfileGame) => string }) {
+function GiftButton({ onClick, title }: { onClick: () => void; title: string }) {
+  return (
+    <Button
+      size="compact-xs"
+      variant="light"
+      leftSection={<IconGift size={13} />}
+      onClick={onClick}
+      aria-label={`Gift ${title}`}
+      mt={6}
+    >
+      Gift
+    </Button>
+  );
+}
+
+function Shelf({
+  title,
+  games,
+  meta,
+  onGift,
+}: {
+  title: string;
+  games: ProfileGame[];
+  meta: (g: ProfileGame) => string;
+  onGift?: (g: ProfileGame) => void;
+}) {
   if (!games.length) return null;
   return (
     <section aria-label={title}>
@@ -47,6 +74,36 @@ function Shelf({ title, games, meta }: { title: string; games: ProfileGame[]; me
             <Text size="sm" c="dimmed" truncate>
               {meta(g)}
             </Text>
+            {onGift && <GiftButton title={g.title} onClick={() => onGift(g)} />}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WantsShelf({ wants, onGift }: { wants: ProfileWant[]; onGift: (w: ProfileWant) => void }) {
+  if (!wants.length) return null;
+  return (
+    <section aria-label="Physical wants">
+      <Title order={2} mb="sm">
+        Physical wants
+      </Title>
+      <div className="shelf">
+        {wants.map((w, i) => (
+          <div key={`${w.title}-${w.platform}-${i}`} className="shelf-tile">
+            <Cover
+              game={{ id: `want-${i}-${w.title}`, title: w.title, imageUrl: w.imageUrl, genres: [], subgenres: [], tags: [], availableOn: [] }}
+              width="100%"
+              radius={12}
+            />
+            <Text fw={700} mt={8} truncate>
+              {w.title}
+            </Text>
+            <Text size="sm" c="dimmed" truncate>
+              {[w.platform, w.edition].filter(Boolean).join(', ')}
+            </Text>
+            <GiftButton title={w.title} onClick={() => onGift(w)} />
           </div>
         ))}
       </div>
@@ -60,6 +117,8 @@ export function FriendProfilePage() {
   const [friend, setFriend] = useState<FriendProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [giftWish, setGiftWish] = useState<ProfileGame | null>(null);
+  const [giftWant, setGiftWant] = useState<ProfileWant | null>(null);
 
   const load = useCallback(() => {
     fetchFriend(id)
@@ -226,7 +285,11 @@ export function FriendProfilePage() {
             .map((x) => PLATFORM_BY_ID[x].short)
             .join(', ')
         }
+        onGift={setGiftWish}
       />
+      <WantsShelf wants={p.physicalWants ?? []} onGift={setGiftWant} />
+      <GiftWishModal friend={{ id, username: friend.username }} game={giftWish} onClose={() => setGiftWish(null)} />
+      <GiftWantModal want={giftWant} onClose={() => setGiftWant(null)} />
 
       <Group gap="xs">
         {confirmRemove ? (

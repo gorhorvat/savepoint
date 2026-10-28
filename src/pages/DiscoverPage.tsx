@@ -1,5 +1,5 @@
 import { ActionIcon, Anchor, Button, Chip, Group, Loader, Stack, Switch, Text, Title, Tooltip } from '@mantine/core';
-import { IconMessageCircle, IconX } from '@tabler/icons-react';
+import { IconBroadcast, IconMessageCircle, IconX } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GameCard } from '../components/GameCard';
@@ -9,6 +9,7 @@ import { recommend, tasteProfile } from '../lib/recommend';
 import { useStore } from '../lib/store';
 import { useFavorites } from '../lib/favorites';
 import { useSuggestionPool } from '../lib/suggestions';
+import { watchedForTaste } from '../lib/streaming';
 
 const PAGE = 24;
 
@@ -20,15 +21,17 @@ export function DiscoverPage() {
   const [onlyMine, setOnlyMine] = useState(true);
   const [focus, setFocus] = useState<string | null>(null);
 
-  const profile = useMemo(() => tasteProfile(lib), [lib]);
+  const streamTaste = useStore((s) => s.streamTaste);
+  const watched = useMemo(() => watchedForTaste(streamTaste), [streamTaste]);
+  const profile = useMemo(() => tasteProfile(lib, watched), [lib, watched]);
   const owned = useMemo(() => ownedPlatforms(lib), [lib]);
   const pool = useSuggestionPool(lib);
   const [shown, setShown] = useState(PAGE);
   const favorites = useFavorites();
   const alsoOwned = useUnlinkedPhysicalTitles();
   const recs = useMemo(
-    () => recommend(lib, { owned, exclude: new Set(dismissed), pool: pool.games, favorites, alsoOwned }),
-    [lib, owned, dismissed, pool.games, favorites, alsoOwned],
+    () => recommend(lib, { owned, exclude: new Set(dismissed), pool: pool.games, favorites, alsoOwned, watched }),
+    [lib, owned, dismissed, pool.games, favorites, alsoOwned, watched],
   );
 
   const matching = recs
@@ -47,7 +50,7 @@ export function DiscoverPage() {
           <Title order={1}>Play next</Title>
           <Text c="dimmed" mt={6} size="lg" maw={620}>
             Picked from the genres you spend the most hours in. Hours count with diminishing returns, so one huge game
-            doesn't decide everything.{' '}
+            doesn't decide everything.{watched.length > 0 && ' The games your favourite streamers play count too.'}{' '}
             <Anchor component={Link} to="/stats" inherit>
               See your genres
             </Anchor>
@@ -131,6 +134,15 @@ export function DiscoverPage() {
                       {r.sharedTraits.length > 0 &&
                         `. Both are ${r.sharedTraits.slice(0, 2).join(' and ').toLowerCase()}.`}
                     </Text>
+                  )}
+                  {r.streamedBy && r.streamedBy.length > 0 && (
+                    <Group gap={6} wrap="nowrap" align="flex-start">
+                      <IconBroadcast size={14} style={{ flexShrink: 0, marginTop: 3, opacity: 0.7 }} />
+                      <Text size="sm" lh={1.4}>
+                        {r.streamedBy.slice(0, 2).join(' and ')}
+                        {r.streamedBy.length > 2 ? ' and others' : ''} {r.streamedBy.length === 1 ? 'plays' : 'play'} it.
+                      </Text>
+                    </Group>
                   )}
                   {r.onYourPlatforms.length === 0 && (
                     <Text size="xs" c="orange">

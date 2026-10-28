@@ -10,6 +10,7 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import {
   IconBooks,
+  IconHome,
   IconBuildingStore,
   IconChartPie,
   IconDisc,
@@ -23,9 +24,10 @@ import {
 } from '@tabler/icons-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { fetchFriendSummary, FRIENDS_CHANGED } from '../lib/friends';
+import { fetchFriendSummary, fetchGiftSummary, FRIENDS_CHANGED } from '../lib/friends';
 import { usePublicProfileSync } from '../lib/publicProfile';
 import { useAutoSync } from '../lib/autoSync';
+import { useStreamTasteSync } from '../lib/streaming';
 import { useDetailsBackfill } from '../lib/details';
 import { usePlayHistory } from '../lib/history';
 import { useAchievementsSync } from '../lib/achievements';
@@ -36,7 +38,8 @@ import { LevelAvatar } from './ProfileAvatar';
 import { useStore } from '../lib/store';
 
 const NAV: { to: string; label: string; short?: string; icon: typeof IconBooks; end?: boolean }[] = [
-  { to: '/', label: 'Library', icon: IconBooks, end: true },
+  { to: '/', label: 'Home', icon: IconHome, end: true },
+  { to: '/library', label: 'Library', icon: IconBooks },
   { to: '/stats', label: 'My Stats', short: 'Stats', icon: IconChartPie },
   { to: '/discover', label: 'Discover', icon: IconSparkles },
   { to: '/assistant', label: 'Assistant', icon: IconMessageCircle },
@@ -69,15 +72,21 @@ export function Logo({ size = 22 }: { size?: number }) {
   );
 }
 
-/** Friends in the header, with the number of friend requests waiting. */
+/** Friends in the header, with the number of friend requests and unopened gifts waiting. */
 function FriendsButton() {
   const [incoming, setIncoming] = useState(0);
+  const [gifts, setGifts] = useState(0);
   const { pathname } = useLocation();
   useEffect(() => {
     const check = () =>
-      fetchFriendSummary()
-        .then((s) => setIncoming(s.incoming))
-        .catch(() => {});
+      Promise.all([
+        fetchFriendSummary()
+          .then((s) => setIncoming(s.incoming))
+          .catch(() => {}),
+        fetchGiftSummary()
+          .then((s) => setGifts(s.unopened))
+          .catch(() => {}),
+      ]);
     check();
     const timer = setInterval(check, 120_000);
     window.addEventListener(FRIENDS_CHANGED, check);
@@ -86,7 +95,12 @@ function FriendsButton() {
       window.removeEventListener(FRIENDS_CHANGED, check);
     };
   }, [pathname]);
-  const label = incoming ? `Friends: ${incoming} ${incoming === 1 ? 'request' : 'requests'}` : 'Friends';
+  const parts = [
+    incoming && `${incoming} ${incoming === 1 ? 'request' : 'requests'}`,
+    gifts && `${gifts} ${gifts === 1 ? 'gift' : 'gifts'}`,
+  ].filter(Boolean);
+  const label = parts.length ? `Friends: ${parts.join(', ')}` : 'Friends';
+  const count = incoming + gifts;
   return (
     <Tooltip label={label}>
       <ActionIcon
@@ -99,7 +113,7 @@ function FriendsButton() {
         pos="relative"
       >
         <IconUsers size={20} />
-        {incoming > 0 && <span className="header-count num">{incoming}</span>}
+        {count > 0 && <span className="header-count num">{count}</span>}
       </ActionIcon>
     </Tooltip>
   );
@@ -136,6 +150,7 @@ export function Layout({ children }: { children: ReactNode }) {
   useLengthBackfill();
   usePriceAlertsSync();
   usePublicProfileSync();
+  useStreamTasteSync();
 
   return (
     <AppShell

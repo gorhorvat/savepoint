@@ -8,7 +8,8 @@ import { collect, normalizeTitle } from './genres.mjs';
 const FIELDS =
   'name,alternative_names.name,first_release_date,summary,genres.name,themes.name,game_modes.name,' +
   'cover.image_id,artworks.image_id,screenshots.image_id,involved_companies.developer,' +
-  'involved_companies.company.name,external_games.external_game_source,external_games.uid,game_type,version_parent';
+  'involved_companies.company.name,external_games.external_game_source,external_games.uid,game_type,version_parent,' +
+  'platforms.name';
 const cache = diskCache('igdb', 30 * 24 * 3600 * 1000);
 let auth = null;
 let next = 0;
@@ -131,9 +132,37 @@ function toInfo(g) {
       full: image(s.image_id, 't_1080p'),
     })),
     steamAppId: Number(g.external_games?.find((e) => e.external_game_source === 1)?.uid) || undefined,
+    availableOn: digitalPlatforms(g.platforms),
     ...mapGenres(g),
   };
 }
+
+/** Savepoint's digital platforms a game is on, from IGDB platform names. */
+function digitalPlatforms(platforms = []) {
+  const out = new Set();
+  for (const { name = '' } of platforms) {
+    if (/^PC \(Microsoft Windows\)$/i.test(name)) out.add('steam');
+    else if (/^PlayStation [45]$/i.test(name)) out.add('playstation');
+    else if (/^Xbox (One|Series)/i.test(name)) out.add('xbox');
+    else if (/^Nintendo Switch/i.test(name)) out.add('switch');
+  }
+  return [...out];
+}
+
+/** Everything IGDB knows about one game by its IGDB id (Twitch categories carry it). Cached. */
+export async function igdbGameById(id) {
+  if (!igdbConfigured() || !Number.isInteger(Number(id)) || Number(id) <= 0) return null;
+  const key = `id:${id}`;
+  const cached = await cache.get(key);
+  if (cached !== undefined) return cached;
+  const found = (await query('games', `fields ${FIELDS}; where id = ${Number(id)};`))[0] ?? null;
+  const info = found ? toInfo(found) : null;
+  await cache.set(key, info);
+  return info;
+}
+
+/** An app token for Twitch's own API (Helix), shared with IGDB. */
+export const twitchAppToken = () => token();
 
 /** Main games, remakes, remasters, expanded games and ports: no DLC, bundles, mods or updates. */
 const MAIN = 'game_type = (0,8,9,10,11) & version_parent = null';
@@ -191,4 +220,94 @@ export async function lookupIgdb(games) {
     }
   }
   return { results };
+}
+
+// ---------------------------------------------------------------- search (older platforms)
+
+/** IGDB platform names -> Savepoint physical platforms. Checked in order. */
+const PHYSICAL_BY_NAME = [
+  [/^PlayStation 5$/i, 'PS5'],
+  [/^PlayStation 4$/i, 'PS4'],
+  [/^PlayStation 3$/i, 'PS3'],
+  [/^PlayStation 2$/i, 'PS2'],
+  [/^PlayStation$/i, 'PS1'],
+  [/^PlayStation Vita$/i, 'PS Vita'],
+  [/^PlayStation Portable$/i, 'PSP'],
+  [/^Xbox Series/i, 'Xbox Series X|S'],
+  [/^Xbox One$/i, 'Xbox One'],
+  [/^Xbox 360$/i, 'Xbox 360'],
+  [/^Xbox$/i, 'Xbox'],
+  [/^Nintendo Switch 2$/i, 'Switch 2'],
+  [/^Nintendo Switch$/i, 'Switch'],
+  [/^Wii U$/i, 'Wii U'],
+  [/^Wii$/i, 'Wii'],
+  [/GameCube/i, 'GameCube'],
+  [/^Nintendo 64$/i, 'N64'],
+  [/^Super Nintendo/i, 'SNES'],
+  [/^Nintendo Entertainment System/i, 'NES'],
+  [/3DS$/i, '3DS'],
+  [/^Nintendo DS$/i, 'DS'],
+  [/^Game Boy Advance$/i, 'Game Boy Advance'],
+  [/^Game Boy Color$/i, 'Game Boy Color'],
+  [/^Game Boy$/i, 'Game Boy'],
+  [/Mega Drive|Genesis/i, 'Mega Drive'],
+  [/Saturn/i, 'Saturn'],
+  [/Dreamcast/i, 'Dreamcast'],
+  [/Master System/i, 'Master System'],
+  [/Game Gear/i, 'Game Gear'],
+  [/^PC \(Microsoft Windows\)$|^DOS$/i, 'PC'],
+];
+
+/** Digital platform ids Savepoint knows, for the platform icons. */
+const DIGITAL_BY_PHYSICAL = { PS5: 'playstation', PS4: 'playstation', 'Xbox Series X|S': 'xbox', 'Xbox One': 'xbox', Switch: 'switch', 'Switch 2': 'switch' };
+
+function physicalPlatforms(platforms = []) {
+  const out = [];
+  for (const p of platforms) {
+    const hit = PHYSICAL_BY_NAME.find(([re]) => re.test(p.name ?? ''));
+    if (hit && !out.includes(hit[1])) out.push(hit[1]);
+  }
+  return out;
+}
+
+const SEARCH_FIELDS =
+  'name,first_release_date,platforms.name,genres.name,themes.name,game_modes.name,cover.image_id,' +
+  'artworks.image_id,screenshots.image_id,involved_companies.developer,involved_companies.company.name';
+const searchCache = new Map();
+
+/**
+ * Games on every platform IGDB knows, old consoles included, in the same shape
+ * as store search results plus `physicalPlatforms` (e.g. ['SNES', 'Wii']).
+ * Results are kept for a day.
+ */
+export async function igdbSearch(text) {
+  if (!igdbConfigured()) return [];
+  const key = text.trim().toLowerCase();
+  const hit = searchCache.get(key);
+  if (hit && hit.at > Date.now() - 24 * 3600 * 1000) return hit.results;
+  const safe = text.replace(/[™®©]/g, '').replace(/["\\]/g, ' ').trim();
+  const list = await query('games', `search "${safe}"; fields ${SEARCH_FIELDS}; where ${MAIN}; limit 30;`);
+  const results = list
+    .map((g) => {
+      const platforms = physicalPlatforms(g.platforms);
+      const dev = g.involved_companies?.find((c) => c.developer)?.company?.name;
+      const landscape = g.artworks?.[0]?.image_id ?? g.screenshots?.[0]?.image_id;
+      const released = g.first_release_date ? new Date(g.first_release_date * 1000) : null;
+      const upcoming = released && released.getTime() > Date.now();
+      return {
+        title: g.name.replace(/[™®©]/g, '').trim(),
+        igdbId: g.id,
+        availableOn: [...new Set(platforms.map((p) => DIGITAL_BY_PHYSICAL[p]).filter(Boolean))],
+        physicalPlatforms: platforms,
+        imageUrl: image(landscape, 't_screenshot_med'),
+        developer: dev,
+        year: released && !upcoming ? released.getUTCFullYear() : undefined,
+        releaseDate: released?.toISOString(),
+        ...mapGenres(g),
+      };
+    })
+    // Only games released on something you could own a copy of.
+    .filter((g) => g.physicalPlatforms.length);
+  searchCache.set(key, { at: Date.now(), results });
+  return results;
 }

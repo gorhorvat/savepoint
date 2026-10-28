@@ -337,6 +337,38 @@ CREATE TABLE IF NOT EXISTS price_alerts (
   PRIMARY KEY ("user_id", "game_id")
 );
 
+-- Free game and big deal alerts (server/dealAlerts.mjs): each account's
+-- choices, and what was already sent so nothing is sent twice.
+CREATE TABLE IF NOT EXISTS deal_alert_settings (
+  "user_id" integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  "data" jsonb NOT NULL,
+  "updated_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS deal_alerts_sent (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "item_key" text NOT NULL,
+  "sent_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("user_id", "item_key")
+);
+
+-- Game keys sent to friends (server/gifts.mjs). "secret" is the key,
+-- encrypted like platform_logins.secret.
+CREATE TABLE IF NOT EXISTS gifts (
+  "id" integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  "from_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "to_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "title" text NOT NULL,
+  "platform" text NOT NULL,
+  "secret" text NOT NULL,
+  "message" text,
+  "game_id" text,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "opened_at" timestamptz,
+  "redeemed_at" timestamptz
+);
+CREATE INDEX IF NOT EXISTS gifts_to ON gifts ("to_id");
+CREATE INDEX IF NOT EXISTS gifts_from ON gifts ("from_id");
+
 -- PlayStation's internal account id, for looking up its online status.
 ALTER TABLE platform_logins ADD COLUMN IF NOT EXISTS "account_id" text;
 

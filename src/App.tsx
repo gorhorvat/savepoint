@@ -8,6 +8,7 @@ import { DiscoverPage } from './pages/DiscoverPage';
 import { FriendProfilePage } from './pages/FriendProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
 import { GamePage } from './pages/GamePage';
+import { HomePage } from './pages/HomePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { PhysicalPage } from './pages/PhysicalPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -16,11 +17,18 @@ import { StatsPage } from './pages/StatsPage';
 import { StoresPage } from './pages/StoresPage';
 import { WishlistPage } from './pages/WishlistPage';
 
+/** New page: back to the top, or to the section a link names ("/settings#alerts"). */
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+    if (!hash) {
+      window.scrollTo(0, 0);
+      return;
+    }
+    // Sections render after the route does.
+    const timer = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' }), 60);
+    return () => clearTimeout(timer);
+  }, [pathname, hash]);
   return null;
 }
 
@@ -30,7 +38,8 @@ export default function App() {
       <Layout>
         <ScrollToTop />
         <Routes>
-          <Route path="/" element={<LibraryPage />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/library" element={<LibraryPage />} />
           <Route path="/game/:id" element={<GamePage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/discover" element={<DiscoverPage />} />
@@ -45,7 +54,7 @@ export default function App() {
           <Route path="/add/:code" element={<AddFriendPage />} />
           {/* Platforms is a section of Settings now; keep old links working. */}
           <Route path="/platforms" element={<Navigate to="/settings" replace />} />
-          <Route path="*" element={<LibraryPage />} />
+          <Route path="*" element={<HomePage />} />
         </Routes>
       </Layout>
     </StateGate>

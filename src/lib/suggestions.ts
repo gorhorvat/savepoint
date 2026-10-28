@@ -3,7 +3,8 @@ import type { Game } from '../types';
 import { fetchDiscoverPool } from './api';
 import type { LibraryGame } from './library';
 import { tasteProfile } from './recommend';
-import { useStore } from './store';
+import { useStore, watchedGames } from './store';
+import { watchedForTaste } from './streaming';
 
 // The live suggestion pool behind Play next, the assistant and "similar
 // games": well-reviewed Steam games and popular Switch games for your top
@@ -17,7 +18,8 @@ let inFlight: { key: string; promise: Promise<void> } | null = null;
 export function useSuggestionPool(lib: LibraryGame[]): { games: Game[]; loading: boolean } {
   const suggested = useStore((s) => s.suggested);
   const [failed, setFailed] = useState('');
-  const profile = useMemo(() => tasteProfile(lib), [lib]);
+  const streamTaste = useStore((s) => s.streamTaste);
+  const profile = useMemo(() => tasteProfile(lib, watchedForTaste(streamTaste)), [lib, streamTaste]);
   const { favoriteGenres, favoriteFranchises } = useStore((s) => s.profile);
   // Favourites come first, then what your hours say. A favourite can be a
   // genre or a sub-genre; the server looks each name up as both.
@@ -57,7 +59,11 @@ export function useSuggestionPool(lib: LibraryGame[]): { games: Game[]; loading:
   }, [key, stale, failed]);
 
   return {
-    games: useMemo(() => Object.values(suggested.games), [suggested.games]),
+    // The games your streamers play are candidates too.
+    games: useMemo(
+      () => [...Object.values(suggested.games), ...Object.values(watchedGames(streamTaste))],
+      [suggested.games, streamTaste],
+    ),
     loading: stale && failed !== key,
   };
 }

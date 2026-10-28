@@ -1,13 +1,17 @@
-import { IconBrandXbox, IconDeviceDesktop, IconDisc } from '@tabler/icons-react';
-import { DIGITAL } from '../data/physical';
+import { IconBrandXbox, IconDeviceDesktop, IconDeviceGamepad2, IconDisc } from '@tabler/icons-react';
+import { CARTRIDGE_PLATFORMS, DIGITAL, platformFamily } from '../data/physical';
 import type { PhysicalPlatform } from '../types';
 import { PlatformIcon } from './PlatformBadge';
 
 export function PhysicalPlatformIcon({ platform, size = 16 }: { platform: PhysicalPlatform; size?: number }) {
   const digital = DIGITAL[platform];
   if (digital && platform !== 'PC') return <PlatformIcon platform={digital} size={size} />;
-  if (platform.startsWith('Xbox')) return <IconBrandXbox size={size} color="#107c10" />;
+  const family = platformFamily(platform);
+  if (family === 'xbox') return <IconBrandXbox size={size} color="#107c10" />;
+  if (family === 'playstation') return <PlatformIcon platform="playstation" size={size} />;
   if (platform === 'PC') return <IconDeviceDesktop size={size} stroke={1.8} />;
+  if (CARTRIDGE_PLATFORMS.has(platform)) return <IconCartridge size={size} />;
+  if (family === 'nintendo' || family === 'sega') return <IconDeviceGamepad2 size={size} stroke={1.8} />;
   return <IconDisc size={size} stroke={1.8} />;
 }
 
@@ -35,7 +39,7 @@ export function IconCartridge({ size = 16, stroke = 1.8, color = 'currentColor' 
 
 /** Cartridge for Switch copies, disc for everything else. */
 export function PhysicalCopyIcon({ platform, size = 16, color }: { platform: PhysicalPlatform; size?: number; color?: string }) {
-  return platform === 'Switch' || platform === 'Switch 2' ? (
+  return CARTRIDGE_PLATFORMS.has(platform) ? (
     <IconCartridge size={size} color={color} />
   ) : (
     <IconDisc size={size} stroke={1.8} color={color} style={{ flexShrink: 0 }} />

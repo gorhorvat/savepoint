@@ -1,9 +1,163 @@
-import { Anchor, Button, Code, Group, List, Paper, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Button, Checkbox, Chip, Code, Group, List, Paper, Slider, Stack, Switch, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconBell, IconBellOff, IconCopy, IconRefresh } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchAlertSettings, newAlertTopic, sendTestAlert, turnOffAlerts, type AlertSettings } from '../lib/api';
+import {
+  fetchAlertSettings,
+  fetchDealAlertSettings,
+  newAlertTopic,
+  saveDealAlertSettings,
+  sendTestAlert,
+  turnOffAlerts,
+  type AlertSettings,
+  type DealAlertSettings,
+  type FreeStore,
+} from '../lib/api';
+
+const FREE_STORE_LABELS: Record<FreeStore, string> = {
+  steam: 'Steam',
+  epic: 'Epic Games',
+  gog: 'GOG',
+  itchio: 'itch.io',
+  ubisoft: 'Ubisoft',
+  ea: 'EA',
+  battlenet: 'Battle.net',
+  amazon: 'Prime Gaming',
+  playstation: 'PlayStation',
+  xbox: 'Xbox',
+  switch: 'Switch',
+  mobile: 'Android / iOS',
+  drmfree: 'DRM-free',
+};
+
+/** Free games (GamerPower) and big deals (IsThereAnyDeal), sent to the same ntfy topic. */
+function DealAlerts() {
+  const [s, setS] = useState<DealAlertSettings | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchDealAlertSettings()
+      .then(setS)
+      .catch((e: Error) => setError(e.message));
+  }, []);
+
+  const save = async (next: DealAlertSettings) => {
+    setS(next);
+    setSaving(true);
+    setError(null);
+    try {
+      setS(await saveDealAlertSettings(next));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const free = (patch: Partial<DealAlertSettings['freeGames']>) => s && save({ ...s, freeGames: { ...s.freeGames, ...patch } });
+  const deals = (patch: Partial<DealAlertSettings['bigDeals']>) => s && save({ ...s, bigDeals: { ...s.bigDeals, ...patch } });
+
+  if (!s) {
+    return (
+      <Text size="sm" c={error ? 'red' : 'dimmed'}>
+        {error ?? 'Loading…'}
+      </Text>
+    );
+  }
+  return (
+    <Stack gap="lg">
+      <Stack gap="xs">
+        <Switch
+          label="Free games"
+          description="Games given away to keep, on the stores you pick. Several at once arrive as one message."
+          checked={s.freeGames.enabled}
+          onChange={(e) => free({ enabled: e.currentTarget.checked })}
+        />
+        {s.freeGames.enabled && (
+          <Stack gap="xs" pl={{ base: 0, sm: 54 }}>
+            <Chip.Group
+              multiple
+              value={s.freeGames.stores}
+              onChange={(v) => free({ stores: v as FreeStore[] })}
+            >
+              <Group gap={6}>
+                {(Object.keys(FREE_STORE_LABELS) as FreeStore[]).map((k) => (
+                  <Chip key={k} value={k} size="xs" radius="sm" variant="outline">
+                    {FREE_STORE_LABELS[k]}
+                  </Chip>
+                ))}
+              </Group>
+            </Chip.Group>
+            {!s.freeGames.stores.length && (
+              <Text size="xs" c="dimmed">
+                No store picked: every store counts.
+              </Text>
+            )}
+            <Group gap="lg">
+              <Checkbox size="xs" label="Free DLC too" checked={s.freeGames.dlc} onChange={(e) => free({ dlc: e.currentTarget.checked })} />
+              <Checkbox
+                size="xs"
+                label="In-game loot too"
+                checked={s.freeGames.loot}
+                onChange={(e) => free({ loot: e.currentTarget.checked })}
+              />
+            </Group>
+            <Text size="xs" c="dimmed">
+              Free games from {external('https://www.gamerpower.com', 'GamerPower')}.
+            </Text>
+          </Stack>
+        )}
+      </Stack>
+      <Stack gap="xs">
+        <Switch
+          label="Big deals"
+          description="Any PC game with a big discount, not just your wishlist."
+          checked={s.bigDeals.enabled}
+          onChange={(e) => deals({ enabled: e.currentTarget.checked })}
+        />
+        {s.bigDeals.enabled && (
+          <Stack gap="sm" pl={{ base: 0, sm: 54 }} maw={480}>
+            <div>
+              <Text size="sm">At least {s.bigDeals.minCut}% off</Text>
+              <Slider
+                min={30}
+                max={95}
+                step={5}
+                value={s.bigDeals.minCut}
+                onChange={(v) => setS({ ...s, bigDeals: { ...s.bigDeals, minCut: v } })}
+                onChangeEnd={(v) => deals({ minCut: v })}
+                label={(v) => `${v}%`}
+                marks={[50, 75, 90].map((v) => ({ value: v, label: `${v}%` }))}
+                mb="md"
+              />
+            </div>
+            <Checkbox
+              size="xs"
+              label="Only at the game's all-time low price"
+              checked={s.bigDeals.historicalLow}
+              onChange={(e) => deals({ historicalLow: e.currentTarget.checked })}
+            />
+            <Checkbox
+              size="xs"
+              label="Only well-reviewed games (75% or more positive on Steam)"
+              checked={s.bigDeals.wellReviewed}
+              onChange={(e) => deals({ wellReviewed: e.currentTarget.checked })}
+            />
+            <Text size="xs" c="dimmed">
+              Deals from {external('https://isthereanydeal.com', 'IsThereAnyDeal')}, US prices.
+            </Text>
+          </Stack>
+        )}
+      </Stack>
+      {(saving || error) && (
+        <Text size="xs" c={error ? 'red' : 'dimmed'}>
+          {error ?? 'Saving…'}
+        </Text>
+      )}
+    </Stack>
+  );
+}
 
 const external = (href: string, text: string) => (
   <Anchor href={href} target="_blank" rel="noopener noreferrer">
@@ -70,7 +224,7 @@ export function AlertsSection() {
   return (
     <Stack gap="lg" id="alerts">
       <div>
-        <Title order={2}>Price alerts</Title>
+        <Title order={2}>Price and deal alerts</Title>
         <Text c="dimmed" mt={6} maw={640}>
           Set a target price on a{' '}
           <Anchor component={Link} to="/wishlist">
@@ -174,6 +328,19 @@ export function AlertsSection() {
           )}
         </Stack>
       </Paper>
+      {topic && (
+        <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+          <Stack gap="md">
+            <div>
+              <Title order={3}>Free games and big deals</Title>
+              <Text size="sm" c="dimmed" mt={4}>
+                Sent to the same topic, checked with your price alerts. Each one arrives once.
+              </Text>
+            </div>
+            <DealAlerts />
+          </Stack>
+        </Paper>
+      )}
     </Stack>
   );
 }

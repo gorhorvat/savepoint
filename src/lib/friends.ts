@@ -43,6 +43,18 @@ export interface ProfileGame {
   imageUrl?: string;
   hours?: number;
   platforms?: string[];
+  /** The owner's game id (wishlist), so a gift can take it off their list. */
+  gameId?: string;
+  steamAppId?: number;
+  nsuid?: string;
+}
+
+/** A physical copy someone is looking for, as friends see it. */
+export interface ProfileWant {
+  title: string;
+  platform: string;
+  edition?: string;
+  imageUrl?: string;
 }
 
 /** What friends see of an account (sent by its app; see usePublicProfileSync). */
@@ -60,6 +72,7 @@ export interface PublicProfile {
   hoursByPlatform: Record<string, number>;
   topGames: ProfileGame[];
   wishlist: ProfileGame[];
+  physicalWants?: ProfileWant[];
 }
 
 export interface FriendProfile {
@@ -123,3 +136,48 @@ export function describePresence(presence: Presence[]): string {
 
 export const isOnline = (presence: Presence[]) => presence.some((p) => p.online);
 export const isPlaying = (presence: Presence[]) => presence.some((p) => p.online && p.playing);
+
+// ---------------------------------------------------------------- gifts (server/gifts.mjs)
+
+export const GIFT_PLATFORMS = [
+  'Steam',
+  'Epic Games',
+  'GOG',
+  'PlayStation',
+  'Xbox',
+  'Nintendo',
+  'Ubisoft',
+  'EA',
+  'Battle.net',
+  'Other',
+] as const;
+export type GiftPlatform = (typeof GIFT_PLATFORMS)[number];
+
+export interface Gift {
+  id: number;
+  /** Who sent it (received gifts). */
+  from?: { id: number; username: string };
+  /** Who it went to (sent gifts). */
+  to?: { id: number; username: string };
+  title: string;
+  platform: GiftPlatform;
+  message?: string;
+  gameId?: string;
+  sentAt: string;
+  openedAt?: string;
+  redeemedAt?: string;
+}
+
+export const fetchGifts = () => call<{ received: Gift[]; sent: Gift[] }>('/api/gifts');
+export const fetchGiftSummary = () => call<{ unopened: number }>('/api/gifts/summary');
+export const sendGift = (gift: {
+  to: number;
+  title: string;
+  platform: GiftPlatform;
+  key: string;
+  message?: string;
+  gameId?: string;
+}) => call<{ id: number }>('/api/gifts', 'POST', gift);
+export const openGift = (id: number) => call<{ key: string }>(`/api/gifts/${id}/open`, 'POST');
+export const markGiftRedeemed = (id: number) => call<{ ok: true; gameId?: string }>(`/api/gifts/${id}/redeemed`, 'POST');
+export const takeBackGift = (id: number) => call(`/api/gifts/${id}`, 'DELETE');

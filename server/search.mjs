@@ -3,7 +3,7 @@
 import { currentPsnAuth } from './platformLogins.mjs';
 import { makeUniversalSearch } from 'psn-api';
 import { normalizeTitle, steamAppIndex, steamItems } from './genres.mjs';
-import { igdbGame } from './igdb.mjs';
+import { igdbGame, igdbSearch } from './igdb.mjs';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -425,12 +425,17 @@ export async function searchGames(query) {
       tags: prev.tags.length ? prev.tags : r.tags,
     });
   }
+  return rankResults([...merged.values()], query);
+}
+
+/** Keeps results with every word of the query, best title matches first, at most 40. */
+function rankResults(list, query) {
   const q = searchKey(query);
   // Nintendo's search is fuzzy ("alan wake 2" finds "Two Point Museum"), so
   // every word of the query has to appear in the title.
   const words = q.split(' ').filter((w) => /[a-z]/.test(w));
   return (
-    [...merged.values()]
+    list
       .filter((r) => words.every((w) => r.key.split(' ').some((k) => k.startsWith(w))))
       // Exact title, then titles starting with the query as whole words ("Mario
       // Kart" for "mario"), then containing it as whole words, then partial-word
@@ -444,6 +449,32 @@ export async function searchGames(query) {
       .map(({ r }) => r)
       .slice(0, 40)
   );
+}
+
+/**
+ * Store search plus IGDB, for physical copies: finds games for older consoles
+ * (SNES, PS2, GameCube...) that no store sells any more. Each result carries
+ * `physicalPlatforms` when IGDB knows the game.
+ */
+export async function searchAllPlatforms(query) {
+  const [stores, igdb] = await Promise.all([
+    searchGames(query).catch(() => []),
+    igdbSearch(query).catch(() => []),
+  ]);
+  const byKey = new Map(stores.map((r) => [r.key ?? searchKey(r.title), { ...r }]));
+  for (const g of igdb) {
+    const key = searchKey(g.title);
+    const prev = byKey.get(key);
+    if (prev) {
+      prev.physicalPlatforms = [...new Set([...(prev.physicalPlatforms ?? []), ...g.physicalPlatforms])];
+      prev.year ??= g.year;
+      prev.developer ??= g.developer;
+      prev.imageUrl ??= g.imageUrl;
+    } else {
+      byKey.set(key, { ...g, key });
+    }
+  }
+  return rankResults([...byKey.values()], query);
 }
 
 // ---------------------------------------------------------------- Steam wishlist

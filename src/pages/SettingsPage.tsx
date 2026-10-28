@@ -3,7 +3,9 @@ import { IconExternalLink } from '@tabler/icons-react';
 import { useStore } from '../lib/store';
 import { normalizeVendor, searchesDirectly, SHOP_SUGGESTIONS, vendorSearchUrl } from '../lib/vendors';
 import { AlertsSection } from './AlertsSection';
+import { HomepageSection } from './HomepageSection';
 import { PlatformsSection } from './PlatformsSection';
+import { StreamingSection } from './StreamingSection';
 
 function ShopsSection() {
   const vendors = useStore((s) => s.vendors);
@@ -13,10 +15,10 @@ function ShopsSection() {
   return (
     <Stack gap="lg" id="shops">
       <div>
-        <Title order={2}>Shops for physical wants</Title>
+        <Title order={2}>Shops for physical games</Title>
         <Text c="dimmed" mt={6} maw={640}>
-          Each game you&apos;re looking for gets a search link for every shop here. Type a shop&apos;s web address, like
-          amazon.de or vinted.hr.
+          Each game you&apos;re looking for, and each physical game you gift a friend, gets a search link for every
+          shop here. Type a shop&apos;s web address, like amazon.de or vinted.hr.
         </Text>
       </div>
       <Paper p={{ base: 'md', sm: 'lg' }}>
@@ -63,11 +65,13 @@ export function SettingsPage() {
       <div>
         <Title order={1}>Settings</Title>
         <Text c="dimmed" mt={6} size="lg">
-          Shops for your physical wants, price alerts, and the platforms your play time comes from.
+          Your homepage, shops for physical games, alerts, streamers, and the platforms your play time comes from.
         </Text>
       </div>
+      <HomepageSection />
       <ShopsSection />
       <AlertsSection />
+      <StreamingSection />
       <PlatformsSection />
     </Stack>
   );

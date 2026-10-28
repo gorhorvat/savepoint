@@ -140,10 +140,33 @@ export interface GameDetails {
 export type PhysicalPlatform =
   | 'PS5'
   | 'PS4'
+  | 'PS3'
+  | 'PS2'
+  | 'PS1'
+  | 'PS Vita'
+  | 'PSP'
   | 'Switch 2'
   | 'Switch'
+  | 'Wii U'
+  | 'Wii'
+  | 'GameCube'
+  | 'N64'
+  | 'SNES'
+  | 'NES'
+  | '3DS'
+  | 'DS'
+  | 'Game Boy Advance'
+  | 'Game Boy Color'
+  | 'Game Boy'
   | 'Xbox Series X|S'
   | 'Xbox One'
+  | 'Xbox 360'
+  | 'Xbox'
+  | 'Mega Drive'
+  | 'Saturn'
+  | 'Dreamcast'
+  | 'Master System'
+  | 'Game Gear'
   | 'PC'
   | 'Other';
 
@@ -174,4 +197,37 @@ export interface PhysicalWant {
   edition?: string;
   notes?: string;
   addedAt: string;
+}
+
+/** A game your favourite streamers play, with genres for matching (server/streaming.mjs). */
+export interface WatchedGame {
+  title: string;
+  /** 0..1: how many of your streamers play it, relative to the most-played one. */
+  weight: number;
+  /** Streamers who play it (a few). */
+  channels: string[];
+  igdbId?: number;
+  genres: string[];
+  subgenres: string[];
+  tags: string[];
+  steamAppId?: number;
+  imageUrl?: string;
+  year?: number;
+  developer?: string;
+  availableOn: PlatformId[];
+}
+
+export interface StreamChannel {
+  name: string;
+  url: string;
+  /** What they stream (or last streamed). */
+  game?: string;
+}
+
+export interface StreamTaste {
+  games: WatchedGame[];
+  channels: { twitch: StreamChannel[]; kick: StreamChannel[] };
+  /** What it was worked out from (connections and Kick channels), to know when it's stale. */
+  key: string;
+  fetchedAt: string;
 }

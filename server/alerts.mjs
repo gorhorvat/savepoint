@@ -144,10 +144,13 @@ export async function checkAlerts({ userId = null } = {}) {
   return { checked: rows.length, sent };
 }
 
-/** Local runs only; on Vercel a daily Cron job calls /api/cron/alerts instead. */
-export function startAlertTimer() {
+/**
+ * Local runs only; on Vercel a daily Cron job calls /api/cron/alerts instead.
+ * `check` runs every check (price alerts plus anything else, like deal alerts).
+ */
+export function startAlertTimer(check = checkAlerts) {
   if (timer) return;
-  timer = setInterval(() => void checkAlerts().catch(() => {}), EVERY);
+  timer = setInterval(() => void check().catch(() => {}), EVERY);
   // First check shortly after the server starts.
-  setTimeout(() => void checkAlerts().catch(() => {}), 60_000);
+  setTimeout(() => void check().catch(() => {}), 60_000);
 }

@@ -4,6 +4,7 @@ import { formatPlaytime } from './format';
 import { ownedPlatforms, platformTotals, type LibraryGame } from './library';
 import { normalizeTitle } from './match';
 import { recommend, tasteProfile, type Recommendation } from './recommend';
+import { watchedForTaste } from './streaming';
 import { useStore } from './store';
 import { makeFavorites } from './favorites';
 
@@ -21,7 +22,8 @@ export function buildContext(
 ): string {
   const totals = platformTotals(lib);
   const owned = ownedPlatforms(lib);
-  const profile = tasteProfile(lib);
+  const watched = watchedForTaste(useStore.getState().streamTaste);
+  const profile = tasteProfile(lib, watched);
   const lines: string[] = [];
   lines.push(`Platforms owned: ${owned.map((p) => PLATFORM_BY_ID[p].name).join(', ') || 'none yet'}`);
   lines.push(`Hours per platform: ${PLATFORMS.map((p) => `${p.name} ${formatPlaytime(totals[p.id])}`).join('; ')}`);
@@ -69,6 +71,14 @@ export function buildContext(
   }
   lines.push(`Wishlist: ${wishlist.map((w) => w.title).join(', ') || 'empty'}`);
   if (dismissed.length) lines.push(`Marked "not interested": ${dismissed.map((d) => d.title).join(', ')}`);
+  if (watched.length) {
+    lines.push(
+      `Games their favourite streamers play (they like watching these): ${watched
+        .slice(0, 12)
+        .map((w) => `${w.title} (${w.channels.slice(0, 2).join(', ')})`)
+        .join('; ')}`,
+    );
+  }
   lines.push('');
   lines.push('Candidate games from live Steam and Nintendo eShop suggestions, best match first:');
   for (const r of candidates) {
@@ -135,7 +145,8 @@ export function offlineReply(question: string, lib: LibraryGame[], exclude: Set<
   const owned = ownedPlatforms(lib);
   const { favoriteGenres, favoriteFranchises } = useStore.getState().profile;
   const favorites = makeFavorites(favoriteGenres, favoriteFranchises);
-  let recs: Recommendation[] = recommend(lib, { owned, exclude, pool, favorites });
+  const watched = watchedForTaste(useStore.getState().streamTaste);
+  let recs: Recommendation[] = recommend(lib, { owned, exclude, pool, favorites, watched });
 
   const platform = PLATFORM_WORDS.find(([re]) => re.test(question))?.[1];
   if (platform) recs = recs.filter((r) => r.game.availableOn.includes(platform));

@@ -1,4 +1,4 @@
-import type { Game, PlatformId } from '../types';
+import type { Game, PlatformId, WatchedGame } from '../types';
 import { favoriteBoost, favoriteFranchise, isFavoriteGenre, type Favorites } from './favorites';
 import type { LibraryGame } from './library';
 import { ownedKey, ownedKeys } from './match';
@@ -25,7 +25,15 @@ function rank(map: Map<string, { w: number; m: number }>): Weighted[] {
   return list.map((x) => ({ ...x, weight: x.weight / max })).sort((a, b) => b.weight - a.weight);
 }
 
-export function tasteProfile(lib: LibraryGame[]): TasteProfile {
+/** How much your streamers' games count, next to everything you play (0.25 = a quarter). */
+const STREAM_SHARE = 0.25;
+
+/**
+ * Your taste: genres, sub-genres and tags weighted by your hours. The games
+ * your favourite streamers play (`watched`) add a quarter on top, or are all
+ * of it when you haven't played anything yet.
+ */
+export function tasteProfile(lib: LibraryGame[], watched: WatchedGame[] = []): TasteProfile {
   const g = new Map<string, { w: number; m: number }>();
   const s = new Map<string, { w: number; m: number }>();
   const t = new Map<string, { w: number; m: number }>();
@@ -39,6 +47,17 @@ export function tasteProfile(lib: LibraryGame[]): TasteProfile {
     item.game.genres.forEach((x) => add(g, x, w, item.totalMinutes));
     item.game.subgenres.forEach((x) => add(s, x, w, item.totalMinutes));
     item.game.tags.forEach((x) => add(t, x, w, item.totalMinutes));
+  }
+  if (watched.length) {
+    const libTotal = lib.reduce((n, item) => n + playWeight(item.totalMinutes) * tasteFactor(item.progress), 0);
+    const watchedTotal = watched.reduce((n, x) => n + x.weight, 0) || 1;
+    const scale = libTotal > 0 ? (STREAM_SHARE * libTotal) / watchedTotal : 1;
+    for (const x of watched) {
+      const w = x.weight * scale;
+      x.genres.forEach((name) => add(g, name, w, 0));
+      x.subgenres.forEach((name) => add(s, name, w, 0));
+      x.tags.forEach((name) => add(t, name, w, 0));
+    }
   }
   return { genres: rank(g), subgenres: rank(s), tags: rank(t) };
 }
@@ -112,6 +131,13 @@ export interface Recommendation {
   favoriteFranchise?: string;
   /** Its genres you marked as favourites. */
   favoriteGenres: string[];
+  /** Your favourite streamers who play it. */
+  streamedBy?: string[];
+}
+
+/** Your streamers' games by title (any version), for "streamed by" and a small boost. */
+export function streamerIndex(watched: WatchedGame[] = []): Map<string, string[]> {
+  return new Map(watched.map((w) => [ownedKey(w.title), w.channels]));
 }
 
 function overlap(a: Game, b: Game) {
@@ -139,9 +165,12 @@ export function recommend(
     favorites?: Favorites;
     /** More titles you own that aren't in the library (physical copies typed in by hand). */
     alsoOwned?: string[];
+    /** The games your favourite streamers play (lib/streaming.ts). */
+    watched?: WatchedGame[];
   },
 ): Recommendation[] {
-  const profile = tasteProfile(lib);
+  const profile = tasteProfile(lib, opts.watched);
+  const streamers = streamerIndex(opts.watched);
   const fit = tasteMatcher(profile);
   const played = new Set(lib.map((l) => l.game.id));
   // Suggestions get their own ids, so also skip games you own by app id, and by
@@ -160,8 +189,10 @@ export function recommend(
     const fav = opts.favorites ? favoriteBoost(game, opts.favorites) : { factor: 1, genres: [] };
     // A favourite franchise counts even when the store lists no genres for the game.
     const base = fav.franchise ? Math.max(fit(game), 0.5) : fit(game);
+    // Your streamers play it: a nudge up, not a jump.
+    const streamedBy = streamers.get(ownedKey(game.title));
     // Games you can't play on anything you own sink to the bottom.
-    const score = base * fav.factor * (onYourPlatforms.length ? 1 : 0.4);
+    const score = base * fav.factor * (streamedBy ? 1.25 : 1) * (onYourPlatforms.length ? 1 : 0.4);
     if (score <= 0) continue;
 
     let because: LibraryGame | undefined;
@@ -179,7 +210,8 @@ export function recommend(
     recs.push({
       game,
       score,
-      fit: matchPercent(game, profile, opts.favorites),
+      fit: Math.min(100, matchPercent(game, profile, opts.favorites) + (streamedBy ? 8 : 0)),
+      streamedBy,
       because,
       sharedTraits: [...new Set(sharedTraits)],
       onYourPlatforms,

@@ -21,8 +21,11 @@ export function GameSearch({
   placeholder = 'Search Steam, Epic and Nintendo Switch games',
   autoFocus,
   platform,
+  allPlatforms,
 }: {
   autoFocus?: boolean;
+  /** Include older consoles (SNES, PS2...) that no store sells any more. */
+  allPlatforms?: boolean;
   /** Only show games on this platform (and hide the platform filter). */
   platform?: PlatformId;
   onPick: (game: FoundGame) => void;
@@ -37,13 +40,13 @@ export function GameSearch({
   useEffect(() => {
     if (debounced.length < 2) return;
     const controller = new AbortController();
-    searchGames(debounced, controller.signal)
+    searchGames(debounced, controller.signal, allPlatforms)
       .then((results) => setState({ q: debounced, results }))
       .catch((err: Error) => {
         if (err.name !== 'AbortError') setState({ q: debounced, results: [], error: err.message });
       });
     return () => controller.abort();
-  }, [debounced]);
+  }, [debounced, allPlatforms]);
 
   const [only, setOnly] = useState<PlatformId | 'all'>('all');
   const searching = debounced.length >= 2 && state?.q !== debounced;
@@ -76,7 +79,7 @@ export function GameSearch({
           No games found for “{debounced}”.
         </Text>
       )}
-      {all.length > 0 && !platform && (
+      {all.length > 0 && !platform && !allPlatforms && (
         <Chip.Group value={only} onChange={(v) => setOnly(v as PlatformId | 'all')}>
           <Group gap={6}>
             <Chip value="all" size="xs" radius="sm" variant="outline">
@@ -113,7 +116,13 @@ export function GameSearch({
                       {f.title}
                     </Text>
                     <Group gap={8} mt={4} wrap="wrap">
-                      <PlatformList platforms={f.availableOn} switchVersions={f.switchVersions} size={14} />
+                      {allPlatforms && f.physicalPlatforms?.length ? (
+                        <Text size="xs" c="dimmed" lineClamp={1}>
+                          {f.physicalPlatforms.join(' · ')}
+                        </Text>
+                      ) : (
+                        <PlatformList platforms={f.availableOn} switchVersions={f.switchVersions} size={14} />
+                      )}
                       <Text size="xs" c="dimmed">
                         {[f.year, f.eshop ? `eShop ${formatPrice(f.eshop.price)}` : null].filter(Boolean).join(', ')}
                       </Text>

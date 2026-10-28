@@ -29,6 +29,7 @@ import { TimeStrip } from '../components/TimeStrip';
 import { WishlistButton } from '../components/WishlistButton';
 import { ProgressPanel } from '../components/ProgressPanel';
 import { GameFacts, Screenshots } from '../components/GameInfo';
+import { LiveStreams } from '../components/LiveStreams';
 import { useGameInfo } from '../lib/gameInfo';
 import { PLATFORMS } from '../data/platforms';
 import { formatHoursNumber, formatLastPlayed, formatPlaytime, upcomingLabel } from '../lib/format';
@@ -39,6 +40,8 @@ import { ownedKey, ownedKeys } from '../lib/match';
 import { resolveGame, useStore } from '../lib/store';
 import { favoriteFranchise, favoriteGenresOf, useFavorites } from '../lib/favorites';
 import { useSuggestionPool } from '../lib/suggestions';
+import { streamerIndex } from '../lib/recommend';
+import { watchedForTaste } from '../lib/streaming';
 import type { AchievementProgress, EntrySource, Game, PlatformId } from '../types';
 
 const SOURCE_LABEL: Record<EntrySource, string> = {
@@ -219,6 +222,8 @@ export function GamePage() {
   // Same library as Play next, so both share one suggestion pool.
   const pool = useSuggestionPool(useLibrary());
   const favorites = useFavorites();
+  const streamTaste = useStore((s) => s.streamTaste);
+  const streamers = useMemo(() => streamerIndex(watchedForTaste(streamTaste)), [streamTaste]);
   const alsoOwned = useUnlinkedPhysicalTitles();
   const similar = useMemo(() => {
     if (!game) return [];
@@ -240,22 +245,23 @@ export function GamePage() {
           const fav =
             (franchise ? (franchise === series ? 4 : 1.5) : 0) +
             favoriteGenresOf(c, favorites).filter((g) => [...game.genres, ...game.subgenres].includes(g)).length * 1.5;
-          return { c, shared, same: !!series && franchise === series, s: shared + fav };
+          // Your favourite streamers play it.
+          const streamedBy = streamers.get(ownedKey(c.title));
+          return { c, shared, same: !!series && franchise === series, s: shared + fav + (streamedBy ? 1.5 : 0), streamedBy };
         })
         // Same favourite series always qualifies, even when the store lists no genres.
         .filter((x) => x.same || x.shared >= 3 || (x.shared >= 1 && x.s >= 4))
         .sort((a, b) => b.s - a.s)
         .slice(0, 8)
-        .map((x) => x.c)
     );
-  }, [game, lib, pool.games, favorites, alsoOwned]);
+  }, [game, lib, pool.games, favorites, alsoOwned, streamers]);
 
   if (!game) {
     return (
       <Stack>
         <Title order={2}>Game not found</Title>
         <Text c="dimmed">It may have been removed when a platform was disconnected.</Text>
-        <Button component={Link} to="/" variant="light" w="fit-content">
+        <Button component={Link} to="/library" variant="light" w="fit-content">
           Back to library
         </Button>
       </Stack>
@@ -453,12 +459,24 @@ export function GamePage() {
         )}
       </Grid>
 
+      {!app && <LiveStreams title={game.title} />}
+
       {!app && similar.length > 0 && (
         <Stack gap="md">
           <Title order={2}>More like this</Title>
           <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="lg" verticalSpacing="xl">
-            {similar.map((g) => (
-              <GameCard key={g.id} game={g} />
+            {similar.map(({ c, streamedBy }) => (
+              <GameCard
+                key={c.id}
+                game={c}
+                note={
+                  streamedBy?.length ? (
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {streamedBy.slice(0, 2).join(' and ')} {streamedBy.length === 1 ? 'plays' : 'play'} it
+                    </Text>
+                  ) : undefined
+                }
+              />
             ))}
           </SimpleGrid>
         </Stack>

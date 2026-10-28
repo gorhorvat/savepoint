@@ -21,6 +21,7 @@ export function usePublicProfileSync() {
   const customGames = useStore((s) => s.customGames);
   const overrides = useStore((s) => s.genreOverrides);
   const details = useStore((s) => s.details);
+  const wants = useStore((s) => s.physicalWants);
 
   const snapshot = useMemo<PublicProfile>(() => {
     const totals = platformTotals(lib);
@@ -54,9 +55,20 @@ export function usePublicProfileSync() {
         .map((w) => resolveGame(w.gameId, customGames, overrides, details))
         .filter((g) => !!g)
         .slice(0, 60)
-        .map((g) => ({ title: g.title, imageUrl: g.imageUrl, platforms: g.availableOn })),
+        .map((g) => ({
+          title: g.title,
+          imageUrl: g.imageUrl,
+          platforms: g.availableOn,
+          gameId: g.id,
+          steamAppId: g.steamAppId,
+          nsuid: g.nsuid,
+        })),
+      physicalWants: wants.slice(0, 60).map((w) => {
+        const g = w.gameId ? resolveGame(w.gameId, customGames, overrides, details) : undefined;
+        return { title: w.title, platform: w.platform, edition: w.edition, imageUrl: g?.imageUrl };
+      }),
     };
-  }, [xp, lib, profile, wishlist, customGames, overrides, details]);
+  }, [xp, lib, profile, wishlist, customGames, overrides, details, wants]);
 
   useEffect(() => {
     const json = JSON.stringify(snapshot);

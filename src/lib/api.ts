@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { STORES } from '../data/stores';
-import type { ChatMessage, Game, StoreId, StorePrice, TrophyGrades } from '../types';
+import type { ChatMessage, Game, PhysicalPlatform, StoreId, StorePrice, TrophyGrades } from '../types';
 import type { ImportedGame } from './store';
 
 export interface ServerStatus {
@@ -279,6 +279,8 @@ export interface FoundGame {
   releaseDate?: string;
   releaseLabel?: string;
   comingSoon?: boolean;
+  /** Consoles you could own a copy for (from IGDB), e.g. ['SNES', 'Wii']. Only in all-platform searches. */
+  physicalPlatforms?: PhysicalPlatform[];
 }
 
 /** Cover image and release info for saved games (keyed by game id). */
@@ -322,8 +324,9 @@ export async function fetchDiscoverPool(
   return (await getJson<{ results: FoundGame[] }>(`/api/discover?${q}`)).results;
 }
 
-export async function searchGames(query: string, signal?: AbortSignal): Promise<FoundGame[]> {
-  const r = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal });
+/** `allPlatforms` adds older consoles (SNES, PS2...) that no store sells any more. */
+export async function searchGames(query: string, signal?: AbortSignal, allPlatforms = false): Promise<FoundGame[]> {
+  const r = await fetch(`/api/search?q=${encodeURIComponent(query)}${allPlatforms ? '&all=1' : ''}`, { signal });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error ?? `Search failed (${r.status})`);
   return body.results;
@@ -372,13 +375,21 @@ export interface GameLength {
 
 export interface GameInfo {
   igdb: {
+    igdbId?: number;
     summary?: string;
     developer?: string;
     year?: number;
     screenshots: { thumb: string; full: string }[];
   } | null;
   length: GameLength | null;
-  critic: { score: number; tier?: string; reviews?: number; url: string } | null;
+  critic: {
+    score: number;
+    tier?: string;
+    reviews?: number;
+    url: string;
+    /** Individual outlet reviews: score as the outlet gave it, plus 0 to 100 for colouring. */
+    outlets?: { outlet: string; score: string; normalized: number; url?: string; top: boolean }[];
+  } | null;
 }
 
 const infoCache = new Map<string, Promise<GameInfo | null>>();
@@ -440,6 +451,68 @@ export interface AlertSettings {
 
 export function fetchAlertSettings(): Promise<AlertSettings> {
   return getJson<AlertSettings>('/api/alerts/settings');
+}
+
+// ---------------------------------------------------------------- free games and big deals
+
+export type FreeStore =
+  | 'steam'
+  | 'epic'
+  | 'gog'
+  | 'itchio'
+  | 'ubisoft'
+  | 'ea'
+  | 'battlenet'
+  | 'amazon'
+  | 'playstation'
+  | 'xbox'
+  | 'switch'
+  | 'mobile'
+  | 'drmfree';
+
+export interface DealAlertSettings {
+  freeGames: { enabled: boolean; stores: FreeStore[]; dlc: boolean; loot: boolean };
+  bigDeals: { enabled: boolean; minCut: number; historicalLow: boolean; wellReviewed: boolean };
+}
+
+export function fetchDealAlertSettings(): Promise<DealAlertSettings> {
+  return getJson<DealAlertSettings>('/api/alerts/deals');
+}
+
+export async function saveDealAlertSettings(s: DealAlertSettings): Promise<DealAlertSettings> {
+  return (await sendJson('/api/alerts/deals', 'PUT', s)) as DealAlertSettings;
+}
+
+export interface FreeGiveaway {
+  id: number;
+  title: string;
+  kind: 'game' | 'dlc' | 'loot' | 'beta';
+  worth?: string;
+  platforms: string;
+  image?: string;
+  endsAt?: string;
+  url: string;
+}
+
+export interface BigDeal {
+  id: string;
+  title: string;
+  shop?: string;
+  price?: number;
+  regular?: number;
+  cut: number;
+  historicalLow: boolean;
+  image?: string;
+  endsAt?: string;
+  url: string;
+}
+
+export async function fetchFreeGames(): Promise<FreeGiveaway[]> {
+  return (await getJson<{ giveaways: FreeGiveaway[] }>('/api/deals/free')).giveaways;
+}
+
+export async function fetchBigDeals(): Promise<BigDeal[]> {
+  return (await getJson<{ deals: BigDeal[] }>('/api/deals/big')).deals;
 }
 
 /** Turns alerts on, or swaps the topic for a new random one. Returns the topic. */

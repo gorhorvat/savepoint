@@ -31,6 +31,7 @@ import { recommend } from '../lib/recommend';
 import { useGameResolver, useStore } from '../lib/store';
 import { useFavorites } from '../lib/favorites';
 import { useSuggestionPool } from '../lib/suggestions';
+import { watchedForTaste } from '../lib/streaming';
 import type { ChatMessage, Game } from '../types';
 
 const STARTERS = [
@@ -89,6 +90,7 @@ export function AssistantPage() {
       pool: pool.games,
       favorites,
       alsoOwned,
+      watched: watchedForTaste(useStore.getState().streamTaste),
     }).slice(0, 30);
     const context = buildContext(
       lib,

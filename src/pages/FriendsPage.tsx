@@ -4,6 +4,7 @@ import { IconCopy, IconRefresh, IconUserPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FriendAvatar } from '../components/ProfileAvatar';
+import { GiftsSection } from './GiftsSection';
 import {
   acceptFriend,
   describePresence,
@@ -262,6 +263,8 @@ export function FriendsPage() {
           See who&apos;s online, what they&apos;re playing, and their levels and libraries.
         </Text>
       </div>
+
+      <GiftsSection />
 
       <AddFriend onSent={load} />
 

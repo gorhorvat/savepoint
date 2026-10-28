@@ -272,7 +272,7 @@ h3,
 
 .bottom-nav {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   height: 100%;
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -725,4 +725,122 @@ h3,
   font-weight: 800;
   line-height: 16px;
   text-align: center;
+}
+
+/* ------------------------------------------------------------------ live streams */
+
+.stream-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--mantine-spacing-md);
+}
+
+.stream-card {
+  display: block;
+  min-width: 0;
+  border-radius: var(--mantine-radius-md);
+}
+
+.stream-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--sp-raised);
+  display: grid;
+  place-items: center;
+  transition: box-shadow 160ms ease;
+}
+
+.stream-card:hover .stream-thumb,
+.stream-card:focus-visible .stream-thumb {
+  box-shadow: 0 0 0 3px var(--mantine-primary-color-filled);
+}
+
+.stream-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stream-live,
+.stream-viewers {
+  position: absolute;
+  top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 3px;
+  color: #fff;
+}
+
+.stream-live {
+  left: 6px;
+  background: #e5193c;
+  letter-spacing: 0.04em;
+}
+
+.stream-viewers {
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgb(0 0 0 / 0.65);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-thumb {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ homepage news */
+
+.news-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.news-row:hover,
+.news-row:focus-visible {
+  background: var(--sp-hover, rgba(127, 127, 127, 0.08));
+}
+
+.news-row img,
+.news-thumb {
+  width: 96px;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--sp-raised);
+}
+
+/* Eight tabs: tighter on narrower desktop windows, and scroll rather than overflow. */
+.top-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.top-tabs::-webkit-scrollbar {
+  display: none;
+}
+@media (max-width: 80em) {
+  .top-tabs a {
+    padding: 0 10px;
+    font-size: 14px;
+  }
+  .top-tabs a[aria-current='page']::after {
+    left: 10px;
+    right: 10px;
+  }
+}
+
+/* Sections linked to by #id stop below the fixed header. */
+[id] {
+  scroll-margin-top: 84px;
 }
