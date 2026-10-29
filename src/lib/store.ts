@@ -29,6 +29,8 @@ export interface ImportedGame {
   imageUrl?: string;
   /** Set by the import when the platform says this title isn't a game. */
   isApp?: boolean;
+  /** Steam: minutes in the last two weeks, for profiles that send no last-played date. */
+  recentMinutes?: number;
   /** Xbox: achievements and gamerscore, which come with the game list. */
   achievements?: { earned: number; total: number; gamerscore: number; totalGamerscore: number };
 }
@@ -76,7 +78,8 @@ interface State {
   progress: Record<string, Progress>;
   /**
    * Play time history, recorded from the change between syncs. `base` holds
-   * each game's total at the last recording; `since` is when tracking began.
+   * each game's total per platform ("gameId|platform") at the last recording;
+   * `since` is when tracking began.
    */
   history: { since?: string; recordedAt?: string; base: Record<string, number>; log: PlayLogEntry[] };
   /** Achievements and trophies per game and platform. */
@@ -90,6 +93,8 @@ interface State {
   vendors: string[];
   /** Game-specific stats in My Stats: on or off, and the games with a tab of their own. */
   gameStats: { enabled: boolean; games: GameStatsId[] };
+  /** When the linked Steam account's library was first imported on its own (see lib/autoSync.ts). */
+  steamAutoImported?: string;
   /** Kick channels you watch (slugs), typed in Settings: Kick can't share who you follow. */
   kickChannels: string[];
   /** The games your favourite streamers play (see lib/streaming.ts); null until worked out. */
@@ -253,6 +258,11 @@ export const useStore = create<State>()(
         const details = { ...get().details };
         // Merge duplicates within one import (e.g. PS4 and PS5 versions of a game).
         const merged = new Map<string, PlayEntry>();
+        const before = new Map(
+          get()
+            .entries.filter((e) => e.platform === platform && e.source === source)
+            .map((e) => [e.gameId, e]),
+        );
         let matched = 0;
         const findLegacy = legacyMatcher(customGames);
         for (const g of games) {
@@ -263,12 +273,20 @@ export const useStore = create<State>()(
           }
           if (!gameId.startsWith('x-')) matched++;
           const prev = merged.get(gameId);
+          // No date from the platform: keep the one we had, or date it now when
+          // the game gained minutes since the last sync. A first import of a game
+          // played in the last two weeks stays undated rather than "today".
+          let lastPlayed = g.lastPlayed;
+          if (!lastPlayed && g.recentMinutes) {
+            const old = before.get(gameId);
+            lastPlayed = old && g.minutes > old.minutes ? new Date().toISOString() : (old?.lastPlayed ?? null);
+          }
           merged.set(gameId, {
             gameId,
             platform,
             source,
             minutes: (prev?.minutes ?? 0) + g.minutes,
-            lastPlayed: [prev?.lastPlayed, g.lastPlayed].filter(Boolean).sort().pop() ?? null,
+            lastPlayed: [prev?.lastPlayed, lastPlayed].filter(Boolean).sort().pop() ?? null,
           });
         }
         // An import replaces everything previously imported from that platform
@@ -407,28 +425,38 @@ export const useStore = create<State>()(
       recordHistory: () => {
         const real = get().entries.filter((e) => e.source !== 'demo');
         if (!real.length) return;
+        // Per game and platform: a game you already had elsewhere doesn't get
+        // its whole lifetime on a newly connected platform counted as played now.
         const totals: Record<string, number> = {};
         const last: Record<string, string> = {};
+        const manual = new Set<string>();
         for (const e of real) {
-          totals[e.gameId] = (totals[e.gameId] ?? 0) + e.minutes;
-          if (e.lastPlayed && e.lastPlayed > (last[e.gameId] ?? '')) last[e.gameId] = e.lastPlayed;
+          const key = `${e.gameId}|${e.platform}`;
+          totals[key] = (totals[key] ?? 0) + e.minutes;
+          if (e.lastPlayed && e.lastPlayed > (last[key] ?? '')) last[key] = e.lastPlayed;
+          if (e.source === 'manual') manual.add(key);
         }
         const now = new Date().toISOString();
         const { since, recordedAt, base, log } = get().history;
-        if (!since) {
-          // Start from today: hours before this point can't be dated.
-          set({ history: { since: now, recordedAt: now, base: totals, log: [] } });
+        // Before per-platform keys, base was per game: start a new baseline (nothing is lost but
+        // the hours since the last recording).
+        const oldFormat = Object.keys(base).some((k) => !k.includes('|'));
+        if (!since || oldFormat) {
+          // Start from now: hours before this point can't be dated.
+          set({ history: { since: since ?? now, recordedAt: now, base: totals, log: oldFormat ? log : [] } });
           return;
         }
         const added: PlayLogEntry[] = [];
-        for (const [gameId, minutes] of Object.entries(totals)) {
-          const before = base[gameId];
-          // A game new to Savepoint only counts if it was first played after tracking began.
-          const diff = before == null ? (last[gameId] && last[gameId] >= since ? minutes : 0) : minutes - before;
+        for (const [key, minutes] of Object.entries(totals)) {
+          const before = base[key];
+          // Something new: hours typed in by hand count when they're dated after tracking
+          // began; an import's lifetime totals for a newly seen game are only a baseline.
+          const diff =
+            before == null ? (manual.has(key) && last[key] && last[key] >= since ? minutes : 0) : minutes - before;
           if (diff <= 0) continue;
           // Date the hours by the last session when the platform reports one since the previous sync.
-          const when = last[gameId] && last[gameId] > (recordedAt ?? since) ? new Date(last[gameId]) : new Date();
-          added.push({ date: localDay(when), gameId, minutes: diff });
+          const when = last[key] && last[key] > (recordedAt ?? since) ? new Date(last[key]) : new Date();
+          added.push({ date: localDay(when), gameId: key.slice(0, key.lastIndexOf('|')), minutes: diff });
         }
         if (!added.length && Object.entries(totals).every(([id, m]) => base[id] === m)) return;
         const merged = [...log];
@@ -566,9 +594,23 @@ export const useStore = create<State>()(
         return saved as PersistedState;
       },
       onRehydrateStorage: () => (_state, error) => hydrationDone(error),
-      version: 5,
+      version: 6,
       migrate: (persisted, version) => {
         const state = persisted as State;
+        // v6: Steam games without a last-played date were dated to the moment of each
+        // sync ("today"). Those dates are the sync time, give or take a few seconds.
+        if (version < 6 && Array.isArray(state.entries)) {
+          const sync = state.connections?.steam?.lastSync ? new Date(state.connections.steam.lastSync).getTime() : null;
+          if (sync) {
+            state.entries = state.entries.map((e) =>
+              e.platform === 'steam' &&
+              e.lastPlayed &&
+              Math.abs(new Date(e.lastPlayed).getTime() - sync) < 2 * 60 * 1000
+                ? { ...e, lastPlayed: null }
+                : e,
+            );
+          }
+        }
         // v5 dropped the built-in catalog: games your data points at by a
         // catalog id are copied into customGames under the same id.
         if (version < 5) {

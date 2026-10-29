@@ -1,13 +1,42 @@
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
 import { applyXboxAchievements } from './achievements';
-import { fetchStatus, fetchSteamWishlist, importPsn, importSteam, importXbox, steamProfileUrl } from './api';
+import { fetchAccount, fetchStatus, fetchSteamWishlist, importPsn, importSteam, importXbox, steamProfileUrl } from './api';
 import { useStore } from './store';
 
 const MAX_AGE = 6 * 60 * 60 * 1000;
 const stale = (iso?: string) => !iso || Date.now() - Date.parse(iso) > MAX_AGE;
 
 let started = false;
+let firstSteamImport: Promise<number> | null = null;
+
+/**
+ * The first import of a linked Steam account (made through "Create account with
+ * Steam", or linked to an existing account), once per account: it is remembered,
+ * so removing the imported games later isn't undone. A failure (Game details
+ * still private, Steam down) is retried the next time the app opens.
+ * Resolves to the number of games imported. Shared, so it never runs twice at once.
+ */
+export function importLinkedSteamOnce(): Promise<number> {
+  firstSteamImport ??= (async () => {
+    const res = await importSteam();
+    const r = useStore.getState().importLibrary('steam', 'steam', res.games, steamProfileUrl(res.steamId));
+    useStore.setState({ steamAutoImported: new Date().toISOString() });
+    return r.added;
+  })().catch((err) => {
+    // Failed: the next attempt starts over. (A success stays, so a second caller gets its result.)
+    firstSteamImport = null;
+    throw err;
+  });
+  return firstSteamImport;
+}
+
+/** True when Steam is linked to this account but its library was never imported. */
+async function steamNeverImported(): Promise<boolean> {
+  const { connections, steamAutoImported } = useStore.getState();
+  if (connections.steam || steamAutoImported) return false;
+  return !!(await fetchAccount().catch(() => null))?.steamId;
+}
 
 /**
  * When the app opens, re-syncs every connected source whose last sync is
@@ -22,7 +51,14 @@ export async function autoSync(): Promise<void> {
   const status = await fetchStatus();
   if (!status.online) return;
 
-  if (status.steam && connections.steam?.lastSync && stale(connections.steam.lastSync)) {
+  if (status.steam && (await steamNeverImported())) {
+    jobs.push({
+      name: 'Steam library',
+      run: async () => {
+        await importLinkedSteamOnce();
+      },
+    });
+  } else if (status.steam && connections.steam?.lastSync && stale(connections.steam.lastSync)) {
     jobs.push({
       name: 'Steam library',
       run: async () => {

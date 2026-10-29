@@ -143,7 +143,8 @@ export async function resumeAfterLogin() {
   await flush();
 }
 
-async function authenticate(route: string, body: object): Promise<string | null> {
+/** `next`: where to go when this tab has to start fresh for another account (default: here). */
+async function authenticate(route: string, body: object, next?: string): Promise<string | null> {
   try {
     const r = await fetch(route, {
       method: 'POST',
@@ -156,7 +157,8 @@ async function authenticate(route: string, body: object): Promise<string | null>
       // start fresh, so none of it (or its unsaved changes) reaches the new account.
       if (loadedUser !== null && loadedUser !== id) {
         pending = null;
-        location.reload();
+        if (next) location.replace(next);
+        else location.reload();
         await new Promise(() => {}); // Wait for the reload.
       }
       return null;
@@ -190,12 +192,13 @@ export async function steamPending(): Promise<{ username: string; signupOpen: bo
 
 /** Links the Steam account that just signed in to an existing account, and logs in to it. */
 export function linkSteamToAccount(username: string, password: string): Promise<string | null> {
-  return authenticate('/api/auth/steam/link', { username, password });
+  return authenticate('/api/auth/steam/link', { username, password }, '/');
 }
 
 /** Creates the account for the Steam account that just signed in. */
 export function completeSteamSignup(username: string, code: string): Promise<string | null> {
-  return authenticate('/api/auth/steam/complete', { username, code });
+  // A new account imports its Steam library once the page reloads with ?steam=new.
+  return authenticate('/api/auth/steam/complete', { username, code }, '/?steam=new');
 }
 
 /** True when the server takes new accounts (an invite code is set). */

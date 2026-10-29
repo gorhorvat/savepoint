@@ -32,7 +32,7 @@ import {
 } from '../lib/serverStorage';
 import { useStore } from '../lib/store';
 import { Crystal } from './Layout';
-import { importSteam, steamProfileUrl } from '../lib/api';
+import { importLinkedSteamOnce } from '../lib/autoSync';
 
 function reload() {
   void useStore.persist.rehydrate();
@@ -248,13 +248,12 @@ async function importNewSteamAccount() {
   if (new URLSearchParams(location.search).get('steam') !== 'new') return;
   clearSteamParam();
   try {
-    const res = await importSteam();
-    const r = useStore.getState().importLibrary('steam', 'steam', res.games, steamProfileUrl(res.steamId));
-    notifications.show({ title: 'Welcome to Savepoint', message: `Imported ${r.added} games from Steam.` });
+    const added = await importLinkedSteamOnce();
+    notifications.show({ title: 'Welcome to Savepoint', message: `Imported ${added} games from Steam.` });
   } catch (e) {
     notifications.show({
       title: 'Welcome to Savepoint',
-      message: `Your Steam library couldn't be imported yet (${(e as Error).message}). Try again in Settings, Platforms.`,
+      message: `Your Steam library couldn't be imported yet (${(e as Error).message}). Savepoint tries again the next time you open it, or import it in Settings, Platforms.`,
     });
   }
 }

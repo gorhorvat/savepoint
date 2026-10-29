@@ -216,13 +216,11 @@ app.get('/api/steam/library', async (req, res) => {
         steamAppId: g.appid,
         name: g.name,
         minutes: g.playtime_forever,
-        // Some profiles come without last-played dates; a game played in the
-        // last two weeks still says so (playtime_2weeks), which dates it to now.
-        lastPlayed: g.rtime_last_played
-          ? new Date(g.rtime_last_played * 1000).toISOString()
-          : g.playtime_2weeks > 0
-            ? new Date().toISOString()
-            : null,
+        // Some profiles come without last-played dates. Minutes from the last
+        // two weeks still say a game was played recently; the app dates that
+        // itself from the change since its previous sync (not "today" on sight).
+        lastPlayed: g.rtime_last_played ? new Date(g.rtime_last_played * 1000).toISOString() : null,
+        recentMinutes: g.playtime_2weeks || undefined,
         isApp: types.has(g.appid) && types.get(g.appid) !== 0,
       })),
     });
