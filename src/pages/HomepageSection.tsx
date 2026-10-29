@@ -1,6 +1,15 @@
-import { ActionIcon, Button, Chip, Group, Paper, Stack, Switch, Text, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Button, Checkbox, Chip, Group, Paper, Stack, Switch, Text, Title, Tooltip } from '@mantine/core';
 import { IconArrowDown, IconArrowUp } from '@tabler/icons-react';
-import { DEFAULT_HOMEPAGE, HOME_WIDGETS, NEWS_SITES, normalizeHomepage, type HomeWidget } from '../lib/homepage';
+import {
+  DEFAULT_HOMEPAGE,
+  FREE_STORE_LABELS,
+  HOME_WIDGETS,
+  NEWS_SITES,
+  normalizeHomepage,
+  type HomeFreeGames,
+  type HomeWidget,
+} from '../lib/homepage';
+import type { FreeStore } from '../lib/api';
 import { useStore } from '../lib/store';
 
 /** Settings: which sections the homepage shows, in which order, and which news sites. */
@@ -8,7 +17,9 @@ export function HomepageSection() {
   const saved = useStore((s) => s.homepage);
   const setHomepage = useStore((s) => s.setHomepage);
   const settings = normalizeHomepage(saved);
-  const { widgets, newsSources } = settings;
+  const { widgets, newsSources, freeGames } = settings;
+  const setFree = (patch: Partial<HomeFreeGames>) =>
+    setHomepage({ ...settings, freeGames: { ...freeGames, ...patch } });
 
   const setWidgets = (next: HomeWidget[]) => setHomepage({ ...settings, widgets: next });
   const move = (i: number, by: number) => {
@@ -19,6 +30,7 @@ export function HomepageSection() {
   };
   const toggle = (i: number, on: boolean) => setWidgets(widgets.map((w, j) => (j === i ? { ...w, on } : w)));
   const newsOn = widgets.some((w) => w.id === 'news' && w.on);
+  const freeOn = widgets.some((w) => w.id === 'free' && w.on);
 
   return (
     <Stack gap="lg" id="homepage">
@@ -78,6 +90,44 @@ export function HomepageSection() {
           })}
         </Stack>
       </Paper>
+      {freeOn && (
+        <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+          <Stack gap="xs">
+            <Text fw={600}>Free games</Text>
+            <Text size="xs" c="dimmed">
+              {freeGames.stores.length
+                ? 'The homepage shows giveaways on the stores you pick.'
+                : 'No store picked: the homepage shows giveaways on every store.'}
+            </Text>
+            <Chip.Group multiple value={freeGames.stores} onChange={(v) => setFree({ stores: v as FreeStore[] })}>
+              <Group gap={6}>
+                {(Object.keys(FREE_STORE_LABELS) as FreeStore[]).map((k) => (
+                  <Chip key={k} value={k} size="xs" radius="sm" variant="outline">
+                    {FREE_STORE_LABELS[k]}
+                  </Chip>
+                ))}
+              </Group>
+            </Chip.Group>
+            <Group gap="lg">
+              <Checkbox
+                size="xs"
+                label="Free DLC too"
+                checked={freeGames.dlc}
+                onChange={(e) => setFree({ dlc: e.currentTarget.checked })}
+              />
+              <Checkbox
+                size="xs"
+                label="In-game loot too"
+                checked={freeGames.loot}
+                onChange={(e) => setFree({ loot: e.currentTarget.checked })}
+              />
+            </Group>
+            <Text size="xs" c="dimmed">
+              Pushes for new free games are a separate choice, under Alerts.
+            </Text>
+          </Stack>
+        </Paper>
+      )}
       {newsOn && (
         <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
           <Stack gap="xs">

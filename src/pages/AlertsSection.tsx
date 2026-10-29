@@ -14,22 +14,7 @@ import {
   type DealAlertSettings,
   type FreeStore,
 } from '../lib/api';
-
-const FREE_STORE_LABELS: Record<FreeStore, string> = {
-  steam: 'Steam',
-  epic: 'Epic Games',
-  gog: 'GOG',
-  itchio: 'itch.io',
-  ubisoft: 'Ubisoft',
-  ea: 'EA',
-  battlenet: 'Battle.net',
-  amazon: 'Prime Gaming',
-  playstation: 'PlayStation',
-  xbox: 'Xbox',
-  switch: 'Switch',
-  mobile: 'Android / iOS',
-  drmfree: 'DRM-free',
-};
+import { FREE_STORE_LABELS } from '../lib/homepage';
 
 /** Free games (GamerPower) and big deals (IsThereAnyDeal), sent to the same ntfy topic. */
 function DealAlerts() {

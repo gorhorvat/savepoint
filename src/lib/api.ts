@@ -507,8 +507,16 @@ export interface BigDeal {
   url: string;
 }
 
-export async function fetchFreeGames(): Promise<FreeGiveaway[]> {
-  return (await getJson<{ giveaways: FreeGiveaway[] }>('/api/deals/free')).giveaways;
+/** Current giveaways, narrowed like the free-game alerts: stores (empty = all), DLC and loot. */
+export async function fetchFreeGames(
+  filter: { stores: FreeStore[]; dlc: boolean; loot: boolean } = { stores: [], dlc: false, loot: false },
+): Promise<FreeGiveaway[]> {
+  const q = new URLSearchParams();
+  if (filter.stores.length) q.set('stores', filter.stores.join(','));
+  if (filter.dlc) q.set('dlc', '1');
+  if (filter.loot) q.set('loot', '1');
+  const qs = q.toString();
+  return (await getJson<{ giveaways: FreeGiveaway[] }>(`/api/deals/free${qs ? `?${qs}` : ''}`)).giveaways;
 }
 
 export async function fetchBigDeals(): Promise<BigDeal[]> {

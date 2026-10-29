@@ -23,7 +23,15 @@ import {
   turnOffAlerts,
   watchedCount,
 } from './alerts.mjs';
-import { bigDeals, checkDealAlerts, dealSettings, freeGiveaways, saveDealSettings } from './dealAlerts.mjs';
+import {
+  FREE_STORES,
+  bigDeals,
+  checkDealAlerts,
+  dealSettings,
+  freeGiveaways,
+  matchingGiveaways,
+  saveDealSettings,
+} from './dealAlerts.mjs';
 import { genreTaxonomy, lookupSteam, lookupWikidata, lookupWikidataOne } from './genres.mjs';
 import { stateRouter } from './state.mjs';
 import { xboxLibrary } from './xbox.mjs';
@@ -514,10 +522,16 @@ app.put('/api/alerts/deals', async (req, res) => {
 });
 
 // Current free games (GamerPower), for the homepage. -> { giveaways }
-app.get('/api/deals/free', async (_req, res) => {
+// ?stores=steam,epic (FREE_STORES keys; all when empty) &dlc=1 &loot=1
+app.get('/api/deals/free', async (req, res) => {
   try {
     res.set('Cache-Control', 'private, max-age=1800');
-    res.json({ giveaways: (await freeGiveaways()).filter((g) => g.kind === 'game').slice(0, 30) });
+    const stores = String(req.query.stores || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s in FREE_STORES);
+    const wanted = { stores, dlc: req.query.dlc === '1', loot: req.query.loot === '1' };
+    res.json({ giveaways: matchingGiveaways(await freeGiveaways(), wanted).slice(0, 30) });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

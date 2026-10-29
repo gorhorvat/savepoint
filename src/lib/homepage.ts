@@ -1,4 +1,22 @@
 // The homepage: which sections it shows, in which order (Settings, Homepage).
+import type { FreeStore } from './api';
+
+/** The stores free games are given away on (server/dealAlerts.mjs FREE_STORES). */
+export const FREE_STORE_LABELS: Record<FreeStore, string> = {
+  steam: 'Steam',
+  epic: 'Epic Games',
+  gog: 'GOG',
+  itchio: 'itch.io',
+  ubisoft: 'Ubisoft',
+  ea: 'EA',
+  battlenet: 'Battle.net',
+  amazon: 'Prime Gaming',
+  playstation: 'PlayStation',
+  xbox: 'Xbox',
+  switch: 'Switch',
+  mobile: 'Android / iOS',
+  drmfree: 'DRM-free',
+};
 
 export type HomeWidgetId =
   | 'continue'
@@ -18,11 +36,21 @@ export interface HomeWidget {
   on: boolean;
 }
 
+/** Which free games the homepage shows: stores (empty = all), and whether DLC and loot count. */
+export interface HomeFreeGames {
+  stores: FreeStore[];
+  dlc: boolean;
+  loot: boolean;
+}
+
 export interface HomepageSettings {
   widgets: HomeWidget[];
   /** News sites to show (server/news.mjs ids); empty = all. */
   newsSources: string[];
+  freeGames: HomeFreeGames;
 }
+
+export const DEFAULT_HOME_FREE_GAMES: HomeFreeGames = { stores: [], dlc: false, loot: false };
 
 export const HOME_WIDGETS: Record<HomeWidgetId, { label: string; description: string }> = {
   continue: { label: 'Continue playing', description: 'What you played most recently.' },
@@ -64,6 +92,7 @@ export const DEFAULT_HOMEPAGE: HomepageSettings = {
     { id: 'leaderboard', on: false },
   ],
   newsSources: [],
+  freeGames: DEFAULT_HOME_FREE_GAMES,
 };
 
 /** Saved settings with any section added since, appended (off) at the end. */
@@ -74,5 +103,12 @@ export function normalizeHomepage(saved: Partial<HomepageSettings> | undefined):
   return {
     widgets: known.length ? [...known, ...added] : DEFAULT_HOMEPAGE.widgets,
     newsSources: Array.isArray(saved?.newsSources) ? saved.newsSources : [],
+    freeGames: {
+      stores: Array.isArray(saved?.freeGames?.stores)
+        ? saved.freeGames.stores.filter((k) => k in FREE_STORE_LABELS)
+        : [],
+      dlc: saved?.freeGames?.dlc === true,
+      loot: saved?.freeGames?.loot === true,
+    },
   };
 }

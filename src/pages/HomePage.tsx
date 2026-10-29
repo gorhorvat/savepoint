@@ -256,7 +256,9 @@ function FriendActivity() {
 }
 
 function FreeGames() {
-  const games = useLoad(fetchFreeGames);
+  const homepage = useStore((s) => s.homepage);
+  const wanted = useMemo(() => normalizeHomepage(homepage).freeGames, [homepage]);
+  const games = useLoad(() => fetchFreeGames(wanted), [wanted]);
   return (
     <Section title="Free games">
       {games === null ? (
