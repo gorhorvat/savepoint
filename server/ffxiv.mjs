@@ -205,7 +205,8 @@ async function readGear(id, html) {
     const n = GEAR_SLOT_NUMBER[key];
     const box = n != null ? document.querySelector(`.icon-c--${n}`) : null;
     if (!box) return null;
-    const lazy = box.getAttribute('data-lazy_load_url');
+    // The URL is site-relative (/lodestone/character/<id>/equipment/tooltip/N); page() adds BASE.
+    const lazy = box.getAttribute('data-lazy_load_url')?.replace(/^\/lodestone(?=\/)/, '') || null;
     return {
       key,
       slot,
@@ -583,9 +584,10 @@ gameStatsRouter.post('/api/games/ffxiv/refresh', async (req, res) => {
     );
     const current = rows[0];
     if (!current) return res.status(404).json({ error: 'Connect a character first.' });
-    // Data read before job icons or gear were added is refreshed right away.
-    const hasIcons = current.data?.jobs?.some((j) => 'icon' in j) && 'gear' in (current.data ?? {});
-    const fresh = hasIcons && Date.now() - new Date(current.fetched_at).getTime() < REFRESH_MS;
+    // Data read before job icons or gear were added, or whose gear came back
+    // empty (every character has at least a main hand), is refreshed right away.
+    const complete = current.data?.jobs?.some((j) => 'icon' in j) && current.data?.gear?.length > 0;
+    const fresh = complete && Date.now() - new Date(current.fetched_at).getTime() < REFRESH_MS;
     if (fresh) {
       return res.json({
         game: 'ffxiv',
