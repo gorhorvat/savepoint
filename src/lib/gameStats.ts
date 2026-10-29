@@ -58,6 +58,19 @@ export interface FfxivCharacter {
   minions: FfxivCollection;
 }
 
+export interface Gw2Gear {
+  buildName: string | null;
+  gearName: string | null;
+  buildTabs: number | null;
+  gearTabs: number | null;
+  specializations: { id: number; traits: number[] }[];
+  skills: { heal: number | null; utilities: (number | null)[]; elite: number | null } | null;
+  legends: string[] | null;
+  pets: number[] | null;
+  equipment: { slot: string; id: number }[];
+  bags: { bags: number; slots: number; used: number } | null;
+}
+
 export interface Gw2Character {
   name: string;
   race: string | null;
@@ -70,6 +83,58 @@ export interface Gw2Character {
   created: string | null;
   lastPlayed: string | null;
   crafting: { discipline: string; rating: number; active: boolean }[];
+  /** Missing on data read before gear was added. */
+  gear?: Gw2Gear;
+}
+
+export interface Gw2Thing {
+  id: number;
+  name: string;
+  icon: string | null;
+}
+
+export interface Gw2CharacterDetails {
+  equipment: {
+    slot: string;
+    name: string;
+    icon: string | null;
+    skin: string | null;
+    rarity: string | null;
+    level: number | null;
+    stats: string | null;
+    upgrades: (Gw2Thing | null)[];
+    infusions: (Gw2Thing | null)[];
+  }[];
+  specializations: (Gw2Thing & { elite: boolean; traits: (Gw2Thing | null)[] })[];
+  skills: { heal: Gw2Thing | null; utilities: (Gw2Thing | null)[]; elite: Gw2Thing | null } | null;
+}
+
+export interface Gw2Done {
+  name: string;
+  done: boolean;
+}
+
+export interface Gw2Vault {
+  current: number | null;
+  complete: number | null;
+  claimed: boolean;
+  objectives: { title: string; track: string; acclaim: number; progress: number; complete: number; claimed: boolean }[];
+}
+
+export interface Gw2Value {
+  buy: number;
+  sell: number;
+  parts: { label: string; buy: number; sell: number; stacks: number }[];
+  top: {
+    id: number;
+    name: string;
+    icon: string | null;
+    rarity: string | null;
+    count: number;
+    buy: number;
+    sell: number;
+  }[];
+  tp: { selling: { count: number; value: number }; buying: { count: number; value: number } };
 }
 
 export interface Gw2Account {
@@ -81,18 +146,98 @@ export interface Gw2Account {
   commander: boolean;
   fractalLevel: number | null;
   wvwRank: number | null;
+  wvwTitle?: string | null;
   expansions: string[];
   guilds: { name: string; tag: string }[];
   permissions: string[];
   /** null: the key has no "characters" permission. */
   characters: Gw2Character[] | null;
   mastery: { region: string; earned: number; spent: number }[] | null;
+  masteryTracks?: { name: string; region: string; level: number; max: number | null }[] | null;
   achievementsDone: number | null;
+  ap?: { total: number; fromAchievements: number; daily: number; monthly: number } | null;
+  achievementGroups?:
+    | {
+        name: string;
+        categories: { id: number; name: string; icon: string | null; done: number; total: number }[];
+      }[]
+    | null;
+  nearlyDone?:
+    | {
+        id: number;
+        name: string;
+        requirement: string;
+        current: number;
+        max: number;
+        points: number;
+        icon: string | null;
+      }[]
+    | null;
   luck: number | null;
+  progression?: { name: string; value: number }[] | null;
   wallet: { id: number; name: string; icon: string | null; value: number }[] | null;
-  pvp: { rank: number; wins: number; losses: number } | null;
+  pvp: {
+    rank: number;
+    wins: number;
+    losses: number;
+    desertions?: number;
+    byes?: number;
+    forfeits?: number;
+    ladders?: { name: string; wins: number; losses: number }[];
+    professions?: { name: string; icon: string | null; wins: number; losses: number }[];
+    games?: {
+      id: string;
+      map: number;
+      started: string;
+      ended: string;
+      result: string;
+      team: string;
+      profession: string;
+      scores: { red: number; blue: number } | null;
+      type: string | null;
+      ratingChange: number | null;
+    }[];
+    standing?: {
+      season: string;
+      rating: number | null;
+      division: number | null;
+      tier: number | null;
+      best: number | null;
+    } | null;
+  } | null;
   mounts: { owned: string[]; total: number | null } | null;
   collections: { label: string; owned: number; total: number | null }[];
+  legendaries?: { id: number; count: number; name: string; icon: string | null; type: string | null }[] | null;
+  weekly?: {
+    raids: { name: string; wings: { name: string; events: (Gw2Done & { boss: boolean })[] }[] }[] | null;
+    dungeons: { name: string; paths: Gw2Done[] }[] | null;
+    worldBosses: Gw2Done[] | null;
+    mapChests: Gw2Done[] | null;
+    crafting: Gw2Done[] | null;
+    vault: { daily: Gw2Vault | null; weekly: Gw2Vault | null; special: Gw2Vault | null };
+    home: {
+      nodes: { owned: number; total: number | null } | null;
+      cats: { owned: number; total: number | null } | null;
+    };
+  } | null;
+  value?: Gw2Value | null;
+}
+
+export interface Gw2Snapshot {
+  hours: number | null;
+  ap: number | null;
+  achievements: number | null;
+  coins: number | null;
+  valueBuy: number | null;
+  valueSell: number | null;
+  fractal: number | null;
+  wvwRank: number | null;
+  pvpRank: number | null;
+  luck: number | null;
+  masteryPoints: number | null;
+  legendaries: number | null;
+  skins: number | null;
+  characters: number | null;
 }
 
 export interface LolMatch {
@@ -399,6 +544,10 @@ export function connectGw2(key: string): Promise<GameConnection<Gw2Account>> {
 
 export function refreshGw2(): Promise<GameConnection<Gw2Account>> {
   return call('/api/games/gw2/refresh', { method: 'POST' });
+}
+
+export function fetchGw2Character(name: string): Promise<Gw2CharacterDetails> {
+  return call(`/api/games/gw2/characters/${encodeURIComponent(name)}`);
 }
 
 export async function disconnectGw2(): Promise<void> {

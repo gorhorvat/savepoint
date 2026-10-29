@@ -11,46 +11,47 @@ import {
   PasswordInput,
   SimpleGrid,
   Stack,
+  Tabs,
   Text,
   Title,
   Tooltip,
 } from '@mantine/core';
 import { IconDots, IconExternalLink, IconRefresh, IconUnlink } from '@tabler/icons-react';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { StatTile } from '../components/charts';
+import { Section } from '../components/GameSection';
+import { AchievementsTab } from '../components/gw2/Achievements';
+import { CharactersTab } from '../components/gw2/Characters';
+import { date, fmt, goldText } from '../components/gw2/format';
+import { Img } from '../components/gw2/parts';
+import { ProgressTab } from '../components/gw2/Progress';
+import { PvpTab } from '../components/gw2/Pvp';
+import { WealthTab } from '../components/gw2/Wealth';
+import { WeekTab } from '../components/gw2/Week';
+import { Heading, Line, Meter } from '../components/StatParts';
 import {
+  ago,
   connectGw2,
   disconnectGw2,
   fetchGameConnections,
   refreshGw2,
   type GameConnection,
   type Gw2Account,
-  type Gw2Character,
-  ago,
 } from '../lib/gameStats';
-import { Section } from '../components/GameSection';
 
 const KEYS_URL = 'https://account.arena.net/applications';
 /** What the tab uses; account is required, the rest fill in their sections. */
-const PERMISSIONS = ['account', 'characters', 'progression', 'unlocks', 'wallet', 'pvp', 'inventories'];
-
-const fmt = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString());
-const date = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-
-/** Coins as gold, silver and copper (10000 copper = 1 gold). */
-function Coins({ copper }: { copper: number }) {
-  const g = Math.floor(copper / 10000);
-  const s = Math.floor((copper % 10000) / 100);
-  const c = copper % 100;
-  return (
-    <span className="num">
-      {g > 0 && <span style={{ color: '#e6b422' }}>{g.toLocaleString()}g </span>}
-      {(g > 0 || s > 0) && <span style={{ color: '#a8a9ad' }}>{s}s </span>}
-      <span style={{ color: '#b87333' }}>{c}c</span>
-    </span>
-  );
-}
+const PERMISSIONS = [
+  'account',
+  'characters',
+  'builds',
+  'progression',
+  'unlocks',
+  'wallet',
+  'pvp',
+  'inventories',
+  'tradingpost',
+];
 
 /** Guild Wars 2 in My Stats: connect with an API key, then the account's data by category. */
 export function Gw2Stats() {
@@ -151,66 +152,6 @@ function ConnectAccount({
   );
 }
 
-/** One compact line: a label (with an optional icon) and a value on the right. */
-function Line({ icon, label, value, dim }: { icon?: ReactNode; label: ReactNode; value: ReactNode; dim?: boolean }) {
-  return (
-    <Group justify="space-between" gap={6} wrap="nowrap" h={22}>
-      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-        {icon}
-        <Text size="sm" c={dim ? 'dimmed' : undefined} truncate>
-          {label}
-        </Text>
-      </Group>
-      <Text size="sm" className="num" c={dim ? 'dimmed' : undefined} style={{ flexShrink: 0 }}>
-        {value}
-      </Text>
-    </Group>
-  );
-}
-
-function Heading({ children }: { children: ReactNode }) {
-  return (
-    <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
-      {children}
-    </Text>
-  );
-}
-
-function CharacterRow({ c }: { c: Gw2Character }) {
-  const crafting = c.crafting
-    .filter((x) => x.active)
-    .map((x) => `${x.discipline} ${x.rating}`)
-    .join(', ');
-  return (
-    <Group justify="space-between" gap="sm" wrap="nowrap">
-      <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-        {c.icon ? (
-          <img src={c.icon} alt="" width={24} height={24} loading="lazy" style={{ flexShrink: 0 }} />
-        ) : (
-          <span style={{ width: 24, flexShrink: 0 }} />
-        )}
-        <div style={{ minWidth: 0 }}>
-          <Text size="sm" fw={600} truncate>
-            {c.name}
-          </Text>
-          <Text size="xs" c="dimmed" truncate>
-            {[c.race, c.profession].filter(Boolean).join(' ')}
-            {crafting ? ` · ${crafting}` : ''}
-          </Text>
-        </div>
-      </Group>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <Text size="sm" className="num">
-          Level {c.level ?? '—'}
-        </Text>
-        <Text size="xs" c="dimmed" className="num">
-          {fmt(c.hours)} h · {fmt(c.deaths)} deaths
-        </Text>
-      </div>
-    </Group>
-  );
-}
-
 function AccountStats({
   conn,
   onChange,
@@ -244,8 +185,7 @@ function AccountStats({
   }
 
   const missing = PERMISSIONS.filter((p) => !a.permissions.includes(p));
-  const characters = [...(a.characters ?? [])].sort((x, y) => y.hours - x.hours);
-  const masteryEarned = a.mastery?.reduce((n, m) => n + m.earned, 0) ?? null;
+  const [tab, setTab] = useState<string>('overview');
 
   return (
     <Stack gap={48}>
@@ -304,157 +244,199 @@ function AccountStats({
         </Alert>
       )}
 
-      <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} spacing="md">
-        <StatTile label="Hours played" value={fmt(a.hours)} note={`since ${date(a.created)}`} />
-        <StatTile label="Characters" value={a.characters ? a.characters.length : '—'} />
-        <StatTile label="Achievements" value={fmt(a.achievementsDone)} note="completed" />
-        <StatTile label="Mastery points" value={fmt(masteryEarned)} note="earned" />
-        <StatTile label="Fractal level" value={fmt(a.fractalLevel)} />
-        <StatTile label="WvW rank" value={fmt(a.wvwRank)} />
-      </SimpleGrid>
+      <Tabs
+        value={tab}
+        onChange={(v) => setTab(v ?? 'overview')}
+        variant="pills"
+        radius="xl"
+        keepMounted={false}
+        mt={-16}
+      >
+        <Tabs.List mb={32}>
+          <Tabs.Tab value="overview">Overview</Tabs.Tab>
+          <Tabs.Tab value="characters">Characters</Tabs.Tab>
+          <Tabs.Tab value="week">This week</Tabs.Tab>
+          <Tabs.Tab value="achievements">Achievements</Tabs.Tab>
+          <Tabs.Tab value="wealth">Wealth</Tabs.Tab>
+          <Tabs.Tab value="pvp">PvP and WvW</Tabs.Tab>
+          <Tabs.Tab value="collections">Collections</Tabs.Tab>
+          <Tabs.Tab value="progress">Progress</Tabs.Tab>
+        </Tabs.List>
 
-      <Section title="Characters">
-        {a.characters === null ? (
-          <Text c="dimmed">Needs the characters permission on the API key.</Text>
-        ) : characters.length ? (
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={40} verticalSpacing={12}>
-            {characters.map((c) => (
-              <CharacterRow key={c.name} c={c} />
-            ))}
-          </SimpleGrid>
-        ) : (
-          <Text c="dimmed">No characters yet.</Text>
-        )}
-      </Section>
-
-      <Section title="Account">
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing={28} verticalSpacing={24}>
-          <Stack gap={4}>
-            <Heading>Expansions</Heading>
-            <Group gap={6}>
-              {a.expansions.length ? (
-                a.expansions.map((x) => (
-                  <Badge key={x} variant="light" radius="sm">
-                    {x}
-                  </Badge>
-                ))
-              ) : (
-                <Text size="sm" c="dimmed">
-                  —
-                </Text>
-              )}
-            </Group>
-          </Stack>
-          <Stack gap={4}>
-            <Heading>Guilds</Heading>
-            {a.guilds.length ? (
-              a.guilds.map((g) => <Line key={g.name} label={g.name} value={`[${g.tag}]`} />)
-            ) : (
-              <Text size="sm" c="dimmed">
-                None
-              </Text>
-            )}
-          </Stack>
-          <Stack gap={4}>
-            <Heading>Mounts</Heading>
-            {a.mounts ? (
-              <Tooltip label={a.mounts.owned.join(', ') || 'None'} multiline w={260} withArrow>
-                <div>
-                  <Line label="Unlocked" value={`${a.mounts.owned.length} / ${a.mounts.total ?? '—'}`} />
-                </div>
-              </Tooltip>
-            ) : (
-              <Text size="sm" c="dimmed">
-                Needs the unlocks permission.
-              </Text>
-            )}
-            <Line label="Commander tag" value={a.commander ? 'Yes' : 'No'} />
-            {a.luck != null && <Line label="Luck consumed" value={fmt(a.luck)} />}
-          </Stack>
-          <Stack gap={4}>
-            <Heading>PvP</Heading>
-            {a.pvp ? (
-              <>
-                <Line label="Rank" value={a.pvp.rank} />
-                <Line label="Wins" value={fmt(a.pvp.wins)} />
-                <Line label="Losses" value={fmt(a.pvp.losses)} />
-              </>
-            ) : (
-              <Text size="sm" c="dimmed">
-                Needs the pvp permission.
-              </Text>
-            )}
-          </Stack>
-        </SimpleGrid>
-      </Section>
-
-      <Section title="Collections">
-        {a.collections.length ? (
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing={28} verticalSpacing={4}>
-            {a.collections.map((c) => (
-              <Line
-                key={c.label}
-                label={c.label}
-                value={
-                  <>
-                    {fmt(c.owned)}
-                    {c.total ? (
-                      <Text span size="xs" c="dimmed">
-                        {' '}
-                        / {fmt(c.total)} · {Math.round((c.owned / c.total) * 100)}%
-                      </Text>
-                    ) : null}
-                  </>
-                }
+        <Tabs.Panel value="overview">
+          <Stack gap={48}>
+            <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} spacing="md">
+              <StatTile label="Hours played" value={fmt(a.hours)} note={`since ${date(a.created)}`} />
+              <StatTile label="Characters" value={a.characters ? a.characters.length : '—'} />
+              <StatTile
+                label="Achievement points"
+                value={fmt(a.ap?.total)}
+                note={a.achievementsDone != null ? `${fmt(a.achievementsDone)} achievements done` : undefined}
               />
-            ))}
-          </SimpleGrid>
-        ) : (
-          <Text c="dimmed">Needs the unlocks permission on the API key.</Text>
-        )}
-      </Section>
+              <StatTile
+                label="Account value"
+                value={a.value ? goldText(a.value.sell) : '—'}
+                note={a.value ? 'listed on the trading post' : undefined}
+              />
+              <StatTile label="Fractal level" value={fmt(a.fractalLevel)} />
+              <StatTile label="WvW rank" value={fmt(a.wvwRank)} note={a.wvwTitle ?? undefined} />
+            </SimpleGrid>
 
-      <Grid2>
-        <Section title="Wallet">
-          {a.wallet ? (
-            <Stack gap={4}>
-              {a.wallet.map((w) => (
-                <Line
-                  key={w.id}
-                  icon={w.icon ? <img src={w.icon} alt="" width={18} height={18} loading="lazy" /> : undefined}
-                  label={w.name}
-                  value={w.id === 1 ? <Coins copper={w.value} /> : fmt(w.value)}
-                />
-              ))}
-            </Stack>
-          ) : (
-            <Text c="dimmed">Needs the wallet permission on the API key.</Text>
-          )}
-        </Section>
-        <Section title="Masteries">
-          {a.mastery ? (
-            <Stack gap={4}>
-              {a.mastery.map((m) => (
-                <Line key={m.region} label={m.region} value={`${m.spent} / ${m.earned} spent`} />
-              ))}
-            </Stack>
-          ) : (
-            <Text c="dimmed">Needs the progression permission on the API key.</Text>
-          )}
-        </Section>
-      </Grid2>
+            <Section title="Account">
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing={28} verticalSpacing={24}>
+                <Stack gap={4}>
+                  <Heading>Expansions</Heading>
+                  <Group gap={6}>
+                    {a.expansions.length ? (
+                      a.expansions.map((x) => (
+                        <Badge key={x} variant="light" radius="sm">
+                          {x}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        —
+                      </Text>
+                    )}
+                  </Group>
+                </Stack>
+                <Stack gap={4}>
+                  <Heading>Guilds</Heading>
+                  {a.guilds.length ? (
+                    a.guilds.map((g) => <Line key={g.name} label={g.name} value={`[${g.tag}]`} />)
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      None
+                    </Text>
+                  )}
+                </Stack>
+                <Stack gap={4}>
+                  <Heading>Mounts</Heading>
+                  {a.mounts ? (
+                    <Tooltip label={a.mounts.owned.join(', ') || 'None'} multiline w={260} withArrow>
+                      <div>
+                        <Line label="Unlocked" value={`${a.mounts.owned.length} / ${a.mounts.total ?? '—'}`} />
+                      </div>
+                    </Tooltip>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      Needs the unlocks permission.
+                    </Text>
+                  )}
+                  <Line label="Commander tag" value={a.commander ? 'Yes' : 'No'} />
+                  {a.luck != null && <Line label="Luck consumed" value={fmt(a.luck)} />}
+                </Stack>
+                <Stack gap={4}>
+                  <Heading>Masteries</Heading>
+                  {a.mastery ? (
+                    a.mastery.map((m) => (
+                      <Line key={m.region} label={m.region} value={`${m.spent} / ${m.earned} spent`} />
+                    ))
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      Needs the progression permission.
+                    </Text>
+                  )}
+                </Stack>
+              </SimpleGrid>
+            </Section>
+
+            {!!a.legendaries?.length && (
+              <Section title="Legendary armory" note={`${a.legendaries.length} legendaries.`}>
+                <Group gap={6}>
+                  {a.legendaries.map((l) => (
+                    <Img
+                      key={l.id}
+                      src={l.icon}
+                      name={l.count > 1 ? `${l.name} ×${l.count}` : l.name}
+                      rarity="Legendary"
+                      size={36}
+                    />
+                  ))}
+                </Group>
+              </Section>
+            )}
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="characters">
+          <CharactersTab characters={a.characters} />
+        </Tabs.Panel>
+        <Tabs.Panel value="week">
+          <WeekTab a={a} />
+        </Tabs.Panel>
+        <Tabs.Panel value="achievements">
+          <AchievementsTab a={a} />
+        </Tabs.Panel>
+        <Tabs.Panel value="wealth">
+          <WealthTab a={a} />
+        </Tabs.Panel>
+        <Tabs.Panel value="pvp">
+          <PvpTab a={a} />
+        </Tabs.Panel>
+        <Tabs.Panel value="collections">
+          <Stack gap={48}>
+            <Section title="Collections">
+              {a.collections.length ? (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing={28} verticalSpacing={12}>
+                  {a.collections.map((c) => (
+                    <div key={c.label}>
+                      <Line
+                        label={c.label}
+                        value={
+                          <>
+                            {fmt(c.owned)}
+                            {c.total ? (
+                              <Text span size="xs" c="dimmed">
+                                {' '}
+                                / {fmt(c.total)} · {Math.round((c.owned / c.total) * 100)}%
+                              </Text>
+                            ) : null}
+                          </>
+                        }
+                      />
+                      {c.total ? <Meter value={c.owned} max={c.total} /> : null}
+                    </div>
+                  ))}
+                </SimpleGrid>
+              ) : (
+                <Text c="dimmed">Needs the unlocks permission on the API key.</Text>
+              )}
+            </Section>
+            {!!a.masteryTracks?.length && (
+              <Section title="Mastery tracks" note="Levels trained in each mastery line.">
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing={28} verticalSpacing={12}>
+                  {a.masteryTracks.map((m) => (
+                    <div key={m.name}>
+                      <Line label={m.name} value={`${m.level} / ${m.max ?? '—'}`} />
+                      <Text size="xs" c="dimmed">
+                        {m.region}
+                      </Text>
+                      {m.max ? <Meter value={m.level} max={m.max} /> : null}
+                    </div>
+                  ))}
+                </SimpleGrid>
+              </Section>
+            )}
+            {!!a.progression?.length && (
+              <Section title="Account progression">
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing={28} verticalSpacing={4}>
+                  {a.progression.map((p) => (
+                    <Line key={p.name} label={p.name} value={fmt(p.value)} />
+                  ))}
+                </SimpleGrid>
+              </Section>
+            )}
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="progress">
+          <ProgressTab refreshedAt={conn.fetchedAt} />
+        </Tabs.Panel>
+      </Tabs>
 
       <Text size="xs" c="dimmed">
         From the official Guild Wars 2 API. © ArenaNet, LLC. Guild Wars 2 is a trademark of NCSOFT Corporation.
       </Text>
     </Stack>
-  );
-}
-
-function Grid2({ children }: { children: ReactNode }) {
-  return (
-    <SimpleGrid cols={{ base: 1, md: 2 }} spacing={48} verticalSpacing={48} maw={1000}>
-      {children}
-    </SimpleGrid>
   );
 }
