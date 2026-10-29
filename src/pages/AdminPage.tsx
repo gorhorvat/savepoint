@@ -4,6 +4,7 @@ import {
   Button,
   Code,
   CopyButton,
+  Divider,
   Group,
   Menu,
   Modal,
@@ -16,10 +17,21 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconCopy, IconDots, IconKey, IconLock, IconLockOpen, IconTrash } from '@tabler/icons-react';
+import {
+  IconBrandKick,
+  IconBrandTwitch,
+  IconCheck,
+  IconCopy,
+  IconDots,
+  IconKey,
+  IconLock,
+  IconLockOpen,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlatformIcon } from '../components/PlatformBadge';
+import { PLATFORM_BY_ID } from '../data/platforms';
 import {
   createResetLink,
   deleteUser,
@@ -32,21 +44,41 @@ import { formatLastPlayed } from '../lib/format';
 import type { PlatformId } from '../types';
 
 const PLATFORM_IDS = new Set(['steam', 'playstation', 'xbox']);
+// Streaming services a user can connect; they sit apart from the game platforms.
+const STREAMING: Record<string, { name: string; Icon: typeof IconBrandTwitch; color: string }> = {
+  twitch: { name: 'Twitch', Icon: IconBrandTwitch, color: '#9146ff' },
+  kick: { name: 'Kick', Icon: IconBrandKick, color: '#53fc18' },
+};
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 function Platforms({ list }: { list: string[] }) {
   if (!list.length) return <Text size="sm" c="dimmed">None</Text>;
+  const games = list.filter((p) => PLATFORM_IDS.has(p));
+  const streaming = list.filter((p) => p in STREAMING);
+  const other = list.filter((p) => !PLATFORM_IDS.has(p) && !(p in STREAMING));
   return (
     <Group gap={6} wrap="nowrap">
-      {list.map((p) =>
-        PLATFORM_IDS.has(p) ? (
-          <PlatformIcon key={p} platform={p as PlatformId} size={14} />
-        ) : (
-          <Text key={p} size="xs" c="dimmed" tt="capitalize">
-            {p}
-          </Text>
-        ),
-      )}
+      {games.map((p) => (
+        <Tooltip key={p} label={PLATFORM_BY_ID[p as PlatformId].name} withArrow>
+          <span style={{ display: 'inline-flex' }}>
+            <PlatformIcon platform={p as PlatformId} size={14} />
+          </span>
+        </Tooltip>
+      ))}
+      {games.length > 0 && streaming.length > 0 && <Divider orientation="vertical" h={14} mx={2} />}
+      {streaming.map((p) => {
+        const { name, Icon, color } = STREAMING[p];
+        return (
+          <Tooltip key={p} label={name} withArrow>
+            <Icon size={16} stroke={1.8} color={color} style={{ flexShrink: 0 }} aria-label={name} />
+          </Tooltip>
+        );
+      })}
+      {other.map((p) => (
+        <Text key={p} size="xs" c="dimmed" tt="capitalize">
+          {p}
+        </Text>
+      ))}
     </Group>
   );
 }
