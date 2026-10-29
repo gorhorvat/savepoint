@@ -74,15 +74,18 @@ async function riot(host, path, { allow404 = false } = {}) {
 const DD = 'https://ddragon.leagueoflegends.com';
 const EMPTY_DD = () => ({
   at: 0,
+  ttl: 0,
   version: null,
   champions: new Map(),
   items: new Map(),
   spells: new Map(),
   runes: new Map(),
 });
-let dd = null; // { at, version, champions, items, spells, runes: Map<id, { name, image }> }
+let dd = null; // { at, ttl, version, champions, items, spells, runes: Map<id, { name, image }> }
+const DD_TTL = 6 * 3600 * 1000;
+const DD_RETRY = 5 * 60 * 1000; // when a part of it failed to load, so icons come back soon
 async function dataDragon() {
-  if (dd && Date.now() - dd.at < 6 * 3600 * 1000) return dd;
+  if (dd && Date.now() - dd.at < dd.ttl) return dd;
   const get = async (path) => {
     const r = await fetch(`${DD}/${path}`, { signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error(`Data Dragon ${r.status}`);
@@ -91,11 +94,17 @@ async function dataDragon() {
   try {
     const [version] = await get('api/versions.json');
     const cdn = `${DD}/cdn/${version}`;
+    let partial = false;
+    const part = (path, empty) =>
+      get(path).catch(() => {
+        partial = true;
+        return empty;
+      });
     const [champs, items, spells, runes] = await Promise.all([
       get(`cdn/${version}/data/en_US/champion.json`),
-      get(`cdn/${version}/data/en_US/item.json`).catch(() => ({ data: {} })),
-      get(`cdn/${version}/data/en_US/summoner.json`).catch(() => ({ data: {} })),
-      get(`cdn/${version}/data/en_US/runesReforged.json`).catch(() => []),
+      part(`cdn/${version}/data/en_US/item.json`, { data: {} }),
+      part(`cdn/${version}/data/en_US/summoner.json`, { data: {} }),
+      part(`cdn/${version}/data/en_US/runesReforged.json`, []),
     ]);
     const runeMap = new Map();
     for (const style of runes) {
@@ -106,6 +115,7 @@ async function dataDragon() {
     }
     dd = {
       at: Date.now(),
+      ttl: partial ? DD_RETRY : DD_TTL,
       version,
       champions: new Map(
         Object.values(champs.data).map((c) => [
@@ -128,7 +138,8 @@ async function dataDragon() {
       runes: runeMap,
     };
   } catch {
-    dd ??= EMPTY_DD();
+    // Keep what was loaded before, if anything, and try again soon.
+    dd = { ...(dd ?? EMPTY_DD()), at: Date.now(), ttl: DD_RETRY };
   }
   return dd;
 }
