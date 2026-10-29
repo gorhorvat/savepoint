@@ -11,14 +11,22 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Tabs,
   Text,
   TextInput,
   Title,
 } from '@mantine/core';
 import { IconDots, IconRefresh, IconUnlink } from '@tabler/icons-react';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { StatTile } from '../components/charts';
 import { Section } from '../components/GameSection';
+import { ChallengesTab } from '../components/lol/Challenges';
+import { ChampionsTab } from '../components/lol/Champions';
+import { Champ, Heading, Line } from '../components/lol/common';
+import { fmt, pct, rankName, title } from '../components/lol/format';
+import { LiveTab } from '../components/lol/Live';
+import { MatchesTab, MatchRow } from '../components/lol/Matches';
+import { ProgressTab } from '../components/lol/Progress';
 import {
   ago,
   connectLol,
@@ -27,25 +35,10 @@ import {
   fetchLolSetup,
   refreshLol,
   type GameConnection,
-  type LolMatch,
   type LolPlayer,
 } from '../lib/gameStats';
 
 type Region = { value: string; label: string };
-
-const fmt = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString());
-const pct = (w: number, l: number) => (w + l ? Math.round((w / (w + l)) * 100) : 0);
-const title = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
-/** "GOLD", "II" -> "Gold II"; Master and above have no division. */
-const rankName = (tier: string, division: string) =>
-  ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? title(tier) : `${title(tier)} ${division}`;
-const ROLES: Record<string, string> = {
-  TOP: 'Top',
-  JUNGLE: 'Jungle',
-  MIDDLE: 'Mid',
-  BOTTOM: 'Bot',
-  UTILITY: 'Support',
-};
 
 /** League of Legends in My Stats: connect a Riot ID, then ranked, mastery, matches and challenges. */
 export function LolStats() {
@@ -149,69 +142,6 @@ function ConnectPlayer({
   );
 }
 
-function Heading({ children }: { children: ReactNode }) {
-  return (
-    <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
-      {children}
-    </Text>
-  );
-}
-
-function Line({ label, value }: { label: ReactNode; value: ReactNode }) {
-  return (
-    <Group justify="space-between" gap={6} wrap="nowrap" h={22}>
-      <Text size="sm" truncate>
-        {label}
-      </Text>
-      <Text size="sm" className="num" style={{ flexShrink: 0 }}>
-        {value}
-      </Text>
-    </Group>
-  );
-}
-
-function Champ({ image, size = 28 }: { image: string | null; size?: number }) {
-  return <Avatar src={image} size={size} radius="sm" style={{ flexShrink: 0 }} />;
-}
-
-function MatchRow({ m }: { m: LolMatch }) {
-  const color = m.remake
-    ? 'var(--mantine-color-dimmed)'
-    : m.win
-      ? 'var(--mantine-color-teal-5)'
-      : 'var(--mantine-color-red-5)';
-  const kda = m.deaths ? ((m.kills + m.assists) / m.deaths).toFixed(1) : 'Perfect';
-  return (
-    <Group justify="space-between" gap="sm" wrap="nowrap" style={{ borderLeft: `3px solid ${color}`, paddingLeft: 10 }}>
-      <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-        <Champ image={m.image} />
-        <div style={{ minWidth: 0 }}>
-          <Text size="sm" fw={600} truncate>
-            {m.champion}
-            <Text span size="xs" c="dimmed" fw={400}>
-              {m.role && ROLES[m.role] ? ` · ${ROLES[m.role]}` : ''}
-            </Text>
-          </Text>
-          <Text size="xs" c="dimmed" truncate>
-            <Text span size="xs" c={color} fw={600}>
-              {m.remake ? 'Remake' : m.win ? 'Win' : 'Loss'}
-            </Text>{' '}
-            · {m.queue} · {new Date(m.end).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-          </Text>
-        </div>
-      </Group>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <Text size="sm" className="num">
-          {m.kills} / {m.deaths} / {m.assists}
-        </Text>
-        <Text size="xs" c="dimmed" className="num">
-          {kda} KDA · {m.cs} CS · {m.minutes} min
-        </Text>
-      </div>
-    </Group>
-  );
-}
-
 function PlayerStats({
   conn,
   regions,
@@ -224,7 +154,7 @@ function PlayerStats({
   const p = conn.data;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shown, setShown] = useState(10);
+  const [tab, setTab] = useState<string>('overview');
 
   async function refresh() {
     setBusy(true);
@@ -331,128 +261,133 @@ function PlayerStats({
         </Alert>
       )}
 
-      <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} spacing="md">
-        {rankTile('Solo/Duo', solo)}
-        {rankTile('Flex', flex)}
-        <StatTile label="Mastery score" value={fmt(p.mastery.score)} note={`${fmt(p.mastery.points)} points`} />
-        <StatTile label="Champions played" value={fmt(p.mastery.champions)} />
-        <StatTile
-          label={`Last ${played.length} games`}
-          value={played.length ? `${pct(wins, played.length - wins)}%` : '—'}
-          note={played.length ? `${wins}W ${played.length - wins}L` : undefined}
-        />
-        <StatTile
-          label="Challenges"
-          value={p.challenges?.level ? title(p.challenges.level) : '—'}
-          note={p.challenges ? `${fmt(p.challenges.points)} points` : undefined}
-        />
-      </SimpleGrid>
-
-      <Section title="Champion mastery" note="Your highest-mastery champions.">
-        {p.mastery.top.length ? (
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing={28} verticalSpacing={10}>
-            {p.mastery.top.map((c) => (
-              <Group key={c.championId} justify="space-between" gap="sm" wrap="nowrap">
-                <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-                  <Champ image={c.image} />
-                  <Text size="sm" fw={600} truncate>
-                    {c.name}
-                  </Text>
-                </Group>
-                <Text size="sm" className="num" style={{ flexShrink: 0 }}>
-                  {fmt(c.points)}{' '}
-                  <Text span size="xs" c="dimmed">
-                    · level {c.level}
-                  </Text>
-                </Text>
-              </Group>
-            ))}
-          </SimpleGrid>
-        ) : (
-          <Text c="dimmed">No champion mastery yet.</Text>
-        )}
-      </Section>
-
-      <Section
-        title="Recent matches"
-        note={
-          played.length
-            ? `Last ${played.length} games: ${avgKda?.toFixed(2)} KDA, ${csMin?.toFixed(1)} CS per minute.`
-            : undefined
-        }
+      <Tabs
+        value={tab}
+        onChange={(v) => setTab(v ?? 'overview')}
+        variant="pills"
+        radius="xl"
+        keepMounted={false}
+        mt={-16}
       >
-        {p.matches.length ? (
-          <Grid gap={40}>
-            <Grid.Col span={{ base: 12, lg: 8 }}>
-              <Stack gap={10}>
-                {p.matches.slice(0, shown).map((m) => (
-                  <MatchRow key={m.id} m={m} />
-                ))}
-                {p.matches.length > shown && (
-                  <Button
-                    variant="subtle"
-                    size="xs"
-                    onClick={() => setShown(p.matches.length)}
-                    style={{ alignSelf: 'flex-start' }}
-                  >
-                    Show all {p.matches.length}
-                  </Button>
-                )}
-              </Stack>
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, lg: 4 }}>
-              <Stack gap={4}>
-                <Heading>Most played recently</Heading>
-                {favourites.map(([name, c]) => (
-                  <Line
-                    key={name}
-                    label={
-                      <Group gap={6} wrap="nowrap" component="span">
-                        <Champ image={c.image} size={20} />
-                        {name}
-                      </Group>
-                    }
-                    value={`${c.games} games · ${pct(c.wins, c.games - c.wins)}%`}
-                  />
-                ))}
-              </Stack>
-            </Grid.Col>
-          </Grid>
-        ) : (
-          <Text c="dimmed">No recent matches.</Text>
-        )}
-      </Section>
+        <Tabs.List mb={32}>
+          <Tabs.Tab value="overview">Overview</Tabs.Tab>
+          <Tabs.Tab value="matches">Matches</Tabs.Tab>
+          <Tabs.Tab value="champions">Champions</Tabs.Tab>
+          <Tabs.Tab value="challenges">Challenges</Tabs.Tab>
+          <Tabs.Tab value="live">Live game{p.live ? ' •' : ''}</Tabs.Tab>
+          <Tabs.Tab value="progress">Progress</Tabs.Tab>
+        </Tabs.List>
 
-      {p.challenges && (
-        <Section
-          title="Challenges"
-          note={`${p.challenges.level ? title(p.challenges.level) : ''} · ${fmt(p.challenges.points)}${
-            p.challenges.max ? ` of ${fmt(p.challenges.max)}` : ''
-          } points${
-            p.challenges.percentile != null
-              ? ` · top ${Math.max(0.1, p.challenges.percentile * 100).toFixed(1)}% of players`
-              : ''
-          }.`}
-        >
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing={28} verticalSpacing={4} maw={1000}>
-            {p.challenges.categories.map((c) => (
-              <Line
-                key={c.name}
-                label={c.name}
-                value={
-                  <>
-                    {c.level ? title(c.level) : '—'}{' '}
-                    <Text span size="xs" c="dimmed">
-                      · {fmt(c.points)}
-                      {c.max ? ` / ${fmt(c.max)}` : ''}
-                    </Text>
-                  </>
-                }
+        <Tabs.Panel value="overview">
+          <Stack gap={48}>
+            <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} spacing="md">
+              {rankTile('Solo/Duo', solo)}
+              {rankTile('Flex', flex)}
+              <StatTile label="Mastery score" value={fmt(p.mastery.score)} note={`${fmt(p.mastery.points)} points`} />
+              <StatTile label="Champions played" value={fmt(p.mastery.champions)} />
+              <StatTile
+                label={`Last ${played.length} games`}
+                value={played.length ? `${pct(wins, played.length - wins)}%` : '—'}
+                note={played.length ? `${wins}W ${played.length - wins}L` : undefined}
               />
-            ))}
-          </SimpleGrid>
-        </Section>
-      )}
+              <StatTile
+                label="Challenges"
+                value={p.challenges?.level ? title(p.challenges.level) : '—'}
+                note={p.challenges ? `${fmt(p.challenges.points)} points` : undefined}
+              />
+            </SimpleGrid>
+
+            <Section
+              title="Recent matches"
+              note={
+                played.length
+                  ? `Last ${played.length} games: ${avgKda?.toFixed(2)} KDA, ${csMin?.toFixed(1)} CS per minute. Open a match for the full scoreboard.`
+                  : undefined
+              }
+            >
+              {p.matches.length ? (
+                <Grid gap={40}>
+                  <Grid.Col span={{ base: 12, lg: 8 }}>
+                    <Stack gap={10}>
+                      {p.matches.slice(0, 10).map((m) => (
+                        <MatchRow key={m.id} m={m} />
+                      ))}
+                      <Button
+                        variant="subtle"
+                        size="xs"
+                        onClick={() => setTab('matches')}
+                        style={{ alignSelf: 'flex-start' }}
+                      >
+                        All {p.archive ? fmt(p.archive.count) : ''} matches
+                      </Button>
+                    </Stack>
+                  </Grid.Col>
+                  <Grid.Col span={{ base: 12, lg: 4 }}>
+                    <Stack gap={4}>
+                      <Heading>Most played recently</Heading>
+                      {favourites.map(([name, c]) => (
+                        <Line
+                          key={name}
+                          label={
+                            <Group gap={6} wrap="nowrap" component="span">
+                              <Champ image={c.image} size={20} />
+                              {name}
+                            </Group>
+                          }
+                          value={`${c.games} games · ${pct(c.wins, c.games - c.wins)}%`}
+                        />
+                      ))}
+                    </Stack>
+                  </Grid.Col>
+                </Grid>
+              ) : (
+                <Text c="dimmed">No recent matches.</Text>
+              )}
+            </Section>
+
+            <Section title="Champion mastery" note="Your highest-mastery champions.">
+              {p.mastery.top.length ? (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing={28} verticalSpacing={10}>
+                  {p.mastery.top.slice(0, 9).map((c) => (
+                    <Group key={c.championId} justify="space-between" gap="sm" wrap="nowrap">
+                      <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
+                        <Champ image={c.image} />
+                        <Text size="sm" fw={600} truncate>
+                          {c.name}
+                        </Text>
+                      </Group>
+                      <Text size="sm" className="num" style={{ flexShrink: 0 }}>
+                        {fmt(c.points)}{' '}
+                        <Text span size="xs" c="dimmed">
+                          · level {c.level}
+                        </Text>
+                      </Text>
+                    </Group>
+                  ))}
+                </SimpleGrid>
+              ) : (
+                <Text c="dimmed">No champion mastery yet.</Text>
+              )}
+            </Section>
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="matches">
+          <MatchesTab player={p} onArchive={(archive) => onChange({ ...conn, data: { ...p, archive } })} />
+        </Tabs.Panel>
+        <Tabs.Panel value="champions">
+          <ChampionsTab player={p} />
+        </Tabs.Panel>
+        <Tabs.Panel value="challenges">
+          <ChallengesTab player={p} />
+        </Tabs.Panel>
+        <Tabs.Panel value="live">
+          <LiveTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="progress">
+          <ProgressTab refreshedAt={conn.fetchedAt} />
+        </Tabs.Panel>
+      </Tabs>
 
       <Text size="xs" c="dimmed">
         Savepoint isn&apos;t endorsed by Riot Games and doesn&apos;t reflect the views or opinions of Riot Games or

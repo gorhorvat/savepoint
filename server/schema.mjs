@@ -422,6 +422,28 @@ CREATE TABLE IF NOT EXISTS game_connections (
 -- platform_logins.secret.
 ALTER TABLE game_connections ADD COLUMN IF NOT EXISTS "secret" text;
 
+-- One snapshot per connected game per day (the last read that day), for the
+-- progress graphs in My Stats (server/snapshots.mjs).
+CREATE TABLE IF NOT EXISTS game_snapshots (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "game" text NOT NULL,
+  "day" date NOT NULL,
+  "data" jsonb NOT NULL,
+  PRIMARY KEY ("user_id", "game", "day")
+);
+
+-- League of Legends match archive (server/lol.mjs): every stored match with all
+-- ten players, kept small; the timeline is added when someone opens it.
+CREATE TABLE IF NOT EXISTS lol_matches (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "match_id" text NOT NULL,
+  "ended_at" timestamptz NOT NULL,
+  "data" jsonb NOT NULL,
+  "timeline" jsonb,
+  PRIMARY KEY ("user_id", "match_id")
+);
+CREATE INDEX IF NOT EXISTS lol_matches_recent ON lol_matches ("user_id", "ended_at" DESC);
+
 -- App-wide settings, such as the invite code for sign-up.
 CREATE TABLE IF NOT EXISTS app_settings (
   "key" text PRIMARY KEY,

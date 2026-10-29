@@ -113,6 +113,53 @@ export interface LolMatch {
   cs: number;
   damage: number;
   gold: number;
+  vision?: number;
+  /** Kill participation, 0-1. */
+  kp?: number | null;
+  /** Biggest multikill: 0, or 2 (double) to 5 (penta). */
+  multikill?: number;
+  /** Arena placement. */
+  placement?: number | null;
+  /** Item pictures, slots 0-6 (6 is the trinket). */
+  items?: (string | null)[];
+}
+
+export interface LolRank {
+  queue: 'Solo/Duo' | 'Flex';
+  tier: string;
+  division: string;
+  lp: number;
+  wins: number;
+  losses: number;
+  hotStreak: boolean;
+  veteran?: boolean;
+  freshBlood?: boolean;
+  /** Promotion series progress such as "WLN", when in one. */
+  series?: string | null;
+}
+
+export interface LolMastery {
+  championId: number;
+  name: string;
+  image: string | null;
+  level: number;
+  points: number;
+  sinceLevel?: number | null;
+  untilLevel?: number | null;
+  marks?: number | null;
+  milestone?: number | null;
+  lastPlayed: string | null;
+}
+
+export interface LolChallenge {
+  id: number;
+  name: string;
+  description: string;
+  level: string;
+  value: number;
+  percentile: number | null;
+  achieved: string | null;
+  next: { level: string; value: number } | null;
 }
 
 export interface LolPlayer {
@@ -122,37 +169,167 @@ export interface LolPlayer {
   tagLine: string;
   level: number | null;
   icon: string | null;
-  ranked: {
-    queue: 'Solo/Duo' | 'Flex';
-    tier: string;
-    division: string;
-    lp: number;
-    wins: number;
-    losses: number;
-    hotStreak: boolean;
-  }[];
+  ranked: LolRank[];
   mastery: {
     score: number | null;
     champions: number;
     points: number;
-    top: {
-      championId: number;
-      name: string;
-      image: string | null;
-      level: number;
-      points: number;
-      lastPlayed: string | null;
-    }[];
+    /** Every champion played, highest mastery first. */
+    top: LolMastery[];
   };
   challenges: {
     level: string | null;
     points: number;
     max: number | null;
     percentile: number | null;
-    categories: { name: string; level: string | null; points: number; max: number | null }[];
+    categories: {
+      name: string;
+      level: string | null;
+      points: number;
+      max: number | null;
+      percentile?: number | null;
+    }[];
+    list?: LolChallenge[];
   } | null;
   live: { queue: string; champion: string | null; image: string | null; since: string | null } | null;
+  /** The 20 most recent archived matches. */
   matches: LolMatch[];
+  archive?: { count: number; complete: boolean; backfilledAt: string | null };
+}
+
+export interface LolThing {
+  id: number;
+  name: string;
+  image: string | null;
+}
+
+export interface LolMatchPlayer {
+  me: boolean;
+  name: string | null;
+  tag: string | null;
+  championId: number;
+  champion: string;
+  image: string | null;
+  lvl: number | null;
+  team: number;
+  role: string | null;
+  win: boolean;
+  remake: boolean;
+  k: number;
+  d: number;
+  a: number;
+  cs: number;
+  gold: number;
+  dmg: number;
+  taken: number;
+  mitigated: number;
+  heal: number;
+  shield: number;
+  vision: number;
+  wards: number;
+  wardsKilled: number;
+  pinks: number;
+  items: (LolThing | null)[];
+  spells: (LolThing | null)[];
+  runes: { primary: LolThing | null; secondary: LolThing | null; list: (LolThing | null)[]; shards: string[] } | null;
+  multi: [number, number, number, number];
+  spree: number;
+  fb: boolean;
+  cc: number;
+  towers: number;
+  objectives: number;
+  kp: number | null;
+  dmgShare: number | null;
+  solo: number;
+  placement: number | null;
+}
+
+export interface LolMatchDetail {
+  id: string;
+  queue: string;
+  queueId: number;
+  end: string;
+  seconds: number;
+  version: string | null;
+  teams: { id: number; win: boolean; bans: (LolThing & { id: number })[]; obj: Record<string, number> }[];
+  players: LolMatchPlayer[];
+}
+
+export type LolEvent =
+  | { at: number; type: 'kill'; by: number; victim: number; assists: number[] }
+  | { at: number; type: 'monster'; by: number; team: number; monster: string }
+  | { at: number; type: 'building'; by: number; team: number; building: string; lane: string }
+  | { at: number; type: 'item'; by: number; item: number }
+  | { at: number; type: 'skill'; by: number; skill: number };
+
+/** Per minute, one value per player in the match's player order. */
+export interface LolTimeline {
+  gold: number[][];
+  cs: number[][];
+  xp: number[][];
+  level: number[][];
+  events: LolEvent[];
+  items: Record<string, { name: string; image: string | null }>;
+}
+
+export interface LolGroupStats {
+  games: number;
+  wins: number;
+  k: number;
+  d: number;
+  a: number;
+  cs: number;
+  minutes: number;
+  dmg: number;
+  gold: number;
+  vision: number;
+  kp: number | null;
+  pentas: number;
+  last: string | null;
+}
+
+export interface LolChampionStats {
+  games: number;
+  champions: (LolGroupStats & { championId: number; name: string; image: string | null })[];
+  roles: (LolGroupStats & { role: string })[];
+  queues: (LolGroupStats & { queueId: number; name: string })[];
+}
+
+export interface LolLive {
+  queue: string;
+  since: string | null;
+  bans: { team: number; name: string; image: string | null }[];
+  players: {
+    me: boolean;
+    name: string | null;
+    tag: string | null;
+    team: number;
+    bot: boolean;
+    championId: number;
+    champion: string;
+    image: string | null;
+    spells: (LolThing | null)[];
+    keystone: LolThing | null;
+    secondary: LolThing | null;
+    rank: { tier: string; division: string; lp: number; wins: number; losses: number } | null;
+  }[];
+}
+
+export interface Snapshot<T> {
+  day: string;
+  data: T;
+}
+
+export interface LolSnapshot {
+  level: number | null;
+  solo: number | null;
+  flex: number | null;
+  soloGames: number | null;
+  mastery: number | null;
+  masteryPoints: number | null;
+  champions: number | null;
+  challenges: number | null;
+  matches: number | null;
 }
 
 export interface GameConnection<T = FfxivCharacter> {
@@ -256,4 +433,43 @@ export function refreshLol(): Promise<GameConnection<LolPlayer>> {
 
 export async function disconnectLol(): Promise<void> {
   await call('/api/games/lol', { method: 'DELETE' });
+}
+
+export function fetchLolMatches(opts: {
+  before?: string;
+  queue?: number | null;
+  champion?: number | null;
+  limit?: number;
+}): Promise<{ matches: LolMatch[]; more: boolean }> {
+  const qs = new URLSearchParams();
+  if (opts.before) qs.set('before', opts.before);
+  if (opts.queue) qs.set('queue', String(opts.queue));
+  if (opts.champion) qs.set('champion', String(opts.champion));
+  if (opts.limit) qs.set('limit', String(opts.limit));
+  return call(`/api/games/lol/matches?${qs}`);
+}
+
+export function fetchLolMatch(id: string): Promise<LolMatchDetail> {
+  return call(`/api/games/lol/matches/${encodeURIComponent(id)}`);
+}
+
+export function fetchLolTimeline(id: string): Promise<LolTimeline> {
+  return call(`/api/games/lol/matches/${encodeURIComponent(id)}/timeline`);
+}
+
+export function fetchLolChampions(queue?: number | null): Promise<LolChampionStats> {
+  return call(`/api/games/lol/champions${queue ? `?queue=${queue}` : ''}`);
+}
+
+export async function fetchLolLive(): Promise<LolLive | null> {
+  return (await call<{ live: LolLive | null }>('/api/games/lol/live')).live;
+}
+
+export async function backfillLol(): Promise<NonNullable<LolPlayer['archive']>> {
+  return (await call<{ archive: NonNullable<LolPlayer['archive']> }>('/api/games/lol/backfill', { method: 'POST' }))
+    .archive;
+}
+
+export async function fetchGameHistory<T>(game: GameStatsId): Promise<Snapshot<T>[]> {
+  return (await call<{ days: Snapshot<T>[] }>(`/api/games/${game}/history`)).days;
 }

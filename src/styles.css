@@ -864,3 +864,16 @@ h3,
 .leader-row--you {
   background: color-mix(in srgb, var(--mantine-primary-color-filled) 12%, transparent);
 }
+
+/* League of Legends match scoreboard rows */
+.lol-player {
+  display: grid;
+  grid-template-columns: minmax(200px, 2.2fr) 80px 110px 100px 48px 176px;
+  gap: 12px;
+  align-items: center;
+  padding: 4px 6px;
+}
+.lol-player--head {
+  padding-top: 0;
+  padding-bottom: 2px;
+}
