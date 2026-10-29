@@ -5,12 +5,14 @@ import { Link } from 'react-router-dom';
 import { Cover } from '../components/Cover';
 import { StreamCard } from '../components/LiveStreams';
 import { FriendAvatar } from '../components/ProfileAvatar';
+import { LeaderboardRow } from '../components/LeaderboardRow';
 import { fetchAccount, fetchBigDeals, fetchFreeGames, type BigDeal, type FreeGiveaway } from '../lib/api';
 import { useFavorites } from '../lib/favorites';
 import { formatLastPlayed, formatPlaytime, formatPrice, upcomingLabel } from '../lib/format';
 import {
   describePresence,
   fetchFriends,
+  fetchLeaderboard,
   fetchGiftSummary,
   isOnline,
   type FriendsList,
@@ -447,6 +449,30 @@ function QuickStats({ lib }: { lib: LibraryGame[] }) {
   );
 }
 
+function FriendsLeaderboard() {
+  const board = useLoad(() => fetchLeaderboard('friends'));
+  return (
+    <Section title="Leaderboard" more={{ to: '/leaderboard', label: 'Full board' }}>
+      {board === null ? (
+        <Quiet>Loading…</Quiet>
+      ) : board === 'error' ? (
+        <Quiet>Couldn&apos;t load the leaderboard right now.</Quiet>
+      ) : board.rows.length < 2 ? (
+        <Quiet>Add friends to see where you stand.</Quiet>
+      ) : (
+        <Paper p={{ base: 'xs', sm: 'sm' }}>
+          <Stack gap={2}>
+            {board.rows.slice(0, 5).map((r) => (
+              <LeaderboardRow key={r.id} r={r} friend />
+            ))}
+            {board.you && board.you.place > 5 && <LeaderboardRow r={board.you} />}
+          </Stack>
+        </Paper>
+      )}
+    </Section>
+  );
+}
+
 // ---------------------------------------------------------------- page
 
 export function HomePage() {
@@ -478,6 +504,8 @@ export function HomePage() {
         return <TopGames lib={lib} />;
       case 'stats':
         return <QuickStats lib={lib} />;
+      case 'leaderboard':
+        return <FriendsLeaderboard />;
     }
   };
 

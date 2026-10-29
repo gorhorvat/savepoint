@@ -856,3 +856,11 @@ h3,
   background: #2fb344;
   box-shadow: 0 0 0 2px var(--sp-shell);
 }
+
+/* Leaderboard rows: your own place stands out. */
+.leader-row {
+  gap: 12px;
+}
+.leader-row--you {
+  background: color-mix(in srgb, var(--mantine-primary-color-filled) 12%, transparent);
+}

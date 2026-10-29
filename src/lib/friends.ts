@@ -181,3 +181,24 @@ export const sendGift = (gift: {
 export const openGift = (id: number) => call<{ key: string }>(`/api/gifts/${id}/open`, 'POST');
 export const markGiftRedeemed = (id: number) => call<{ ok: true; gameId?: string }>(`/api/gifts/${id}/redeemed`, 'POST');
 export const takeBackGift = (id: number) => call(`/api/gifts/${id}`, 'DELETE');
+
+// ---------------------------------------------------------------- leaderboards
+
+export interface LeaderboardRow extends FriendCard {
+  place: number;
+  xp: number;
+  hours: number;
+  games: number;
+  you: boolean;
+}
+
+export interface Leaderboard {
+  scope: 'friends' | 'global';
+  total: number;
+  rows: LeaderboardRow[];
+  /** Your own row, also when you're outside the top 100. */
+  you: LeaderboardRow | null;
+}
+
+export const fetchLeaderboard = (scope: 'friends' | 'global') =>
+  call<Leaderboard>(`/api/leaderboard?scope=${scope}`);

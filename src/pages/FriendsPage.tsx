@@ -1,6 +1,6 @@
 import { Badge, Button, Group, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCopy, IconRefresh, IconUserPlus } from '@tabler/icons-react';
+import { IconCopy, IconRefresh, IconTrophy, IconUserPlus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FriendAvatar } from '../components/ProfileAvatar';
@@ -257,12 +257,17 @@ export function FriendsPage() {
 
   return (
     <Stack gap={40}>
-      <div>
-        <Title order={1}>Friends</Title>
-        <Text c="dimmed" mt={6} size="lg">
-          See who&apos;s online, what they&apos;re playing, and their levels and libraries.
-        </Text>
-      </div>
+      <Group justify="space-between" align="flex-end" gap="md">
+        <div>
+          <Title order={1}>Friends</Title>
+          <Text c="dimmed" mt={6} size="lg">
+            See who&apos;s online, what they&apos;re playing, and their levels and libraries.
+          </Text>
+        </div>
+        <Button component={Link} to="/leaderboard" variant="light" leftSection={<IconTrophy size={18} />}>
+          Leaderboard
+        </Button>
+      </Group>
 
       <GiftsSection />
 

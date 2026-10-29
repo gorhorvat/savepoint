@@ -12,6 +12,7 @@
 //   GET    /api/friends/:id                a friend's profile and presence
 //   GET    /api/friends/link, POST /api/friends/link   your friend code, or a new one
 //   PUT    /api/profile/public             what friends see of you
+//   GET    /api/leaderboard?scope=friends|global  ranked by XP
 import express from 'express';
 import { randomBytes } from 'node:crypto';
 import { query } from './db.mjs';
@@ -244,6 +245,41 @@ friendsRouter.put('/api/profile/public', express.json({ limit: '600kb' }), async
       [req.userId, json],
     );
     res.status(204).end();
+  } catch (err) {
+    failed(res, err);
+  }
+});
+
+// ---------------------------------------------------------------- leaderboards
+
+/**
+ * GET /api/leaderboard?scope=friends|global -> { rows, you }
+ * Ranked by Savepoint XP (level and rank follow from it), from what each
+ * account's app last sent (public_profiles). Disabled accounts are left out.
+ * Global lists the top 100; `you` is your own row and place either way.
+ */
+friendsRouter.get('/api/leaderboard', async (req, res) => {
+  const scope = req.query.scope === 'global' ? 'global' : 'friends';
+  try {
+    const { rows } = await query(
+      `SELECT u."id", u."username", p."data"
+       FROM users u JOIN public_profiles p ON p."user_id" = u."id"
+       WHERE u."disabled_at" IS NULL AND ($2 = 'global' OR u."id" = $1 OR u."id" IN (
+         SELECT CASE WHEN "requester_id" = $1 THEN "addressee_id" ELSE "requester_id" END
+         FROM friendships WHERE "status" = 'accepted' AND ("requester_id" = $1 OR "addressee_id" = $1)))`,
+      [req.userId, scope],
+    );
+    const ranked = rows
+      .map((r) => ({
+        ...card(r),
+        xp: Number(r.data?.xp) || 0,
+        hours: Number(r.data?.totalHours) || 0,
+        games: Number(r.data?.gameCount) || 0,
+        you: r.id === req.userId,
+      }))
+      .sort((a, b) => b.xp - a.xp || a.username.localeCompare(b.username))
+      .map((r, i) => ({ ...r, place: i + 1 }));
+    res.json({ scope, total: ranked.length, rows: ranked.slice(0, 100), you: ranked.find((r) => r.you) ?? null });
   } catch (err) {
     failed(res, err);
   }

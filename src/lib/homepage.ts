@@ -10,7 +10,8 @@ export type HomeWidgetId =
   | 'upcoming'
   | 'deals'
   | 'top'
-  | 'stats';
+  | 'stats'
+  | 'leaderboard';
 
 export interface HomeWidget {
   id: HomeWidgetId;
@@ -34,6 +35,7 @@ export const HOME_WIDGETS: Record<HomeWidgetId, { label: string; description: st
   deals: { label: 'Big deals', description: 'Well-reviewed PC games at their lowest price.' },
   top: { label: 'Your top games', description: 'The games you have played most.' },
   stats: { label: 'Quick stats', description: 'Hours, games and your level.' },
+  leaderboard: { label: 'Leaderboard', description: 'Where you stand among your friends.' },
 };
 
 export const NEWS_SITES: { id: string; name: string }[] = [
@@ -59,6 +61,7 @@ export const DEFAULT_HOMEPAGE: HomepageSettings = {
     { id: 'deals', on: false },
     { id: 'top', on: false },
     { id: 'stats', on: false },
+    { id: 'leaderboard', on: false },
   ],
   newsSources: [],
 };
