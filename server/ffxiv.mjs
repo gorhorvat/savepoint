@@ -12,6 +12,7 @@
 // the Free Company's page, and the achievement history, which is paged: each
 // refresh reads ACHIEVEMENT_PAGES more pages until it has all of them.
 import express from 'express';
+import { parseHTML } from 'linkedom';
 import { query } from './db.mjs';
 import { parsePage } from './lodestone/parser.mjs';
 import achievementSelectors from './lodestone/selectors/achievements.json' with { type: 'json' };
@@ -175,32 +176,73 @@ const ATTRIBUTES = [
 ];
 
 const text = (v) => (v == null || v === '' ? null : String(v));
+
+/**
+ * The character profile text, unless it's only a verification code that a
+ * site like FFXIV Collect or Lalachievements asked the player to paste there.
+ */
+function bioOf(raw) {
+  const bio = raw == null ? '' : String(raw).trim();
+  if (!bio || bio === '-') return null;
+  const code = /^[a-z0-9_-]+:[a-z0-9_-]{16,}$/i.test(bio) || (!/\s/.test(bio) && /[0-9a-f]{24,}/i.test(bio));
+  return code ? null : bio;
+}
 const when = (ts) => (num(ts) ? new Date(num(ts) * 1000).toISOString() : null);
 
-/** The character's gear and the item level worked out from it. */
-function readGear(html) {
-  const g = parsePage(html, selectors.gearset);
-  const gear = GEAR_SLOTS.map(([key, slot]) => {
-    const d = g[key];
-    if (!d?.NAME) return null;
+/** Each gear slot's number on the Lodestone (`.icon-c--N`). */
+const GEAR_SLOT_NUMBER = Object.fromEntries(
+  Object.entries(selectors.gearset).map(([key, def]) => [key, /^\.icon-c--(\d+)/.exec(def?.NAME?.selector ?? '')?.[1]]),
+);
+
+/**
+ * The character's gear and the item level worked out from it. The profile
+ * page only has each slot's icon; the item itself (its tooltip) is loaded on
+ * demand from .../equipment/tooltip/N, so those are read here, one per slot.
+ */
+async function readGear(id, html) {
+  const { document } = parseHTML(html);
+  const slots = GEAR_SLOTS.map(([key, slot]) => {
+    const n = GEAR_SLOT_NUMBER[key];
+    const box = n != null ? document.querySelector(`.icon-c--${n}`) : null;
+    if (!box) return null;
+    const lazy = box.getAttribute('data-lazy_load_url');
     return {
       key,
       slot,
-      name: String(d.NAME),
-      itemLevel: num(String(d.ITEM_LEVEL ?? '').replace(/\D+/g, '')),
-      icon: text(d.ICON),
-      glamour: text(d.MIRAGE_NAME),
-      dye: text(d.STAIN),
-      crafter: text(d.CREATOR_NAME),
-      classes: text(d.CLASS_LIST),
-      materia: [1, 2, 3, 4, 5].map((i) => d[`MATERIA_${i}`]?.Name).filter(Boolean),
+      n,
+      icon: box.querySelector('img')?.getAttribute('src') ?? null,
+      // Older pages had the tooltip inline; newer ones give a URL to load it from.
+      tooltip: lazy ? null : box.innerHTML,
+      url: lazy && !box.querySelector('.db-tooltip') ? lazy : null,
     };
   }).filter(Boolean);
+  const loaded = await Promise.all(
+    slots.map(async (x) => {
+      const inner = x.url ? await page(x.url).catch(() => null) : x.tooltip;
+      if (!inner) return null;
+      // The tooltip is parsed with the slot's own selectors (`.icon-c--N > .db-tooltip ...`).
+      const d = parsePage(`<div class="icon-c--${x.n}">${inner}</div>`, { [x.key]: selectors.gearset[x.key] })[x.key];
+      if (!d?.NAME) return null;
+      return {
+        key: x.key,
+        slot: x.slot,
+        name: String(d.NAME),
+        itemLevel: num(String(d.ITEM_LEVEL ?? '').replace(/\D+/g, '')),
+        icon: text(d.ICON) ?? x.icon,
+        glamour: text(d.MIRAGE_NAME),
+        dye: text(d.STAIN),
+        crafter: text(d.CREATOR_NAME),
+        classes: text(d.CLASS_LIST),
+        materia: [1, 2, 3, 4, 5].map((i) => d[`MATERIA_${i}`]?.Name).filter(Boolean),
+      };
+    }),
+  );
+  const gear = loaded.filter(Boolean);
   // Average item level: the 12 slots other than the soul crystal; a weapon
   // with no off hand counts twice.
   const levels = Object.fromEntries(gear.map((x) => [x.key, x.itemLevel ?? 0]));
-  const slots = GEAR_SLOTS.map(([k]) => k).filter((k) => k !== 'SOULCRYSTAL' && k !== 'OFFHAND');
-  const sum = slots.reduce((n, k) => n + (levels[k] ?? 0), 0) + (levels.OFFHAND ?? levels.MAINHAND ?? 0);
+  const slotKeys = GEAR_SLOTS.map(([k]) => k).filter((k) => k !== 'SOULCRYSTAL' && k !== 'OFFHAND');
+  const sum = slotKeys.reduce((n, k) => n + (levels[k] ?? 0), 0) + (levels.OFFHAND ?? levels.MAINHAND ?? 0);
   return { gear, itemLevel: gear.some((x) => x.itemLevel) ? Math.round(sum / 12) : null };
 }
 
@@ -345,7 +387,7 @@ export async function readCharacter(id, previous = null) {
 
   const fcId = p.FREE_COMPANY?.ID?.ID ?? null;
   const freeCompanyPage = fcId ? await readFreeCompany(fcId) : null;
-  const { gear, itemLevel } = readGear(profileHtml);
+  const { gear, itemLevel } = await readGear(id, profileHtml);
   const fcCrest = p.FREE_COMPANY?.ICON_LAYERS
     ? [p.FREE_COMPANY.ICON_LAYERS.BOTTOM, p.FREE_COMPANY.ICON_LAYERS.MIDDLE, p.FREE_COMPANY.ICON_LAYERS.TOP].filter(
         Boolean,
@@ -376,7 +418,7 @@ export async function readCharacter(id, previous = null) {
             : [],
         }
       : null,
-    bio: p.BIO && String(p.BIO).trim() !== '-' ? String(p.BIO) : null,
+    bio: bioOf(p.BIO),
     avatar: p.AVATAR ?? null,
     portrait: p.PORTRAIT ?? null,
     activeJob: { icon: p.ACTIVE_CLASSJOB ?? null, level: num(p.ACTIVE_CLASSJOB_LEVEL?.Level) },
