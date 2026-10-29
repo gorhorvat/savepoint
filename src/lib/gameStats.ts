@@ -26,6 +26,49 @@ export interface FfxivCollection {
   list: { name: string; icon: string | null }[];
 }
 
+export interface FfxivGear {
+  key: string;
+  slot: string;
+  name: string;
+  itemLevel: number | null;
+  icon: string | null;
+  glamour: string | null;
+  dye: string | null;
+  crafter: string | null;
+  classes: string | null;
+  materia: string[];
+}
+
+export interface FfxivFreeCompany {
+  id: string;
+  name: string;
+  tag: string | null;
+  slogan: string | null;
+  crest: string[];
+  formed: string | null;
+  rank: number | null;
+  members: number | null;
+  active: string | null;
+  recruiting: string | null;
+  grandCompany: { name: string; rank: string | null } | null;
+  world: string | null;
+  estate: { name: string | null; plot: string | null; greeting: string | null } | null;
+  ranking: { weekly: number | null; monthly: number | null };
+  focus: { name: string; icon: string | null; on: boolean }[];
+  reputation: { name: string; rank: string | null; progress: number | null }[];
+}
+
+export interface FfxivSnapshot {
+  achievements: number | null;
+  points: number | null;
+  mounts: number | null;
+  minions: number | null;
+  itemLevel: number | null;
+  levels: number | null;
+  maxed: number | null;
+  combatMaxed: number | null;
+}
+
 export interface FfxivCharacter {
   id: string;
   name: string;
@@ -39,7 +82,18 @@ export interface FfxivCharacter {
   guardian: string | null;
   cityState: string | null;
   grandCompany: { name: string; rank: string } | null;
-  freeCompany: { id: string | number | null; name: string } | null;
+  freeCompany: { id: string | number | null; name: string; crest?: string[] } | null;
+  freeCompanyPage?: FfxivFreeCompany | null;
+  pvpTeam?: { id: string | number | null; name: string; crest: string[] } | null;
+  bio?: string | null;
+  gear?: FfxivGear[];
+  itemLevel?: number | null;
+  attributes?: {
+    hp: number | null;
+    resource: { name: string; value: number } | null;
+    list: { name: string; group: string; value: number }[];
+  };
+  levelCap?: number;
   avatar: string | null;
   portrait: string | null;
   activeJob: { icon: string | null; level: number | null };
@@ -53,6 +107,9 @@ export interface FfxivCharacter {
     total: number | null;
     points: number | null;
     recent: { id: number | null; name: string; time: string | null }[];
+    pages?: number;
+    pagesRead?: number;
+    listed?: number;
   };
   mounts: FfxivCollection;
   minions: FfxivCollection;
@@ -529,6 +586,13 @@ export function refreshFfxiv(): Promise<GameConnection> {
 
 export async function disconnectFfxiv(): Promise<void> {
   await call('/api/games/ffxiv', { method: 'DELETE' });
+}
+
+export function fetchFfxivAchievements(): Promise<{
+  achievements: { id: number | null; name: string; time: string | null }[];
+  complete: boolean;
+}> {
+  return call('/api/games/ffxiv/achievements');
 }
 
 export const lodestoneUrl = (id: string) => `https://na.finalfantasyxiv.com/lodestone/character/${id}/`;

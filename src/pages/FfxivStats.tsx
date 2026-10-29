@@ -11,6 +11,7 @@ import {
   SegmentedControl,
   SimpleGrid,
   Stack,
+  Tabs,
   Text,
   TextInput,
   Title,
@@ -19,6 +20,11 @@ import {
 import { IconDots, IconExternalLink, IconRefresh, IconUnlink } from '@tabler/icons-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { StatTile } from '../components/charts';
+import { AchievementsTab } from '../components/ffxiv/Achievements';
+import { Crest } from '../components/ffxiv/Crest';
+import { FreeCompanyTab } from '../components/ffxiv/FreeCompany';
+import { GearTab } from '../components/ffxiv/Gear';
+import { ProgressTab } from '../components/ffxiv/Progress';
 import {
   ago,
   connectFfxiv,
@@ -340,6 +346,7 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
   const ch: FfxivCharacter = { ...conn.data, jobs: conn.data.jobs.map(withRole) };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<string>('overview');
 
   async function refresh() {
     setBusy(true);
@@ -431,118 +438,140 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
         </Alert>
       )}
 
-      <SimpleGrid cols={{ base: 2, md: 3, lg: 5 }} spacing="md">
-        <StatTile label="Combat jobs at cap" value={`${capped}/${combat.length}`} note="at level 100" />
-        <StatTile label="Crafters & gatherers" value={`${handLandCapped}/${handLand.length}`} note="at level 100" />
-        <StatTile
-          label="Achievements"
-          value={a.public ? fmt(a.total) : '—'}
-          note={a.public ? `${fmt(a.points)} points` : 'Private on the Lodestone'}
-        />
-        <StatTile label="Mounts" value={ch.mounts.public ? fmt(ch.mounts.count) : '—'} />
-        <StatTile label="Minions" value={ch.minions.public ? fmt(ch.minions.count) : '—'} />
-      </SimpleGrid>
-
-      <Section title="Character">
-        <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="lg" verticalSpacing="md">
-          <Fact label="Race / clan">{[ch.race, ch.clan].filter(Boolean).join(', ')}</Fact>
-          <Fact label="Gender">{ch.gender === '♀' ? 'Female' : ch.gender === '♂' ? 'Male' : ch.gender}</Fact>
-          <Fact label="Nameday">{ch.nameday}</Fact>
-          <Fact label="Guardian">{ch.guardian}</Fact>
-          <Fact label="City-state">{ch.cityState}</Fact>
-          <Fact label="Grand Company">
-            {ch.grandCompany ? `${ch.grandCompany.name} (${ch.grandCompany.rank})` : null}
-          </Fact>
-          <Fact label="Free Company">{ch.freeCompany?.name}</Fact>
-          <Fact label="Current job level">{ch.activeJob.level}</Fact>
-        </SimpleGrid>
-      </Section>
-
-      <Section title="Jobs">
-        <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing={28} verticalSpacing={24}>
-          {ROLES.map(({ role, label }) => {
-            const jobs = ch.jobs.filter((j) => j.role === role);
-            if (!jobs.length) return null;
-            return (
-              <Stack key={role} gap={4}>
-                <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
-                  {label}
-                </Text>
-                {jobs.map((j) => (
-                  <JobRow key={j.key} job={j} />
-                ))}
-              </Stack>
-            );
-          })}
-          {(bozja || eureka) && (
-            <Stack gap={4}>
-              <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
-                Field operations
-              </Text>
-              {eureka && (
-                <Group justify="space-between" gap="xs" wrap="nowrap" h={22}>
-                  <Text size="sm">{eureka.name}</Text>
-                  <Text size="sm" className="num">
-                    {fmt(eureka.level)}
-                  </Text>
-                </Group>
-              )}
-              {bozja && (
-                <Group justify="space-between" gap="xs" wrap="nowrap" h={22}>
-                  <Text size="sm">{bozja.name}</Text>
-                  <Text size="sm" className="num">
-                    {fmt(bozja.level)}
-                  </Text>
-                </Group>
-              )}
-            </Stack>
-          )}
-        </SimpleGrid>
-      </Section>
-
-      <Section
-        title="Achievements"
-        note={a.public ? `${fmt(a.total)} achievements, ${fmt(a.points)} points.` : undefined}
+      <Tabs
+        value={tab}
+        onChange={(v) => setTab(v ?? 'overview')}
+        variant="pills"
+        radius="xl"
+        keepMounted={false}
+        mt={-16}
       >
-        {!a.public ? (
-          <Text c="dimmed">
-            This character&apos;s achievements are private. Make them public in the Lodestone&apos;s character settings,
-            then refresh.
-          </Text>
-        ) : a.recent.length ? (
-          <Stack gap={8} maw={640}>
-            <Text size="sm" fw={700}>
-              Most recent
-            </Text>
-            {a.recent.map((r, i) => (
-              <Group key={`${r.id}-${i}`} justify="space-between" gap="sm" wrap="nowrap">
-                <Text size="sm" truncate>
-                  {r.name}
+        <Tabs.List mb={32}>
+          <Tabs.Tab value="overview">Overview</Tabs.Tab>
+          <Tabs.Tab value="gear">Gear</Tabs.Tab>
+          <Tabs.Tab value="achievements">Achievements</Tabs.Tab>
+          <Tabs.Tab value="collections">Mounts and minions</Tabs.Tab>
+          <Tabs.Tab value="fc">Free Company</Tabs.Tab>
+          <Tabs.Tab value="progress">Progress</Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="overview">
+          <Stack gap={48}>
+            <SimpleGrid cols={{ base: 2, md: 3, lg: 6 }} spacing="md">
+              <StatTile label="Combat jobs at cap" value={`${capped}/${combat.length}`} note="at level 100" />
+              <StatTile
+                label="Crafters & gatherers"
+                value={`${handLandCapped}/${handLand.length}`}
+                note="at level 100"
+              />
+              <StatTile
+                label="Achievements"
+                value={a.public ? fmt(a.total) : '—'}
+                note={a.public ? `${fmt(a.points)} points` : 'Private on the Lodestone'}
+              />
+              <StatTile label="Item level" value={fmt(ch.itemLevel)} note="average of the gear" />
+              <StatTile
+                label="Mounts and minions"
+                value={ch.mounts.public ? fmt(ch.mounts.count) : '—'}
+                note={ch.minions.public ? `and ${fmt(ch.minions.count)} minions` : undefined}
+              />
+            </SimpleGrid>
+
+            <Section title="Character">
+              <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="lg" verticalSpacing="md">
+                <Fact label="Race / clan">{[ch.race, ch.clan].filter(Boolean).join(', ')}</Fact>
+                <Fact label="Gender">{ch.gender === '♀' ? 'Female' : ch.gender === '♂' ? 'Male' : ch.gender}</Fact>
+                <Fact label="Nameday">{ch.nameday}</Fact>
+                <Fact label="Guardian">{ch.guardian}</Fact>
+                <Fact label="City-state">{ch.cityState}</Fact>
+                <Fact label="Grand Company">
+                  {ch.grandCompany ? `${ch.grandCompany.name} (${ch.grandCompany.rank})` : null}
+                </Fact>
+                <Fact label="Free Company">
+                  {ch.freeCompany ? (
+                    <Group gap={6} wrap="nowrap" component="span">
+                      <Crest layers={ch.freeCompany.crest} size={20} />
+                      {ch.freeCompany.name}
+                    </Group>
+                  ) : null}
+                </Fact>
+                {ch.pvpTeam && <Fact label="PvP team">{ch.pvpTeam.name}</Fact>}
+                <Fact label="Current job level">{ch.activeJob.level}</Fact>
+              </SimpleGrid>
+              {ch.bio && (
+                <Text size="sm" c="dimmed" mt="lg" maw={760} style={{ whiteSpace: 'pre-line' }}>
+                  {ch.bio}
                 </Text>
-                <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
-                  {r.time
-                    ? new Date(r.time).toLocaleDateString(undefined, {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })
-                    : ''}
-                </Text>
-              </Group>
-            ))}
+              )}
+            </Section>
+
+            <Section title="Jobs">
+              <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing={28} verticalSpacing={24}>
+                {ROLES.map(({ role, label }) => {
+                  const jobs = ch.jobs.filter((j) => j.role === role);
+                  if (!jobs.length) return null;
+                  return (
+                    <Stack key={role} gap={4}>
+                      <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
+                        {label}
+                      </Text>
+                      {jobs.map((j) => (
+                        <JobRow key={j.key} job={j} />
+                      ))}
+                    </Stack>
+                  );
+                })}
+                {(bozja || eureka) && (
+                  <Stack gap={4}>
+                    <Text fw={700} size="xs" c="dimmed" tt="uppercase" mb={2}>
+                      Field operations
+                    </Text>
+                    {eureka && (
+                      <Group justify="space-between" gap="xs" wrap="nowrap" h={22}>
+                        <Text size="sm">{eureka.name}</Text>
+                        <Text size="sm" className="num">
+                          {fmt(eureka.level)}
+                        </Text>
+                      </Group>
+                    )}
+                    {bozja && (
+                      <Group justify="space-between" gap="xs" wrap="nowrap" h={22}>
+                        <Text size="sm">{bozja.name}</Text>
+                        <Text size="sm" className="num">
+                          {fmt(bozja.level)}
+                        </Text>
+                      </Group>
+                    )}
+                  </Stack>
+                )}
+              </SimpleGrid>
+            </Section>
           </Stack>
-        ) : (
-          <Text c="dimmed">No achievements yet.</Text>
-        )}
-      </Section>
+        </Tabs.Panel>
+        <Tabs.Panel value="gear">
+          <GearTab ch={ch} />
+        </Tabs.Panel>
+        <Tabs.Panel value="achievements">
+          <AchievementsTab ch={ch} refreshedAt={conn.fetchedAt} />
+        </Tabs.Panel>
+        <Tabs.Panel value="collections">
+          <Stack gap={48}>
+            <Section title="Mounts" note={ch.mounts.public ? `${fmt(ch.mounts.count)} collected.` : undefined}>
+              <CollectionGrid what="Mounts" c={ch.mounts} />
+            </Section>
 
-      <Section title="Mounts" note={ch.mounts.public ? `${fmt(ch.mounts.count)} collected.` : undefined}>
-        <CollectionGrid what="Mounts" c={ch.mounts} />
-      </Section>
-
-      <Section title="Minions" note={ch.minions.public ? `${fmt(ch.minions.count)} collected.` : undefined}>
-        <CollectionGrid what="Minions" c={ch.minions} />
-      </Section>
+            <Section title="Minions" note={ch.minions.public ? `${fmt(ch.minions.count)} collected.` : undefined}>
+              <CollectionGrid what="Minions" c={ch.minions} />
+            </Section>
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="fc">
+          <FreeCompanyTab ch={ch} />
+        </Tabs.Panel>
+        <Tabs.Panel value="progress">
+          <ProgressTab refreshedAt={conn.fetchedAt} />
+        </Tabs.Panel>
+      </Tabs>
 
       <Text size="xs" c="dimmed">
         From the character&apos;s public{' '}

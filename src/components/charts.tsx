@@ -193,7 +193,7 @@ export function Columns({
         }}
       >
         {columns.map((c, i) => (
-          <Tooltip key={c.label} label={`${c.label}: ${c.display}`} withArrow>
+          <Tooltip key={`${c.label}-${i}`} label={`${c.label}: ${c.display}`} withArrow>
             <div
               style={{
                 height: '100%',
@@ -230,8 +230,8 @@ export function Columns({
           marginTop: 6,
         }}
       >
-        {columns.map((c) => (
-          <Text key={c.label} size="xs" c="dimmed" ta="center" truncate>
+        {columns.map((c, i) => (
+          <Text key={`${c.label}-${i}`} size="xs" c="dimmed" ta="center" truncate>
             {c.label}
           </Text>
         ))}
