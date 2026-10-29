@@ -82,6 +82,10 @@ export interface FriendProfile {
   profile: Partial<PublicProfile> | null;
   updatedAt: string | null;
   presence: Presence[];
+  /** Their Steam ID, PSN online ID and Xbox gamertag, when connected. */
+  accounts?: { steam: string | null; playstation: string | null; xbox: string | null };
+  /** Which of those platforms you have connected yourself. */
+  mine?: { steam: boolean; playstation: boolean; xbox: boolean };
 }
 
 async function call<T>(url: string, method = 'GET', body?: object): Promise<T> {
@@ -202,3 +206,7 @@ export interface Leaderboard {
 
 export const fetchLeaderboard = (scope: 'friends' | 'global') =>
   call<Leaderboard>(`/api/leaderboard?scope=${scope}`);
+
+/** Adds a Savepoint friend on PlayStation or Xbox: { sent } when done directly, else a page to finish it on. */
+export const addOnPlatform = (id: number, platform: 'playstation' | 'xbox') =>
+  call<{ sent: boolean; url: string }>(`/api/friends/${id}/add-on/${platform}`, 'POST');

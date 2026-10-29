@@ -3,6 +3,7 @@ import { notifications } from '@mantine/notifications';
 import { IconArrowLeft, IconGift, IconHeartFilled, IconUserMinus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { AddOnPlatforms } from '../components/AddOnPlatforms';
 import { Cover } from '../components/Cover';
 import { GiftWantModal, GiftWishModal } from '../components/GiftModal';
 import { PlatformIcon } from '../components/PlatformBadge';
@@ -253,6 +254,8 @@ export function FriendProfilePage() {
           ))}
         </SimpleGrid>
       )}
+
+      <AddOnPlatforms friend={friend} />
 
       {favourites.length > 0 && (
         <Stack gap="sm">

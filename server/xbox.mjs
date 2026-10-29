@@ -166,3 +166,17 @@ export async function xboxPresence(key) {
   const game = titles.find((t) => t.name && t.placement === 'Full' && !/^(home|online)$/i.test(t.name));
   return { online, playing: online ? (game?.name ?? null) : null };
 }
+
+/**
+ * Sends a friend request (Xbox: "follow") to `gamertag` from the account `key`
+ * belongs to. OpenXBL's add-friend call isn't documented as reliable, so
+ * callers fall back to the profile page when this throws.
+ */
+export async function xboxAddFriend(key, gamertag) {
+  const found = await xbl(key, `/search/${encodeURIComponent(gamertag)}`);
+  const people = found?.people ?? found?.profileUsers ?? [];
+  const xuid = people.find((p) => String(p.gamertag ?? '').toLowerCase() === gamertag.toLowerCase())?.xuid ?? people[0]?.xuid ?? people[0]?.id;
+  if (!xuid) throw new Error('Gamertag not found');
+  await xbl(key, `/friends/add/${xuid}`);
+  return true;
+}

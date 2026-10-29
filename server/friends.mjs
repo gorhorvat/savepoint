@@ -13,10 +13,14 @@
 //   GET    /api/friends/link, POST /api/friends/link   your friend code, or a new one
 //   PUT    /api/profile/public             what friends see of you
 //   GET    /api/leaderboard?scope=friends|global  ranked by XP
+//   POST   /api/friends/:id/add-on/:platform     add a friend on PlayStation or Xbox too
 import express from 'express';
 import { randomBytes } from 'node:crypto';
 import { query } from './db.mjs';
+import { getProfileFromUserName, getProfileShareableLink } from 'psn-api';
+import { psnAuthFor, xboxKeyFor } from './platformLogins.mjs';
 import { presenceFor } from './presence.mjs';
+import { xboxAddFriend } from './xbox.mjs';
 
 const MAX_FRIENDS = 300;
 const MAX_PROFILE_BYTES = 400_000;
@@ -226,6 +230,7 @@ friendsRouter.get('/api/friends/:id', async (req, res) => {
       profile: rows[0].data ?? null,
       updatedAt: rows[0].updated_at ?? null,
       presence: presence.get(id) ?? [],
+      ...(await platformAccounts(req.userId, id)),
     });
   } catch (err) {
     failed(res, err);
@@ -282,5 +287,70 @@ friendsRouter.get('/api/leaderboard', async (req, res) => {
     res.json({ scope, total: ranked.length, rows: ranked.slice(0, 100), you: ranked.find((r) => r.you) ?? null });
   } catch (err) {
     failed(res, err);
+  }
+});
+
+// ---------------------------------------------------------------- friends on the platforms too
+
+/**
+ * The friend's accounts on Steam, PlayStation and Xbox, and which of those you
+ * have connected yourself: { accounts: { steam, playstation, xbox }, mine }.
+ */
+async function platformAccounts(me, friend) {
+  const { rows } = await query(
+    `SELECT u."id", u."steam_id", l."platform", l."account_name"
+     FROM users u LEFT JOIN platform_logins l ON l."user_id" = u."id" AND l."platform" IN ('playstation', 'xbox')
+     WHERE u."id" = ANY($1)`,
+    [[me, friend]],
+  );
+  const of = (id) => {
+    const mine = rows.filter((r) => r.id === id);
+    return {
+      steam: mine[0]?.steam_id ?? null,
+      playstation: mine.find((r) => r.platform === 'playstation')?.account_name ?? null,
+      xbox: mine.find((r) => r.platform === 'xbox')?.account_name ?? null,
+    };
+  };
+  const mine = of(me);
+  return {
+    accounts: of(friend),
+    mine: { steam: !!mine.steam, playstation: !!mine.playstation, xbox: !!mine.xbox },
+  };
+}
+
+/**
+ * Adds a Savepoint friend on PlayStation or Xbox too, through your own sign-in.
+ * PlayStation -> { url }: their profile's share link, which opens in the
+ *   PlayStation App with Add Friend (Sony has no call for sending requests).
+ * Xbox -> { sent: true } when OpenXBL sent it, otherwise { url } of their
+ *   Xbox profile page with Add friend.
+ * (Steam needs no server: steam://friends/add/<id> opens the Steam app.)
+ */
+friendsRouter.post('/api/friends/:id/add-on/:platform', async (req, res) => {
+  const id = userId(req);
+  const platform = req.params.platform;
+  if (!['playstation', 'xbox'].includes(platform)) return res.status(404).json({ error: 'Not found.' });
+  try {
+    const link = await between(req.userId, id);
+    if (link?.status !== 'accepted') return res.status(404).json({ error: "You're not friends with this account." });
+    const { accounts } = await platformAccounts(req.userId, id);
+    const name = accounts[platform];
+    if (!name) return res.status(404).json({ error: "They haven't connected that platform." });
+    if (platform === 'xbox') {
+      const profile = `https://www.xbox.com/en-US/play/user/${encodeURIComponent(name)}`;
+      try {
+        await xboxAddFriend(await xboxKeyFor(req.userId), name);
+        return res.json({ sent: true, url: profile });
+      } catch {
+        return res.json({ sent: false, url: profile });
+      }
+    }
+    const auth = await psnAuthFor(req.userId);
+    const { profile } = await getProfileFromUserName(auth, name);
+    const { shareUrl } = await getProfileShareableLink(auth, profile.accountId);
+    res.json({ sent: false, url: shareUrl });
+  } catch (err) {
+    console.error('Add on platform:', err);
+    res.status(502).json({ error: `Couldn't reach ${platform === 'xbox' ? 'Xbox' : 'PlayStation'}: ${err.message}` });
   }
 });
