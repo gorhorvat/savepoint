@@ -594,9 +594,19 @@ export const useStore = create<State>()(
         return saved as PersistedState;
       },
       onRehydrateStorage: () => (_state, error) => hydrationDone(error),
-      version: 6,
+      version: 7,
       migrate: (persisted, version) => {
         const state = persisted as State;
+        // v7: play time logged by hand on a game's page was dated to the moment
+        // you saved it, which made old games look recently played. Dates you
+        // typed yourself (a day, no time) stay; the rest become unknown.
+        if (version < 7 && Array.isArray(state.entries)) {
+          state.entries = state.entries.map((e) =>
+            e.source === 'manual' && e.lastPlayed && !/T(00:00:00|20:00:00)(\.000)?Z$/.test(e.lastPlayed)
+              ? { ...e, lastPlayed: null }
+              : e,
+          );
+        }
         // v6: Steam games without a last-played date were dated to the moment of each
         // sync ("today"). Those dates are the sync time, give or take a few seconds.
         if (version < 6 && Array.isArray(state.entries)) {

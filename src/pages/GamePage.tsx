@@ -12,6 +12,7 @@ import {
   Stack,
   TagsInput,
   Text,
+  TextInput,
   Title,
   Tooltip,
 } from '@mantine/core';
@@ -56,6 +57,7 @@ function LogTime({ game, existing }: { game: Game; existing: PlatformId[] }) {
   const add = useStore((s) => s.addManualEntry);
   const [platform, setPlatform] = useState<string | null>(null);
   const [hours, setHours] = useState<number | string>('');
+  const [date, setDate] = useState('');
 
   const save = () => {
     if (!platform || !Number(hours)) return;
@@ -63,10 +65,13 @@ function LogTime({ game, existing }: { game: Game; existing: PlatformId[] }) {
       gameId: game.id,
       platform: platform as PlatformId,
       minutes: Math.round(Number(hours) * 60),
-      lastPlayed: new Date().toISOString(),
+      // Only a date you typed counts as a last-played date: hours logged by
+      // hand are often from long ago, so no date means "unknown", not "today".
+      lastPlayed: date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : null,
     });
     notifications.show({ message: `Saved ${hours} h on ${PLATFORMS.find((p) => p.id === platform)!.name}` });
     setHours('');
+    setDate('');
     setPlatform(null);
   };
 
@@ -92,6 +97,14 @@ function LogTime({ game, existing }: { game: Game; existing: PlatformId[] }) {
         value={hours}
         onChange={setHours}
         style={{ flex: '1 1 120px' }}
+      />
+      <TextInput
+        label="Last played"
+        description="Leave empty if you don't remember"
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.currentTarget.value)}
+        style={{ flex: '1 1 160px' }}
       />
       <Button onClick={save} disabled={!platform || !Number(hours)} variant="light">
         Save play time
