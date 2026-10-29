@@ -101,7 +101,7 @@ async function call<T>(url: string, method = 'GET', body?: object): Promise<T> {
 }
 
 export const fetchFriends = () => call<FriendsList>('/api/friends');
-export const fetchFriendSummary = () => call<{ incoming: number }>('/api/friends/summary');
+export const fetchFriendSummary = () => call<{ incoming: number; online: number }>('/api/friends/summary');
 export const fetchFriend = (id: number) => call<FriendProfile>(`/api/friends/${id}`);
 export const fetchFriendCode = () => call<{ code: string }>('/api/friends/link');
 export const newFriendCode = () => call<{ code: string }>('/api/friends/link', 'POST');

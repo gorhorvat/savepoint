@@ -72,16 +72,23 @@ export function Logo({ size = 22 }: { size?: number }) {
   );
 }
 
-/** Friends in the header, with the number of friend requests and unopened gifts waiting. */
+/**
+ * Friends in the header, with the number of friend requests and unopened gifts
+ * waiting, and a green dot when any friend is online.
+ */
 function FriendsButton() {
   const [incoming, setIncoming] = useState(0);
+  const [online, setOnline] = useState(0);
   const [gifts, setGifts] = useState(0);
   const { pathname } = useLocation();
   useEffect(() => {
     const check = () =>
       Promise.all([
         fetchFriendSummary()
-          .then((s) => setIncoming(s.incoming))
+          .then((s) => {
+            setIncoming(s.incoming);
+            setOnline(s.online ?? 0);
+          })
           .catch(() => {}),
         fetchGiftSummary()
           .then((s) => setGifts(s.unopened))
@@ -99,6 +106,7 @@ function FriendsButton() {
     incoming && `${incoming} ${incoming === 1 ? 'request' : 'requests'}`,
     gifts && `${gifts} ${gifts === 1 ? 'gift' : 'gifts'}`,
   ].filter(Boolean);
+  if (online) parts.push(`${online} online`);
   const label = parts.length ? `Friends: ${parts.join(', ')}` : 'Friends';
   const count = incoming + gifts;
   return (
@@ -114,6 +122,7 @@ function FriendsButton() {
       >
         <IconUsers size={20} />
         {count > 0 && <span className="header-count num">{count}</span>}
+        {online > 0 && <span className="header-online" aria-hidden />}
       </ActionIcon>
     </Tooltip>
   );

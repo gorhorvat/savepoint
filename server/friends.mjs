@@ -4,7 +4,7 @@
 // (server/presence.mjs). Mounted after requireLogin.
 //
 //   GET    /api/friends                    friends (with presence), incoming and outgoing requests
-//   GET    /api/friends/summary            { incoming } for the header badge
+//   GET    /api/friends/summary            { incoming, online } for the header badge and dot
 //   POST   /api/friends/requests           { username } or { code } -> sends (or accepts a crossing request)
 //   POST   /api/friends/requests/:id/accept
 //   DELETE /api/friends/requests/:id       declines an incoming or cancels an outgoing request
@@ -81,7 +81,15 @@ friendsRouter.get('/api/friends/summary', async (req, res) => {
       `SELECT count(*)::int AS n FROM friendships WHERE "addressee_id" = $1 AND "status" = 'pending'`,
       [req.userId],
     );
-    res.json({ incoming: rows[0].n });
+    const { rows: friends } = await query(
+      `SELECT CASE WHEN "requester_id" = $1 THEN "addressee_id" ELSE "requester_id" END AS id
+       FROM friendships WHERE "status" = 'accepted' AND ("requester_id" = $1 OR "addressee_id" = $1)`,
+      [req.userId],
+    );
+    // Presence is cached for a minute, so this stays cheap when polled.
+    const presence = await presenceFor(friends.map((f) => f.id)).catch(() => new Map());
+    const online = [...presence.values()].filter((list) => list.some((p) => p.online)).length;
+    res.json({ incoming: rows[0].n, online });
   } catch (err) {
     failed(res, err);
   }

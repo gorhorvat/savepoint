@@ -844,3 +844,15 @@ h3,
 [id] {
   scroll-margin-top: 84px;
 }
+
+/* Friends online: a green dot on the header's Friends button. */
+.header-online {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2fb344;
+  box-shadow: 0 0 0 2px var(--sp-shell);
+}

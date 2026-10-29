@@ -78,9 +78,11 @@ async function xboxStatus(userId) {
 export async function presenceFor(userIds) {
   if (!userIds.length) return new Map();
   const { rows: users } = await query('SELECT "id", "steam_id" FROM users WHERE "id" = ANY($1)', [userIds]);
-  const { rows: logins } = await query('SELECT "user_id", "platform" FROM platform_logins WHERE "user_id" = ANY($1)', [
-    userIds,
-  ]);
+  // Only the platforms with a presence (platform_logins also holds the Twitch sign-in).
+  const { rows: logins } = await query(
+    `SELECT "user_id", "platform" FROM platform_logins WHERE "user_id" = ANY($1) AND "platform" IN ('playstation', 'xbox')`,
+    [userIds],
+  );
   const steam = await steamPresence(users.map((u) => u.steam_id).filter(Boolean));
   const result = new Map(userIds.map((id) => [id, []]));
   for (const u of users) {
