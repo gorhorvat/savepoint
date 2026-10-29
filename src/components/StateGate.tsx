@@ -33,6 +33,95 @@ import {
 import { useStore } from '../lib/store';
 import { Crystal } from './Layout';
 import { importLinkedSteamOnce } from '../lib/autoSync';
+import { completePasswordReset, fetchResetLink } from '../lib/api';
+
+/** /reset/<token>: a one-time link from the admin to set a new password. Works logged out. */
+function ResetPassword({ token }: { token: string }) {
+  const [username, setUsername] = useState<string | null>(null);
+  const [gone, setGone] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const mismatch = repeat.length > 0 && password !== repeat;
+
+  useEffect(() => {
+    fetchResetLink(token)
+      .then((r) => setUsername(r.username))
+      .catch((e: Error) => setGone(e.message));
+  }, [token]);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (mismatch) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await completePasswordReset(token, password);
+      location.replace('/');
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Center mih="100vh" p="md">
+      <Stack gap="lg" w="100%" maw={360}>
+        <Stack gap={6} align="center">
+          <Crystal size={36} />
+          <Title order={2}>Set a new password</Title>
+        </Stack>
+        {gone ? (
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed" ta="center">
+              {gone}
+            </Text>
+            <Button component="a" href="/" variant="light">
+              Go to the login page
+            </Button>
+          </Stack>
+        ) : !username ? (
+          <Center>
+            <Loader />
+          </Center>
+        ) : (
+          <form onSubmit={(e) => void submit(e)}>
+            <Stack gap="sm">
+              <Text size="sm" ta="center">
+                For <b>{username}</b>. Devices logged in with the old password are logged out.
+              </Text>
+              <PasswordInput
+                label="New password"
+                value={password}
+                onChange={(e) => setPassword(e.currentTarget.value)}
+                autoComplete="new-password"
+                required
+                autoFocus
+              />
+              <PasswordInput
+                label="Repeat it"
+                value={repeat}
+                onChange={(e) => setRepeat(e.currentTarget.value)}
+                autoComplete="new-password"
+                error={mismatch ? "The passwords don't match." : undefined}
+                required
+              />
+              {error && (
+                <Text size="sm" c="red">
+                  {error}
+                </Text>
+              )}
+              <Button type="submit" loading={busy} disabled={mismatch || !password}>
+                Save and log in
+              </Button>
+            </Stack>
+          </form>
+        )}
+      </Stack>
+    </Center>
+  );
+}
 
 function reload() {
   void useStore.persist.rehydrate();
@@ -41,6 +130,7 @@ function reload() {
 /** What a return from Steam's login page (?steam=...) means for the login screen. */
 const STEAM_MESSAGES: Record<string, string> = {
   failed: "Signing in through Steam didn't work. Try again.",
+  disabled: 'This account is disabled. Ask the Savepoint admin.',
 };
 
 /** Removes ?steam=... from the address bar. */
@@ -265,6 +355,12 @@ async function importNewSteamAccount() {
  * another one.
  */
 export function StateGate({ children }: { children: ReactNode }) {
+  const resetToken = location.pathname.match(/^\/reset\/([\w-]+)$/)?.[1];
+  if (resetToken) return <ResetPassword token={resetToken} />;
+  return <Gate>{children}</Gate>;
+}
+
+function Gate({ children }: { children: ReactNode }) {
   const status = useSyncExternalStore(subscribeSyncStatus, getSyncStatus);
 
   useEffect(() => {

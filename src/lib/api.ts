@@ -631,3 +631,48 @@ export function fetchTaxonomy(): Promise<Taxonomy> {
   });
   return taxonomyPromise;
 }
+
+// ---------------------------------------------------------------- administration (super admin)
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  superAdmin: boolean;
+  createdAt: string;
+  lastSeenAt: string | null;
+  disabled: boolean;
+  hasPassword: boolean;
+  /** Connected platforms: steam, playstation, xbox, twitch. */
+  platforms: string[];
+  games: number;
+  friends: number;
+  level: number | null;
+  /** When the account's open password reset link stops working. */
+  resetUntil: string | null;
+}
+
+export async function fetchAdminUsers(): Promise<AdminUser[]> {
+  return (await getJson<{ users: AdminUser[] }>('/api/admin/users')).users;
+}
+
+export async function setUserDisabled(id: number, disabled: boolean): Promise<void> {
+  await sendJson(`/api/admin/users/${id}`, 'PATCH', { disabled });
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  await sendJson(`/api/admin/users/${id}`, 'DELETE');
+}
+
+/** A one-time link that lets the account set a new password (24 hours). */
+export async function createResetLink(id: number): Promise<{ url: string; expiresAt: string }> {
+  return (await sendJson(`/api/admin/users/${id}/reset`, 'POST')) as { url: string; expiresAt: string };
+}
+
+/** Whose password a reset link is for; throws when it no longer works. */
+export function fetchResetLink(token: string): Promise<{ username: string }> {
+  return getJson<{ username: string }>(`/api/reset/${encodeURIComponent(token)}`);
+}
+
+export async function completePasswordReset(token: string, password: string): Promise<void> {
+  await sendJson(`/api/reset/${encodeURIComponent(token)}`, 'POST', { password });
+}

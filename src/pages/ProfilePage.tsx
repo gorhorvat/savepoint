@@ -15,7 +15,7 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconBrandSteam, IconCopy, IconLock, IconLogout, IconPhoto, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconBrandSteam, IconCopy, IconLock, IconLogout, IconPhoto, IconRefresh, IconTrash, IconUsers } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -605,6 +605,11 @@ function AccountSection() {
         </form>
       </Paper>
       {status?.superAdmin && <InviteSection />}
+      {status?.superAdmin && (
+        <Button component={Link} to="/admin" variant="default" leftSection={<IconUsers size={16} />} w="fit-content">
+          Manage users
+        </Button>
+      )}
       <Button
         variant="subtle"
         color="gray"

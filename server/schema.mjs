@@ -337,6 +337,19 @@ CREATE TABLE IF NOT EXISTS price_alerts (
   PRIMARY KEY ("user_id", "game_id")
 );
 
+-- Administration (server/admin.mjs): disabled accounts, when each was last
+-- active, and a session version that a password reset bumps (logging out every
+-- session from before). Reset links store only a hash of their token.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "disabled_at" timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "last_seen_at" timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "session_version" integer NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS password_resets (
+  "token_hash" text PRIMARY KEY,
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "expires_at" timestamptz NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
 -- Free game and big deal alerts (server/dealAlerts.mjs): each account's
 -- choices, and what was already sent so nothing is sent twice.
 CREATE TABLE IF NOT EXISTS deal_alert_settings (

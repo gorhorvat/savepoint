@@ -104,11 +104,50 @@ export function setCookie(req, res, name, value, maxAgeMs) {
   );
 }
 
-/** Logs `user` ({ id, username, role }) in on this browser. */
+/**
+ * Logs `user` ({ id, username, role, session_version? }) in on this browser.
+ * The session version is bumped when a password is reset, which logs every
+ * other session out.
+ */
 export async function setSessionCookie(req, res, user) {
-  const value = await signValue({ id: user.id, u: user.username, r: user.role, exp: Date.now() + SESSION_MS });
+  const value = await signValue({
+    id: user.id,
+    u: user.username,
+    r: user.role,
+    sv: user.session_version ?? 0,
+    exp: Date.now() + SESSION_MS,
+  });
   setCookie(req, res, COOKIE, value, SESSION_MS);
 }
+
+export const clearSessionCookie = (req, res) => setCookie(req, res, COOKIE, '', 0);
+
+export const DISABLED = 'This account is disabled. Ask the Savepoint admin.';
+
+// What a session is checked against on each request: whether the account still
+// exists, is enabled, and the session isn't from before a password reset. Kept
+// for 30 seconds per instance, so a disabled account is locked out within that.
+const accountStates = new Map();
+
+async function accountState(id) {
+  const hit = accountStates.get(id);
+  if (hit && hit.at > Date.now() - 30_000) return hit.row;
+  const { rows } = await query(
+    'SELECT "role", "disabled_at", "session_version", "last_seen_at" FROM users WHERE "id" = $1',
+    [id],
+  );
+  const row = rows[0] ?? null;
+  accountStates.set(id, { at: Date.now(), row });
+  // Last seen, at most every ten minutes per account.
+  if (row && (!row.last_seen_at || Date.now() - new Date(row.last_seen_at).getTime() > 10 * 60_000)) {
+    row.last_seen_at = new Date().toISOString();
+    void query('UPDATE users SET "last_seen_at" = now() WHERE "id" = $1', [id]).catch(() => {});
+  }
+  return row;
+}
+
+/** After the admin changes an account, this instance checks it again at once. */
+export const forgetAccountState = (id) => accountStates.delete(id);
 
 export const clientAddress = (req) =>
   String(req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? '')
@@ -138,7 +177,8 @@ authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) 
       return res.status(429).json({ error: 'Too many wrong passwords. Try again in 15 minutes.' });
     }
     const { rows } = await query(
-      'SELECT "id", "username", "password_hash", "role" FROM users WHERE lower("username") = lower($1)',
+      `SELECT "id", "username", "password_hash", "role", "disabled_at", "session_version"
+       FROM users WHERE lower("username") = lower($1)`,
       [name],
     );
     const user = rows[0];
@@ -149,6 +189,7 @@ authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) 
       await countFailure(keys);
       return res.status(401).json({ error: GENERIC_FAIL });
     }
+    if (user.disabled_at) return res.status(403).json({ error: DISABLED });
     await setSessionCookie(req, res, user);
     res.json({ id: user.id, user: user.username, superAdmin: user.role === ROLES.superAdmin });
   } catch (err) {
@@ -203,7 +244,7 @@ authRouter.post('/api/signup', express.json({ limit: '10kb' }), async (req, res)
 });
 
 authRouter.post('/api/logout', (req, res) => {
-  setCookie(req, res, COOKIE, '', 0);
+  clearSessionCookie(req, res);
   res.status(204).end();
 });
 
@@ -218,9 +259,22 @@ export async function requireLogin(req, res, next) {
   if (!req.path.startsWith('/api/')) return next();
   const s = await readSession(req);
   if (!s) return res.status(401).json({ error: 'Not logged in.' });
+  let account;
+  try {
+    account = await accountState(s.id);
+  } catch (err) {
+    console.error('Session check:', err);
+    return res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
+  }
+  // Deleted, disabled, or logged out everywhere by a password reset.
+  if (!account || account.disabled_at || (account.session_version ?? 0) !== (s.sv ?? 0)) {
+    clearSessionCookie(req, res);
+    return res.status(401).json({ error: account?.disabled_at ? DISABLED : 'Not logged in.' });
+  }
   req.userId = s.id;
   req.username = s.u;
-  req.isSuperAdmin = isSuperAdmin(s);
+  // The role as it is now, not as it was at login.
+  req.isSuperAdmin = account.role === ROLES.superAdmin;
   next();
 }
 

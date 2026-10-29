@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { StateGate } from './components/StateGate';
 import { AssistantPage } from './pages/AssistantPage';
 import { AddFriendPage } from './pages/AddFriendPage';
+import { AdminPage } from './pages/AdminPage';
 import { DiscoverPage } from './pages/DiscoverPage';
 import { FriendProfilePage } from './pages/FriendProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="/friends" element={<FriendsPage />} />
           <Route path="/friends/:id" element={<FriendProfilePage />} />
           <Route path="/add/:code" element={<AddFriendPage />} />

@@ -40,6 +40,7 @@ import {
 import { accountRouter, authRouter, requireLogin } from './auth.mjs';
 import { steamLoginRouter } from './steamLogin.mjs';
 import { friendsRouter } from './friends.mjs';
+import { adminRouter, resetRouter } from './admin.mjs';
 import { giftsRouter } from './gifts.mjs';
 import { streamingRouter } from './streaming.mjs';
 import { latestNews } from './news.mjs';
@@ -86,9 +87,11 @@ app.get('/api/cron/alerts', async (req, res) => {
 
 app.use(authRouter); // /api/login, /api/logout, /api/session, /api/signup
 app.use(steamLoginRouter); // /api/auth/steam/*
+app.use(resetRouter); // /api/reset/:token (password reset links)
 app.use(requireLogin); // Everything below needs you to be logged in.
 app.use(platformContext); // Lets game search use the searcher's own PlayStation sign-in.
 app.use(accountRouter); // /api/account, /api/account/*, /api/admin/invite
+app.use(adminRouter); // /api/admin/users/*
 app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(giftsRouter); // /api/gifts/*

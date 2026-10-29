@@ -22,6 +22,7 @@ import {
   checkInviteCode,
   countFailure,
   clientAddress,
+  DISABLED,
   lockedOut,
   readSession,
   readSigned,
@@ -129,7 +130,12 @@ steamLoginRouter.get('/api/auth/steam/return', async (req, res) => {
     if (!(await verifyWithSteam(p))) return fail('failed');
     const steamId = match[1];
 
-    const linked = (await query('SELECT "id", "username", "role" FROM users WHERE "steam_id" = $1', [steamId])).rows[0];
+    const linked = (
+      await query(
+        'SELECT "id", "username", "role", "disabled_at", "session_version" FROM users WHERE "steam_id" = $1',
+        [steamId],
+      )
+    ).rows[0];
 
     if (state.c) {
       // Connecting Steam to the account that's logged in.
@@ -141,6 +147,7 @@ steamLoginRouter.get('/api/auth/steam/return', async (req, res) => {
     }
 
     if (linked) {
+      if (linked.disabled_at) return fail('disabled');
       await setSessionCookie(req, res, linked);
       return res.redirect('/');
     }
@@ -208,7 +215,7 @@ steamLoginRouter.post('/api/auth/steam/link', express.json({ limit: '10kb' }), a
     }
     const user = (
       await query(
-        'SELECT "id", "username", "password_hash", "role", "steam_id" FROM users WHERE lower("username") = lower($1)',
+        'SELECT "id", "username", "password_hash", "role", "steam_id", "disabled_at", "session_version" FROM users WHERE lower("username") = lower($1)',
         [name],
       )
     ).rows[0];
@@ -219,6 +226,7 @@ steamLoginRouter.post('/api/auth/steam/link', express.json({ limit: '10kb' }), a
       await countFailure(keys);
       return res.status(401).json({ error: 'Wrong username or password.' });
     }
+    if (user.disabled_at) return res.status(403).json({ error: DISABLED });
     if (user.steam_id && user.steam_id !== pending.s) {
       return res.status(409).json({ error: 'That account is already linked to a different Steam account.' });
     }
