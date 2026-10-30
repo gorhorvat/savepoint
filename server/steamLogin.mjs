@@ -17,7 +17,7 @@
 // Steam account is also the only one whose library Savepoint imports.
 import express from 'express';
 import { randomBytes } from 'node:crypto';
-import { createAccount, getInviteCode, ROLES, usernameProblem, UsernameTaken } from './accounts.mjs';
+import { createAccount, getInviteCode, ROLES, tidyUsername, usernameProblem, UsernameTaken } from './accounts.mjs';
 import {
   checkInviteCode,
   countFailure,
@@ -172,7 +172,7 @@ steamLoginRouter.post('/api/auth/steam/complete', express.json({ limit: '10kb' }
   const pending = await readSigned(req, PENDING_COOKIE);
   if (!pending) return res.status(400).json({ error: 'That took too long. Sign in through Steam again.' });
   const { code, username } = req.body ?? {};
-  const name = typeof username === 'string' ? username.trim() : '';
+  const name = tidyUsername(username);
   const keys = [`signup:${clientAddress(req)}`];
   try {
     if (await lockedOut(keys)) {
@@ -207,7 +207,7 @@ steamLoginRouter.post('/api/auth/steam/link', express.json({ limit: '10kb' }), a
   if (typeof username !== 'string' || typeof password !== 'string' || !username.trim() || !password) {
     return res.status(400).json({ error: 'Enter your username and password.' });
   }
-  const name = username.trim();
+  const name = tidyUsername(username);
   const keys = [`user:${name.toLowerCase()}`, `ip:${clientAddress(req)}`];
   try {
     if (await lockedOut(keys)) {

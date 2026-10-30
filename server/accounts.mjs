@@ -6,15 +6,47 @@ export const ROLES = { superAdmin: 'superadmin', user: 'user' };
 
 const USERNAME = /^[\w.-]{2,40}$/;
 
-/** Why a username isn't acceptable, or null. */
+/**
+ * A typed username as it's checked and stored: trimmed, without invisible
+ * characters (zero-width spaces and the like that copy-paste or autofill can add).
+ */
+export function tidyUsername(raw) {
+  return typeof raw === 'string'
+    ? raw
+        .normalize('NFC')
+        .replace(/[\p{Cf}]/gu, '')
+        .trim()
+    : '';
+}
+
+/** How a character reads in an error message. */
+function describe(ch) {
+  if (ch === ' ') return '" " (a space)';
+  if (/\s/u.test(ch)) return 'a space-like character';
+  if (/\p{Extended_Pictographic}/u.test(ch)) return `"${ch}" (an emoji)`;
+  if (/[čćđšžČĆĐŠŽ]/.test(ch))
+    return `"${ch}" (use ${ch.normalize('NFD')[0].replace('đ', 'd').replace('Đ', 'D')} instead)`;
+  const code = ch.codePointAt(0);
+  if (code < 32 || /\p{C}/u.test(ch))
+    return `an invisible character (U+${code.toString(16).toUpperCase().padStart(4, '0')})`;
+  return `"${ch}"`;
+}
+
+/** Why a username isn't acceptable, or null. Says which character is the problem. */
 export function usernameProblem(username) {
-  if (typeof username === 'string' && username.includes('@')) {
-    return 'Pick a username, not your email address: like mhorvat or marko_h.';
+  if (typeof username !== 'string') return 'Pick a username.';
+  if (username.includes('@')) return 'Pick a username, not your email address: like mhorvat or marko_h.';
+  const bad = [...new Set([...username].filter((ch) => !/[\w.-]/.test(ch)))];
+  if (bad.length) {
+    const list = bad.slice(0, 3).map(describe);
+    const what = list.length > 1 ? `${list.slice(0, -1).join(', ')} or ${list.at(-1)}` : list[0];
+    return `Usernames can't contain ${what}. Use letters without accents, digits, dots, dashes or underscores.`;
   }
-  if (typeof username !== 'string' || !USERNAME.test(username)) {
-    return 'Use 2-40 letters without accents (no č, ć, đ, š, ž), digits, dots, dashes or underscores. No spaces.';
-  }
-  return null;
+  if (username.length < 2) return 'A username needs at least 2 characters.';
+  if (username.length > 40) return 'A username can have at most 40 characters.';
+  return USERNAME.test(username)
+    ? null
+    : 'For a username, use letters without accents, digits, dots, dashes or underscores.';
 }
 
 export class UsernameTaken extends Error {}

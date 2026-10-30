@@ -23,6 +23,7 @@ import {
   randomInviteCode,
   ROLES,
   setInviteCode,
+  tidyUsername,
   usernameProblem,
   UsernameTaken,
 } from './accounts.mjs';
@@ -170,7 +171,7 @@ authRouter.post('/api/login', express.json({ limit: '10kb' }), async (req, res) 
   if (typeof username !== 'string' || typeof password !== 'string' || !username.trim() || !password) {
     return res.status(400).json({ error: 'Enter your username and password.' });
   }
-  const name = username.trim();
+  const name = tidyUsername(username);
   const keys = [`user:${name.toLowerCase()}`, `ip:${clientAddress(req)}`];
   try {
     if (await lockedOut(keys)) {
@@ -219,7 +220,7 @@ authRouter.get('/api/signup', async (_req, res) => {
 
 authRouter.post('/api/signup', express.json({ limit: '10kb' }), async (req, res) => {
   const { username, password, code } = req.body ?? {};
-  const name = typeof username === 'string' ? username.trim() : '';
+  const name = tidyUsername(username);
   const keys = [`signup:${clientAddress(req)}`];
   try {
     if (await lockedOut(keys)) {
