@@ -23,6 +23,7 @@ import { GenreChips } from '../components/GenreChips';
 import { GameSearch } from '../components/GameSearch';
 import { PlatformIcon, PlatformList } from '../components/PlatformBadge';
 import { PriceTable } from '../components/PriceTable';
+import { StoreDirectory } from '../components/StoreDirectory';
 import { ShareExport, type ListExport } from '../components/ShareExport';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import { STORE_BY_ID } from '../data/stores';
@@ -353,7 +354,7 @@ export function WishlistPage() {
   return (
     <Stack gap="xl">
       <div>
-        <Title order={1}>Wishlist</Title>
+        <Title order={1}>My Wishlist</Title>
         <Text c="dimmed" mt={6} size="lg">
           Set a target price and Savepoint flags the game once a store sells it for that or less, and can notify your
           phone.
@@ -400,6 +401,8 @@ export function WishlistPage() {
       ) : (
         <Text c="dimmed">Your wishlist is empty. Search for a game above or sync your Steam wishlist.</Text>
       )}
+
+      <StoreDirectory />
     </Stack>
   );
 }

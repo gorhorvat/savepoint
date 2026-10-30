@@ -17,7 +17,6 @@ import { PhysicalPage } from './pages/PhysicalPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StatsPage } from './pages/StatsPage';
-import { StoresPage } from './pages/StoresPage';
 import { WishlistPage } from './pages/WishlistPage';
 
 /** New page: back to the top, or to the section a link names ("/settings#alerts"). */
@@ -49,7 +48,7 @@ export default function App() {
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/physical" element={<PhysicalPage />} />
-          <Route path="/stores" element={<StoresPage />} />
+          <Route path="/stores" element={<Navigate to="/wishlist#stores" replace />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
