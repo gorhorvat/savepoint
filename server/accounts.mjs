@@ -9,7 +9,7 @@ const USERNAME = /^[\w.-]{2,40}$/;
 /** Why a username isn't acceptable, or null. */
 export function usernameProblem(username) {
   if (typeof username !== 'string' || !USERNAME.test(username)) {
-    return 'Use 2-40 letters, digits, dots, dashes or underscores.';
+    return 'Use 2-40 letters without accents (no č, ć, đ, š, ž), digits, dots, dashes or underscores. No spaces.';
   }
   return null;
 }

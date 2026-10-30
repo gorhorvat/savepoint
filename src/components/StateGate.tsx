@@ -217,6 +217,10 @@ function LoginForm() {
     reload();
   }
 
+  // Show the error under the field it's about; anything else goes under the button.
+  const errorOn = newAccount && error ? errorField(error) : 'password';
+  const fieldError = (f: ErrorField) => (errorOn === f ? error : undefined);
+
   const switchTo = (next: Mode) => {
     setMode(next);
     setError(null);
@@ -263,11 +267,14 @@ function LoginForm() {
         )}
         <TextInput
           label="Username"
-          description={newAccount ? 'Letters, digits, dots, dashes or underscores.' : undefined}
+          description={
+            newAccount ? 'Letters without accents, digits, dots, dashes or underscores. No spaces.' : undefined
+          }
           autoComplete="username"
           autoCapitalize="none"
           value={username}
           onChange={(e) => setUsername(e.currentTarget.value)}
+          error={fieldError('username')}
           required
         />
         {needsPassword && (
@@ -277,7 +284,7 @@ function LoginForm() {
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
-            error={newAccount ? undefined : error}
+            error={fieldError('password')}
             minLength={mode === 'signup' ? 8 : undefined}
             required
           />
@@ -299,9 +306,14 @@ function LoginForm() {
             autoCapitalize="characters"
             value={code}
             onChange={(e) => setCode(e.currentTarget.value)}
-            error={error}
+            error={fieldError('code')}
             required
           />
+        )}
+        {error && errorOn === 'other' && (
+          <Text size="sm" c="red" role="alert">
+            {error}
+          </Text>
         )}
         <Button type="submit" loading={busy} disabled={mismatch}>
           {mode === 'login' ? 'Log in' : mode === 'steamLink' ? 'Log in and link Steam' : 'Create account'}
@@ -331,6 +343,16 @@ function LoginForm() {
       </Stack>
     </form>
   );
+}
+
+type ErrorField = 'username' | 'password' | 'code' | 'other';
+
+/** Which sign-up field a server message is about. */
+function errorField(message: string): ErrorField {
+  if (/invite code|sign-up is closed/i.test(message)) return 'code';
+  if (/username|letters/i.test(message)) return 'username';
+  if (/password|at least \d+ characters/i.test(message)) return 'password';
+  return 'other';
 }
 
 /** Right after an account was created through Steam (?steam=new): import its Steam library. */

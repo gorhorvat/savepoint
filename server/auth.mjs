@@ -204,11 +204,11 @@ function sameText(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/** 'ok', 'wrong' or 'closed' (no invite code set). Case and spaces don't matter. */
+/** 'ok', 'wrong' or 'closed' (no invite code set). Case, spaces and dashes don't matter. */
 export async function checkInviteCode(code) {
   const invite = await getInviteCode();
   if (!invite) return 'closed';
-  const tidy = (c) => c.trim().toUpperCase();
+  const tidy = (c) => c.replace(/[\s\-\u2010-\u2015]+/g, '').toUpperCase();
   return typeof code === 'string' && sameText(tidy(code), tidy(invite)) ? 'ok' : 'wrong';
 }
 
