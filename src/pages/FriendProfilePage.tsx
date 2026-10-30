@@ -1,6 +1,6 @@
 import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconGift, IconHeartFilled, IconUserMinus } from '@tabler/icons-react';
+import { IconArrowLeft, IconGift, IconHeartFilled, IconMessage, IconUserMinus } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AddOnPlatforms } from '../components/AddOnPlatforms';
@@ -94,7 +94,15 @@ function WantsShelf({ wants, onGift }: { wants: ProfileWant[]; onGift: (w: Profi
         {wants.map((w, i) => (
           <div key={`${w.title}-${w.platform}-${i}`} className="shelf-tile">
             <Cover
-              game={{ id: `want-${i}-${w.title}`, title: w.title, imageUrl: w.imageUrl, genres: [], subgenres: [], tags: [], availableOn: [] }}
+              game={{
+                id: `want-${i}-${w.title}`,
+                title: w.title,
+                imageUrl: w.imageUrl,
+                genres: [],
+                subgenres: [],
+                tags: [],
+                availableOn: [],
+              }}
               width="100%"
               radius={12}
             />
@@ -213,6 +221,9 @@ export function FriendProfilePage() {
             </Stack>
           ) : null}
         </Stack>
+        <Button component={Link} to={`/messages/${friend.id}`} leftSection={<IconMessage size={16} />}>
+          Message
+        </Button>
       </Group>
 
       {!friend.profile && (

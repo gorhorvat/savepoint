@@ -16,6 +16,7 @@ import {
   IconDisc,
   IconHeart,
   IconMessageCircle,
+  IconMessages,
   IconMoon,
   IconSettings,
   IconSparkles,
@@ -25,6 +26,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { fetchFriendSummary, fetchGiftSummary, FRIENDS_CHANGED } from '../lib/friends';
+import { fetchUnread, MESSAGES_CHANGED } from '../lib/messages';
 import { usePublicProfileSync } from '../lib/publicProfile';
 import { useAutoSync } from '../lib/autoSync';
 import { useStreamTasteSync } from '../lib/streaming';
@@ -128,6 +130,46 @@ function FriendsButton() {
   );
 }
 
+/** Messages in the header, with the number of unread messages. */
+function MessagesButton() {
+  const [unread, setUnread] = useState(0);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetchUnread()
+        .then(setUnread)
+        .catch(() => {});
+    };
+    check();
+    const timer = setInterval(check, 60_000);
+    window.addEventListener(MESSAGES_CHANGED, check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(MESSAGES_CHANGED, check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [pathname]);
+  const label = unread ? `Messages: ${unread} unread` : 'Messages';
+  return (
+    <Tooltip label={label}>
+      <ActionIcon
+        component={Link}
+        to="/messages"
+        variant="subtle"
+        color="gray"
+        size="lg"
+        aria-label={label}
+        pos="relative"
+      >
+        <IconMessages size={20} />
+        {unread > 0 && <span className="header-count num">{unread}</span>}
+      </ActionIcon>
+    </Tooltip>
+  );
+}
+
 function SchemeToggle() {
   const { setColorScheme } = useMantineColorScheme();
   const computed = useComputedColorScheme('light');
@@ -187,6 +229,7 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
           <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
             <SchemeToggle />
+            <MessagesButton />
             <FriendsButton />
             <Tooltip label="Settings">
               <ActionIcon component={Link} to="/settings" variant="subtle" color="gray" size="lg" aria-label="Settings">

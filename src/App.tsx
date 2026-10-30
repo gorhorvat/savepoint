@@ -10,6 +10,7 @@ import { FriendProfilePage } from './pages/FriendProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
 import { GamePage } from './pages/GamePage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
+import { MessagesPage } from './pages/MessagesPage';
 import { HomePage } from './pages/HomePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { PhysicalPage } from './pages/PhysicalPage';
@@ -54,6 +55,8 @@ export default function App() {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/friends" element={<FriendsPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
+          <Route path="/messages/:id" element={<MessagesPage />} />
           <Route path="/friends/:id" element={<FriendProfilePage />} />
           <Route path="/add/:code" element={<AddFriendPage />} />
           {/* Platforms is a section of Settings now; keep old links working. */}

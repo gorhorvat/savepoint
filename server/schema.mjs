@@ -399,6 +399,22 @@ CREATE TABLE IF NOT EXISTS friendships (
 );
 CREATE INDEX IF NOT EXISTS friendships_addressee ON friendships ("addressee_id");
 
+-- Messages between friends (server/messages.mjs), one to one. A message can
+-- carry a game card. read_at is set when the recipient opens the chat.
+CREATE TABLE IF NOT EXISTS messages (
+  "id" bigserial PRIMARY KEY,
+  "sender_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "recipient_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "body" text NOT NULL DEFAULT '',
+  "game" jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "read_at" timestamptz,
+  CHECK ("sender_id" <> "recipient_id")
+);
+CREATE INDEX IF NOT EXISTS messages_pair ON messages
+  (LEAST("sender_id", "recipient_id"), GREATEST("sender_id", "recipient_id"), "id" DESC);
+CREATE INDEX IF NOT EXISTS messages_unread ON messages ("recipient_id") WHERE "read_at" IS NULL;
+
 -- What friends see of an account: level, rank, picture, favourites, top games,
 -- hours and wishlist, as the app worked them out (sent whenever they change).
 CREATE TABLE IF NOT EXISTS public_profiles (

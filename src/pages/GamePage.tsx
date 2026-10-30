@@ -44,6 +44,7 @@ import { useSuggestionPool } from '../lib/suggestions';
 import { streamerIndex } from '../lib/recommend';
 import { watchedForTaste } from '../lib/streaming';
 import type { AchievementProgress, EntrySource, Game, PlatformId } from '../types';
+import { ShareGameButton } from '../components/ShareGame';
 
 const SOURCE_LABEL: Record<EntrySource, string> = {
   steam: 'Imported from Steam',
@@ -260,7 +261,13 @@ export function GamePage() {
             favoriteGenresOf(c, favorites).filter((g) => [...game.genres, ...game.subgenres].includes(g)).length * 1.5;
           // Your favourite streamers play it.
           const streamedBy = streamers.get(ownedKey(c.title));
-          return { c, shared, same: !!series && franchise === series, s: shared + fav + (streamedBy ? 1.5 : 0), streamedBy };
+          return {
+            c,
+            shared,
+            same: !!series && franchise === series,
+            s: shared + fav + (streamedBy ? 1.5 : 0),
+            streamedBy,
+          };
         })
         // Same favourite series always qualifies, even when the store lists no genres.
         .filter((x) => x.same || x.shared >= 3 || (x.shared >= 1 && x.s >= 4))
@@ -382,6 +389,7 @@ export function GamePage() {
                 {!app && (
                   <Group>
                     <WishlistButton game={game} />
+                    <ShareGameButton game={game} />
                   </Group>
                 )}
               </Stack>
