@@ -272,7 +272,9 @@ h3,
 
 .bottom-nav {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  /* One equal column per tab, however many there are. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   height: 100%;
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -601,6 +603,14 @@ h3,
 }
 
 /* ------------------------------------------------------------------ login */
+
+/* The login and loading screens fill the visible screen exactly. 100vh is
+   taller than a phone's visible area while the address bar shows, which made
+   the page scroll and, on some phones, ignore taps until it was scrolled. */
+.gate-screen {
+  min-height: 100vh;
+  min-height: 100svh;
+}
 
 /* The save point's glow: the one lit thing on the screen when you arrive. */
 .login-crystal {

@@ -66,7 +66,7 @@ function ResetPassword({ token }: { token: string }) {
   };
 
   return (
-    <Center mih="100vh" p="md">
+    <Center className="gate-screen" p="md">
       <Stack gap="lg" w="100%" maw={360}>
         <Stack gap={6} align="center">
           <Crystal size={36} />
@@ -426,7 +426,7 @@ function Gate({ children }: { children: ReactNode }) {
   if (status === 'ready') return children;
 
   return (
-    <Center mih="100vh" p="md">
+    <Center className="gate-screen" p="md">
       {status === 'loading' && <Loader />}
       {status === 'login' && <LoginForm />}
       {status === 'offline' && (
