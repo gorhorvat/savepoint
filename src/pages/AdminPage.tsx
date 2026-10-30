@@ -30,6 +30,7 @@ import {
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { InviteSection } from '../components/InviteSection';
 import { PlatformIcon } from '../components/PlatformBadge';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import {
@@ -295,14 +296,10 @@ export function AdminPage() {
         <Text c="dimmed" mt={6} size="lg">
           {users
             ? `${users.length} ${users.length === 1 ? 'account' : 'accounts'}, ${active} active.`
-            : 'Every Savepoint account.'}{' '}
-          The invite code is in{' '}
-          <Text component={Link} to="/profile" span inherit c="var(--mantine-primary-color-filled)">
-            Profile
-          </Text>
-          .
+            : 'Every Savepoint account.'}
         </Text>
       </div>
+      <InviteSection />
       <TextInput
         placeholder="Filter by username"
         aria-label="Filter by username"

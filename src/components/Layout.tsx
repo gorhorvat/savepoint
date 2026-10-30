@@ -2,8 +2,10 @@ import {
   ActionIcon,
   AppShell,
   Group,
+  Menu,
   Text,
   Tooltip,
+  UnstyledButton,
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core';
@@ -11,10 +13,8 @@ import { useMediaQuery } from '@mantine/hooks';
 import {
   IconBooks,
   IconHome,
-  IconBuildingStore,
   IconChartPie,
   IconDisc,
-  IconGift,
   IconHeart,
   IconMessageCircle,
   IconMessages,
@@ -22,7 +22,10 @@ import {
   IconSettings,
   IconSparkles,
   IconSun,
+  IconUser,
   IconUsers,
+  IconUsersGroup,
+  IconLogout,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -38,7 +41,10 @@ import { useAchievementsSync } from '../lib/achievements';
 import { useLengthBackfill } from '../lib/lengths';
 import { usePriceAlertsSync } from '../lib/alerts';
 import { useGenreBackfill } from '../lib/genreLookup';
-import { LevelAvatar } from './ProfileAvatar';
+import { LevelRing, ProfileAvatar } from './ProfileAvatar';
+import { useServerStatus } from '../lib/api';
+import { logOut } from '../lib/serverStorage';
+import { useXp } from '../lib/xp';
 import { useStore } from '../lib/store';
 
 const NAV: { to: string; label: string; short?: string; icon: typeof IconBooks; end?: boolean }[] = [
@@ -47,9 +53,8 @@ const NAV: { to: string; label: string; short?: string; icon: typeof IconBooks; 
   { to: '/stats', label: 'My Stats', short: 'Stats', icon: IconChartPie },
   { to: '/discover', label: 'Discover', icon: IconSparkles },
   { to: '/assistant', label: 'Assistant', icon: IconMessageCircle },
-  { to: '/wishlist', label: 'Wishlist', icon: IconHeart },
-  { to: '/physical', label: 'Physical', icon: IconDisc },
-  { to: '/stores', label: 'Stores', icon: IconBuildingStore },
+  { to: '/wishlist', label: 'My Wishlist', short: 'Wishlist', icon: IconHeart },
+  { to: '/physical', label: 'My Shelf', short: 'Shelf', icon: IconDisc },
 ];
 
 /** The save crystal: the glowing gem you save your game at in a JRPG. */
@@ -77,9 +82,8 @@ export function Logo({ size = 22 }: { size?: number }) {
 }
 
 /**
- * Friends in the header: the number of friend requests waiting (top) and of
- * friends online (green, bottom). Gifts waiting to be opened get their own
- * button, shown only while there are some.
+ * Friends in the header: friend requests and gifts waiting (top, yellow) and
+ * friends online (bottom, green). The tooltip says which is which.
  */
 function FriendsButton() {
   const [incoming, setIncoming] = useState(0);
@@ -111,44 +115,27 @@ function FriendsButton() {
   }, [pathname]);
   const parts = [
     incoming && `${incoming} friend ${incoming === 1 ? 'request' : 'requests'}`,
+    gifts && `${gifts} ${gifts === 1 ? 'gift' : 'gifts'} to open`,
     online && `${online} online`,
   ].filter(Boolean);
   const label = parts.length ? `Friends: ${parts.join(', ')}` : 'Friends';
-  const giftLabel = `${gifts} ${gifts === 1 ? 'gift' : 'gifts'} to open`;
+  const waiting = incoming + gifts;
   return (
-    <>
-      {gifts > 0 && (
-        <Tooltip label={giftLabel}>
-          <ActionIcon
-            component={Link}
-            to="/friends#gifts"
-            variant="subtle"
-            color="gray"
-            size="lg"
-            aria-label={giftLabel}
-            pos="relative"
-          >
-            <IconGift size={20} />
-            <span className="header-count num">{gifts}</span>
-          </ActionIcon>
-        </Tooltip>
-      )}
-      <Tooltip label={label}>
-        <ActionIcon
-          component={Link}
-          to="/friends"
-          variant="subtle"
-          color="gray"
-          size="lg"
-          aria-label={label}
-          pos="relative"
-        >
-          <IconUsers size={20} />
-          {incoming > 0 && <span className="header-count num">{incoming}</span>}
-          {online > 0 && <span className="header-online num">{online}</span>}
-        </ActionIcon>
-      </Tooltip>
-    </>
+    <Tooltip label={label}>
+      <ActionIcon
+        component={Link}
+        to={incoming || !gifts ? '/friends' : '/friends#gifts'}
+        variant="subtle"
+        color="gray"
+        size="lg"
+        aria-label={label}
+        pos="relative"
+      >
+        <IconUsers size={20} />
+        {waiting > 0 && <span className="header-count num">{waiting}</span>}
+        {online > 0 && <span className="header-online num">{online}</span>}
+      </ActionIcon>
+    </Tooltip>
   );
 }
 
@@ -243,22 +230,53 @@ function MessagesButton() {
   );
 }
 
-function SchemeToggle() {
+/**
+ * The profile picture opens a menu: Profile, Settings, Manage users (super
+ * admin), light or dark mode, and Log out.
+ */
+function ProfileMenu({ size }: { size: number }) {
   const { setColorScheme } = useMantineColorScheme();
   const computed = useComputedColorScheme('light');
-  const next = computed === 'dark' ? 'light' : 'dark';
+  const [status] = useServerStatus();
+  const xp = useXp();
+  const dark = computed === 'dark';
   return (
-    <Tooltip label={`Switch to ${next} mode`}>
-      <ActionIcon
-        variant="subtle"
-        color="gray"
-        size="lg"
-        aria-label={`Switch to ${next} mode`}
-        onClick={() => setColorScheme(next)}
-      >
-        {computed === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-      </ActionIcon>
-    </Tooltip>
+    <Menu position="bottom-end" width={220} shadow="md" withinPortal>
+      <Menu.Target>
+        <UnstyledButton className="profile-link" aria-label="Profile menu">
+          <LevelRing size={size} level={xp.level} progress={(xp.into / xp.needed) * 100}>
+            <ProfileAvatar size={size} />
+          </LevelRing>
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>
+          Level {xp.level}, {xp.rank}
+        </Menu.Label>
+        <Menu.Item component={Link} to="/profile" leftSection={<IconUser size={16} />}>
+          Profile
+        </Menu.Item>
+        <Menu.Item component={Link} to="/settings" leftSection={<IconSettings size={16} />}>
+          Settings
+        </Menu.Item>
+        {status?.superAdmin && (
+          <Menu.Item component={Link} to="/admin" leftSection={<IconUsersGroup size={16} />}>
+            Manage users
+          </Menu.Item>
+        )}
+        <Menu.Divider />
+        <Menu.Item
+          leftSection={dark ? <IconSun size={16} /> : <IconMoon size={16} />}
+          onClick={() => setColorScheme(dark ? 'light' : 'dark')}
+        >
+          {dark ? 'Light mode' : 'Dark mode'}
+        </Menu.Item>
+        <Menu.Divider />
+        <Menu.Item leftSection={<IconLogout size={16} />} onClick={() => void logOut()}>
+          Log out
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
@@ -301,17 +319,9 @@ export function Layout({ children }: { children: ReactNode }) {
             </nav>
           )}
           <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
-            <SchemeToggle />
             <MessagesButton />
             <FriendsButton />
-            <Tooltip label="Settings">
-              <ActionIcon component={Link} to="/settings" variant="subtle" color="gray" size="lg" aria-label="Settings">
-                <IconSettings size={20} />
-              </ActionIcon>
-            </Tooltip>
-            <Link to="/profile" className="profile-link" aria-label="Profile">
-              <LevelAvatar size={mobile ? 28 : 32} />
-            </Link>
+            <ProfileMenu size={mobile ? 28 : 32} />
           </Group>
         </Group>
       </AppShell.Header>

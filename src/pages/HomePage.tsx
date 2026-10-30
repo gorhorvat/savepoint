@@ -443,7 +443,7 @@ function ComingSoon() {
     .sort((a, b) => (a.releaseDate ?? '9999').localeCompare(b.releaseDate ?? '9999'))
     .slice(0, 8);
   return (
-    <Section title="Coming soon" more={{ to: '/wishlist', label: 'Wishlist' }}>
+    <Section title="Coming soon" more={{ to: '/wishlist', label: 'My Wishlist' }}>
       {soon.length ? (
         <GameShelf items={soon.map((g) => ({ game: g, meta: upcomingLabel(g) ?? 'Coming soon' }))} />
       ) : (

@@ -13,7 +13,7 @@ export function ProfileAvatar({ size = 32 }: { size?: number }) {
  * A picture inside a ring that fills towards the next level, with the level
  * number on a small badge, and optionally an online dot.
  */
-function LevelRing({
+export function LevelRing({
   size,
   level,
   progress,

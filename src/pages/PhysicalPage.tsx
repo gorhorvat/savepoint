@@ -425,7 +425,7 @@ export function PhysicalPage() {
   return (
     <Stack gap="xl">
       <div>
-        <Title order={1}>Physical games</Title>
+        <Title order={1}>My Shelf</Title>
         <Text c="dimmed" mt={6} size="lg">
           Your shelf, and the copies you’re still hunting for.
         </Text>
