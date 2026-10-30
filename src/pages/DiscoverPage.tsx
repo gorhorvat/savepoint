@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GameCard } from '../components/GameCard';
 import { formatPlaytime } from '../lib/format';
-import { ownedPlatforms, useLibrary, useUnlinkedPhysicalTitles } from '../lib/library';
+import { useLibrary, useOwnedPlatforms, useUnlinkedPhysicalTitles } from '../lib/library';
+import { PLATFORM_BY_ID } from '../data/platforms';
 import { newestFirst, recommend, tasteProfile } from '../lib/recommend';
 import { useStore } from '../lib/store';
 import { useFavorites } from '../lib/favorites';
@@ -24,7 +25,7 @@ export function DiscoverPage() {
   const streamTaste = useStore((s) => s.streamTaste);
   const watched = useMemo(() => watchedForTaste(streamTaste), [streamTaste]);
   const profile = useMemo(() => tasteProfile(lib, watched), [lib, watched]);
-  const owned = useMemo(() => ownedPlatforms(lib), [lib]);
+  const owned = useOwnedPlatforms(lib);
   const pool = useSuggestionPool(lib);
   const [shown, setShown] = useState(PAGE);
   const favorites = useFavorites();
@@ -37,8 +38,10 @@ export function DiscoverPage() {
     [lib, owned, dismissed, pool.games, favorites, alsoOwned, watched],
   );
 
+  // With no platforms known yet there's nothing to narrow down to.
+  const narrow = onlyMine && owned.length > 0;
   const matching = recs
-    .filter((r) => !onlyMine || r.onYourPlatforms.length > 0)
+    .filter((r) => !narrow || r.onYourPlatforms.length > 0)
     .filter((r) => !focus || r.game.subgenres.includes(focus) || r.game.genres.includes(focus));
   const visible = matching.slice(0, shown);
 
@@ -86,8 +89,13 @@ export function DiscoverPage() {
             </Group>
           </Chip.Group>
           <Switch
-            label="Only on my platforms"
-            checked={onlyMine}
+            label={
+              owned.length
+                ? `Only on my platforms (${owned.map((p) => PLATFORM_BY_ID[p].name).join(', ')})`
+                : 'Only on my platforms'
+            }
+            disabled={!owned.length}
+            checked={narrow}
             onChange={(e) => {
               setOnlyMine(e.currentTarget.checked);
               setShown(PAGE);

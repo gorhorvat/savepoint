@@ -95,6 +95,16 @@ export function ownedPlatforms(lib: LibraryGame[]): PlatformId[] {
   return PLATFORMS.map((p) => p.id).filter((id) => totals[id] > 0);
 }
 
+/** Platforms you play on: any play time there, or the account connected (a new PlayStation import may show no hours yet). */
+export function useOwnedPlatforms(lib: LibraryGame[]): PlatformId[] {
+  const connections = useStore((s) => s.connections);
+  return useMemo(() => {
+    const mine = new Set<PlatformId>(ownedPlatforms(lib));
+    for (const [id, c] of Object.entries(connections)) if (c) mine.add(id as PlatformId);
+    return PLATFORMS.map((p) => p.id).filter((id) => mine.has(id));
+  }, [lib, connections]);
+}
+
 /** Physical copies typed in by hand (no linked game): titles you own that aren't in the library. */
 export function useUnlinkedPhysicalTitles(): string[] {
   const physical = useStore((s) => s.physical);

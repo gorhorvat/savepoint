@@ -1,10 +1,13 @@
 import { STEAM_TAGS, steamApi, steamTagNames } from './genres.mjs';
 import { NINTENDO_GENRES, nintendoByGenre, searchGames, steamResults } from './search.mjs';
 import { diskCache } from './diskCache.mjs';
+import { igdbConsolePool, igdbPlatformsForSteam } from './igdb.mjs';
 
 // Candidates for Play next: well-reviewed Steam games carrying the Steam tags
-// behind your favourite sub-genres and genres (needs STEAM_API_KEY), plus the
-// most popular Switch games in your favourite genres from the eShop.
+// behind your favourite sub-genres and genres (needs STEAM_API_KEY), the most
+// popular Switch games in your favourite genres from the eShop, and popular
+// PlayStation and Xbox games in them from IGDB. IGDB also says which consoles
+// each Steam game is on, so "Only on my platforms" works without a PC.
 
 const PER_TAG = 80;
 const MAX_GAMES = 400;
@@ -98,22 +101,35 @@ async function franchisePool(franchises) {
 
 /** subgenres/genres: Savepoint names, strongest first. franchises: your favourites. */
 export async function discoverPool(subgenres, genres, franchises = []) {
-  const key = `${subgenres.join('|')}#${genres.join('|')}#${franchises.join('|')}`;
+  // v2: with console games and every platform a game is on.
+  const key = `v2#${subgenres.join('|')}#${genres.join('|')}#${franchises.join('|')}`;
   const hit = await cache.get(key);
   if (hit) return hit;
-  const [series, steam, nintendo] = await Promise.all([
+  const [series, steam, nintendo, consoles] = await Promise.all([
     franchisePool(franchises).catch(() => []),
     steamPool(subgenres, genres).catch(() => []),
     switchPool(genres).catch(() => []),
+    igdbConsolePool(genres).catch(() => []),
   ]);
-  // Franchise games first, so they survive de-duplication with their search details.
-  const seen = new Set();
-  const games = [...series, ...steam, ...nintendo].filter((g) => {
+  // Franchise games first, so they survive de-duplication with their search
+  // details; a game found twice keeps every platform it was found on.
+  const byId = new Map();
+  for (const g of [...series, ...steam, ...nintendo, ...consoles]) {
     const id = g.steamAppId ? `s${g.steamAppId}` : words(g.title);
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
+    const kept = byId.get(id) ?? byId.get(words(g.title));
+    if (kept) kept.availableOn = [...new Set([...kept.availableOn, ...g.availableOn])];
+    else {
+      const copy = { ...g, availableOn: [...g.availableOn] };
+      byId.set(id, copy);
+      byId.set(words(g.title), copy);
+    }
+  }
+  const games = [...new Set(byId.values())];
+  const platforms = await igdbPlatformsForSteam(games.map((g) => g.steamAppId).filter(Boolean)).catch(() => new Map());
+  for (const g of games) {
+    const more = g.steamAppId && platforms.get(g.steamAppId);
+    if (more) g.availableOn = [...new Set([...g.availableOn, ...more])];
+  }
   if (games.length) cache.set(key, games); // Don't keep a failed lookup for a day.
   return games;
 }

@@ -18,7 +18,7 @@ import {
   type FriendsList,
 } from '../lib/friends';
 import { HOME_WIDGETS, normalizeHomepage, type HomeWidgetId } from '../lib/homepage';
-import { ownedPlatforms, useLibrary, useUnlinkedPhysicalTitles, type LibraryGame } from '../lib/library';
+import { useLibrary, useOwnedPlatforms, useUnlinkedPhysicalTitles, type LibraryGame } from '../lib/library';
 import { newestFirst, recommend } from '../lib/recommend';
 import { useGameResolver, useStore } from '../lib/store';
 import { fetchFollowedLive, watchedForTaste, type LiveStream } from '../lib/streaming';
@@ -146,19 +146,20 @@ function PlayNext({ lib }: { lib: LibraryGame[] }) {
   const streamTaste = useStore((s) => s.streamTaste);
   const favorites = useFavorites();
   const alsoOwned = useUnlinkedPhysicalTitles();
+  const owned = useOwnedPlatforms(lib);
   const recs = useMemo(
     () =>
       newestFirst(
         recommend(lib, {
-          owned: ownedPlatforms(lib),
+          owned,
           exclude: new Set(dismissed),
           pool: pool.games,
           favorites,
           alsoOwned,
           watched: watchedForTaste(streamTaste),
-        }).filter((r) => r.onYourPlatforms.length > 0),
+        }).filter((r) => !owned.length || r.onYourPlatforms.length > 0),
       ).slice(0, 8),
-    [lib, dismissed, pool.games, favorites, alsoOwned, streamTaste],
+    [lib, owned, dismissed, pool.games, favorites, alsoOwned, streamTaste],
   );
   return (
     <Section title="Play next" more={{ to: '/discover', label: 'More picks' }}>

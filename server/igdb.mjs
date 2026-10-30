@@ -206,6 +206,71 @@ export async function igdbGame({ title, steamAppId }) {
   return info;
 }
 
+// ---------------------------------------------------------------- Play next (server/discover.mjs)
+
+/**
+ * Steam app id -> the Savepoint platforms the game is on, from IGDB, for many
+ * games at once ("on PC, PS5 and Xbox"). Steam alone only knows about PC. The
+ * Play next pool that uses this is cached for a day, so nothing is cached here.
+ */
+export async function igdbPlatformsForSteam(appids) {
+  const out = new Map();
+  if (!igdbConfigured()) return out;
+  const ids = [...new Set(appids.filter((id) => Number.isInteger(id) && id > 0))];
+  for (let i = 0; i < ids.length; i += 250) {
+    const chunk = ids.slice(i, i + 250);
+    const rows = await query(
+      'external_games',
+      `fields uid,game.platforms.name; where external_game_source = 1 & uid = (${chunk.map((id) => `"${id}"`).join(',')}); limit 500;`,
+    ).catch(() => []);
+    for (const r of rows) {
+      const platforms = digitalPlatforms(r.game?.platforms);
+      if (platforms.length) out.set(Number(r.uid), platforms);
+    }
+  }
+  return out;
+}
+
+// PlayStation 5, PlayStation 4, Xbox Series X|S, Xbox One.
+const CONSOLE_PLATFORM_IDS = '167,48,169,49';
+
+/**
+ * Well-reviewed, popular console games in your favourite genres, so Play next
+ * has PlayStation and Xbox games too (the Steam pool only covers PC). A fair
+ * share from each genre, most-rated first.
+ */
+export async function igdbConsolePool(genres, perGenre = 50) {
+  if (!igdbConfigured()) return [];
+  const now = Math.floor(Date.now() / 1000);
+  const lists = [];
+  for (const genre of genres.slice(0, 5)) {
+    const names = Object.entries(IGDB_MAP)
+      .filter(([, m]) => m.g === genre)
+      .map(([n]) => `"${n.replace(/"/g, '')}"`);
+    if (!names.length) continue;
+    const list = await query(
+      'games',
+      `fields ${FIELDS},total_rating_count; where platforms = (${CONSOLE_PLATFORM_IDS}) & ` +
+        `(genres.name = (${names.join(',')}) | themes.name = (${names.join(',')})) & ` +
+        `total_rating >= 75 & total_rating_count >= 40 & first_release_date < ${now} & ${MAIN}; ` +
+        `sort total_rating_count desc; limit ${perGenre};`,
+    ).catch(() => []);
+    lists.push(list.map(toInfo).filter((g) => g.genres.length + g.subgenres.length > 0));
+  }
+  const seen = new Set();
+  const out = [];
+  for (let i = 0; i < perGenre; i++) {
+    for (const list of lists) {
+      const g = list[i];
+      if (g && !seen.has(g.igdbId)) {
+        seen.add(g.igdbId);
+        out.push(g);
+      }
+    }
+  }
+  return out;
+}
+
 /** Genre results for the /api/genres "igdb" pass, in the same shape as the others. */
 export async function lookupIgdb(games) {
   const results = {};
