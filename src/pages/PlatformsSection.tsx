@@ -254,6 +254,161 @@ function ConnectForm({
   );
 }
 
+const SONY_SIGN_IN = 'https://www.playstation.com/';
+const SONY_TOKEN_PAGE = 'https://ca.account.sony.com/api/v1/ssocookie';
+
+/** The NPSSO token in whatever was copied: the whole {"npsso":"…"} page, or just the value. */
+function findNpsso(text: string): string | null {
+  const t = text.trim();
+  return /"npsso"\s*:\s*"([\w-]{20,200})"/.exec(t)?.[1] ?? (/^[\w-]{40,200}$/.test(t) ? t : null);
+}
+
+/**
+ * Connecting PlayStation in as few steps as a website allows: Sony doesn't let
+ * other sites sign in for you or read its pages, so the token has to be copied
+ * once. Savepoint opens the right page, then reads the copied page from the
+ * clipboard (by a click, or by itself on coming back when the browser allows it).
+ */
+function PsnConnect({ onConnect }: { onConnect: (npsso: string) => Promise<void> }) {
+  const [step, setStep] = useState<'start' | 'copy'>('start');
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
+
+  const connect = useCallback(
+    async (text: string) => {
+      const npsso = findNpsso(text);
+      if (!npsso) {
+        setError('No token in what was copied. On Sony\u2019s page, select everything (Ctrl+A) and copy it (Ctrl+C).');
+        return;
+      }
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
+      setError(null);
+      try {
+        await onConnect(npsso);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    },
+    [onConnect],
+  );
+
+  const fromClipboard = async () => {
+    try {
+      await connect(await navigator.clipboard.readText());
+    } catch {
+      setError('The browser didn\u2019t let Savepoint read the clipboard. Paste it into the box below instead.');
+    }
+  };
+
+  // Coming back from Sony's page with the token copied: connect without a click
+  // when the browser already allows reading the clipboard.
+  useEffect(() => {
+    if (step !== 'copy') return;
+    const onFocus = async () => {
+      try {
+        const p = await navigator.permissions.query({ name: 'clipboard-read' as PermissionName });
+        if (p.state !== 'granted') return;
+        const text = await navigator.clipboard.readText();
+        if (findNpsso(text)) await connect(text);
+      } catch {
+        // Not supported here (Firefox, Safari): the button does it.
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [step, connect]);
+
+  const note = (
+    <Text size="xs" c="dimmed">
+      The token works like a sign-in to your PlayStation account. Savepoint keeps it encrypted, only reads your games
+      and trophies with it, and never shows it again. Sony lets it last about two months; then connect again.
+    </Text>
+  );
+
+  if (step === 'start') {
+    return (
+      <Stack gap="sm">
+        <Text size="sm">
+          Sign in to PlayStation in this browser, then Savepoint opens the page with your sign-in token for you to copy.
+        </Text>
+        <Group gap="sm">
+          <Button component="a" href={SONY_SIGN_IN} target="_blank" rel="noopener noreferrer" variant="default">
+            1. Sign in to PlayStation
+          </Button>
+          <Button
+            component="a"
+            href={SONY_TOKEN_PAGE}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setStep('copy')}
+          >
+            2. Get my token
+          </Button>
+        </Group>
+        <Text size="xs" c="dimmed">
+          Already signed in on playstation.com? Go straight to step 2.
+        </Text>
+        {note}
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack gap="sm">
+      <Text size="sm">
+        On Sony&apos;s page, select everything and copy it: <Code>Ctrl+A</Code> then <Code>Ctrl+C</Code> (on a Mac{' '}
+        <Code>⌘A</Code> <Code>⌘C</Code>; on a phone, Select all and Copy). Then come back here.
+      </Text>
+      <Text size="xs" c="dimmed">
+        Sony&apos;s page shows <Code>{'{"npsso":"…"}'}</Code>. If it shows an error instead, you&apos;re not signed in
+        yet:{' '}
+        <Anchor href={SONY_SIGN_IN} target="_blank" rel="noopener noreferrer" inherit>
+          sign in to PlayStation
+        </Anchor>{' '}
+        and open{' '}
+        <Anchor href={SONY_TOKEN_PAGE} target="_blank" rel="noopener noreferrer" inherit>
+          the token page
+        </Anchor>{' '}
+        again.
+      </Text>
+      <Group gap="sm">
+        <Button onClick={() => void fromClipboard()} loading={busy}>
+          Connect with what I copied
+        </Button>
+        <Button variant="subtle" color="gray" onClick={() => setStep('start')} disabled={busy}>
+          Back
+        </Button>
+      </Group>
+      <PasswordInput
+        label="Or paste it here"
+        placeholder="Paste Sony's page or the npsso value"
+        value={value}
+        onChange={(e) => setValue(e.currentTarget.value)}
+        onPaste={(e) => {
+          const text = e.clipboardData.getData('text');
+          if (findNpsso(text)) {
+            e.preventDefault();
+            void connect(text);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void connect(value);
+        }}
+        error={error}
+        autoComplete="off"
+      />
+      {note}
+    </Stack>
+  );
+}
+
 const external = (href: string, text: string) => (
   <Anchor href={href} target="_blank" rel="noopener noreferrer">
     {text}
@@ -351,18 +506,7 @@ function PsnPanel({ status, refresh }: { status: ServerStatus | null; refresh: (
           }}
         />
       ) : (
-        <ConnectForm
-          label="NPSSO token"
-          placeholder="Paste the npsso value"
-          steps={[
-            <>Sign in at {external('https://www.playstation.com', 'playstation.com')}.</>,
-            <>
-              In the same browser, open {external('https://ca.account.sony.com/api/v1/ssocookie', "Sony's token page")}.
-              It shows <Code>{'{"npsso":"…"}'}</Code>.
-            </>,
-            <>Copy the value in quotes after npsso and paste it here.</>,
-          ]}
-          note="The token works like a sign-in to your PlayStation account. Savepoint keeps it encrypted, only reads your games and trophies with it, and never shows it again. Sony lets it last about two months; then connect again."
+        <PsnConnect
           onConnect={async (npsso) => {
             await connectPsn(npsso);
             refresh();
