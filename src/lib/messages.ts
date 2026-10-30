@@ -73,8 +73,28 @@ export async function fetchConversations(): Promise<Conversation[]> {
   return (await call<{ conversations: Conversation[] }>('/api/messages')).conversations;
 }
 
-export async function fetchUnread(): Promise<number> {
-  return (await call<{ unread: number }>('/api/messages/unread')).unread;
+/** The newest message you haven't read, for the "new message" pop-up. */
+export interface UnreadLatest {
+  id: number;
+  from: ChatPerson;
+  /** The start of the text, or the shared game's title. */
+  preview: string;
+}
+
+export function fetchUnread(): Promise<{ unread: number; latest: UnreadLatest | null }> {
+  return call('/api/messages/unread');
+}
+
+/** Settings: how new messages announce themselves (stored with the account). */
+export interface MessageAlerts {
+  /** A pop-up inside Savepoint. */
+  toast: boolean;
+  /** A system notification while Savepoint is open in another tab or window. */
+  browser: boolean;
+}
+
+export function messageAlerts(saved?: Partial<MessageAlerts>): MessageAlerts {
+  return { toast: saved?.toast ?? true, browser: saved?.browser ?? false };
 }
 
 export function fetchChat(friendId: number, opts: { after?: number; before?: number } = {}): Promise<Chat> {

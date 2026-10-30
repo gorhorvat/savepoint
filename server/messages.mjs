@@ -5,7 +5,7 @@
 // private: no admin route reads them. Mounted after requireLogin.
 //
 //   GET  /api/messages                       conversations, newest first, with unread counts
-//   GET  /api/messages/unread                { unread } for the header badge
+//   GET  /api/messages/unread                { unread, latest } for the header badge and pop-ups
 //   GET  /api/messages/:friendId?after=&before=   the chat (50 at a time); marks theirs as read
 //   POST /api/messages/:friendId             { body, game? } -> the new message
 import express from 'express';
@@ -115,7 +115,27 @@ messagesRouter.get('/api/messages/unread', async (req, res) => {
       `SELECT count(*)::int AS n FROM messages WHERE "recipient_id" = $1 AND "read_at" IS NULL`,
       [req.userId],
     );
-    res.json({ unread: rows[0].n });
+    let latest = null;
+    if (rows[0].n) {
+      // The newest unread one, so the app can say who wrote and what.
+      const { rows: last } = await query(
+        `SELECT m."id", m."body", m."game"->>'title' AS game, u."id" AS uid, u."username", p."data"->>'avatar' AS avatar
+         FROM messages m JOIN users u ON u."id" = m."sender_id"
+         LEFT JOIN public_profiles p ON p."user_id" = m."sender_id"
+         WHERE m."recipient_id" = $1 AND m."read_at" IS NULL ORDER BY m."id" DESC LIMIT 1`,
+        [req.userId],
+      );
+      const r = last[0];
+      if (r) {
+        const text = r.body.replace(/\s+/g, ' ').trim();
+        latest = {
+          id: Number(r.id),
+          from: { id: r.uid, username: r.username, avatar: r.avatar ?? null },
+          preview: text ? (text.length > 120 ? `${text.slice(0, 117)}…` : text) : r.game ? `Sent you ${r.game}` : '',
+        };
+      }
+    }
+    res.json({ unread: rows[0].n, latest });
   } catch (err) {
     failed(res, err);
   }

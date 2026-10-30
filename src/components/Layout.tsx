@@ -23,10 +23,11 @@ import {
   IconSun,
   IconUsers,
 } from '@tabler/icons-react';
-import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { notifications } from '@mantine/notifications';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { fetchFriendSummary, fetchGiftSummary, FRIENDS_CHANGED } from '../lib/friends';
-import { fetchUnread, MESSAGES_CHANGED } from '../lib/messages';
+import { fetchUnread, messageAlerts, MESSAGES_CHANGED, type UnreadLatest } from '../lib/messages';
 import { usePublicProfileSync } from '../lib/publicProfile';
 import { useAutoSync } from '../lib/autoSync';
 import { useStreamTasteSync } from '../lib/streaming';
@@ -134,15 +135,66 @@ function FriendsButton() {
 function MessagesButton() {
   const [unread, setUnread] = useState(0);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  // The newest unread message already announced (or there when the app opened).
+  const announced = useRef<number | null>(null);
+
   useEffect(() => {
+    const announce = (m: UnreadLatest) => {
+      const alerts = messageAlerts(useStore.getState().messageAlerts);
+      const chat = `/messages/${m.from.id}`;
+      const visible = document.visibilityState === 'visible';
+      if (visible && pathname === chat) return; // already reading it
+      if (visible && alerts.toast) {
+        const id = `message-${m.from.id}`;
+        notifications.hide(id);
+        notifications.show({
+          id,
+          title: `New message from ${m.from.username}`,
+          message: m.preview || 'Open the chat to read it.',
+          icon: <IconMessages size={16} />,
+          autoClose: 6000,
+          style: { cursor: 'pointer' },
+          onClick: () => {
+            notifications.hide(id);
+            navigate(chat);
+          },
+        });
+      } else if (!visible && alerts.browser && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          const n = new Notification(`New message from ${m.from.username}`, {
+            body: m.preview,
+            icon: '/favicon.svg',
+            tag: `savepoint-message-${m.from.id}`,
+          });
+          n.onclick = () => {
+            window.focus();
+            navigate(chat);
+            n.close();
+          };
+        } catch {
+          // Some browsers (Android Chrome) only allow notifications from a service worker.
+        }
+      }
+    };
     const check = () => {
-      if (document.visibilityState !== 'visible') return;
+      const visible = document.visibilityState === 'visible';
+      // Hidden tabs keep checking only for browser notifications.
+      if (!visible && !messageAlerts(useStore.getState().messageAlerts).browser) return;
       fetchUnread()
-        .then(setUnread)
+        .then(({ unread: n, latest }) => {
+          setUnread(n);
+          if (!latest) {
+            announced.current ??= 0;
+            return;
+          }
+          if (announced.current !== null && latest.id > announced.current) announce(latest);
+          announced.current = Math.max(announced.current ?? 0, latest.id);
+        })
         .catch(() => {});
     };
     check();
-    const timer = setInterval(check, 60_000);
+    const timer = setInterval(check, 30_000);
     window.addEventListener(MESSAGES_CHANGED, check);
     document.addEventListener('visibilitychange', check);
     return () => {
@@ -150,7 +202,7 @@ function MessagesButton() {
       window.removeEventListener(MESSAGES_CHANGED, check);
       document.removeEventListener('visibilitychange', check);
     };
-  }, [pathname]);
+  }, [pathname, navigate]);
   const label = unread ? `Messages: ${unread} unread` : 'Messages';
   return (
     <Tooltip label={label}>

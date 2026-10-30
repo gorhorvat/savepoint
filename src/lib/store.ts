@@ -18,6 +18,7 @@ import type {
 } from '../types';
 import type { FoundGame, GameLength, GenreResult } from './api';
 import type { HomepageSettings } from './homepage';
+import { messageAlerts, type MessageAlerts } from './messages';
 import { legacyMatcher, slug } from './match';
 import { hydrationDone, serverStorage } from './serverStorage';
 
@@ -101,6 +102,8 @@ interface State {
   streamTaste: StreamTaste | null;
   /** What the homepage shows, in order (lib/homepage.ts); unset = the default. */
   homepage?: HomepageSettings;
+  /** How new messages announce themselves; unset = in-app pop-up on, browser notifications off. */
+  messageAlerts?: MessageAlerts;
 
   importLibrary: (
     platform: PlatformId,
@@ -154,6 +157,7 @@ interface State {
   setKickChannels: (slugs: string[]) => void;
   setStreamTaste: (taste: StreamTaste | null) => void;
   setHomepage: (homepage: HomepageSettings) => void;
+  setMessageAlerts: (patch: Partial<MessageAlerts>) => void;
   /** Steam said the Game details are private (true), or shared achievements again (false). */
   setSteamAchievementsPrivate: (hidden: boolean) => void;
 }
@@ -538,6 +542,7 @@ export const useStore = create<State>()(
       setKickChannels: (kickChannels) => set({ kickChannels }),
       setStreamTaste: (streamTaste) => set({ streamTaste }),
       setHomepage: (homepage) => set({ homepage }),
+      setMessageAlerts: (patch) => set((s) => ({ messageAlerts: { ...messageAlerts(s.messageAlerts), ...patch } })),
       setSteamAchievementsPrivate: (hidden) => {
         const steam = get().connections.steam;
         // Private again: the time is renewed, so the next try waits another 6 hours.
