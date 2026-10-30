@@ -1,6 +1,7 @@
 // Whether friends are online, on which platform, and what they're playing:
-// Steam (public profile status, for every account with Steam connected), and
-// PlayStation and Xbox through each friend's own connection. Each answer is
+// Steam (public profile status, for every account with Steam connected),
+// PlayStation and Xbox through each friend's own connection, and Savepoint
+// itself (used it in the last few minutes; the app checks in every 30 seconds). Each answer is
 // kept for a minute, so a friends list that refreshes doesn't hammer the
 // platforms (OpenXBL allows 150 requests an hour per key).
 import { getBasicPresence } from 'psn-api';
@@ -9,6 +10,8 @@ import { query } from './db.mjs';
 import { xboxPresence } from './xbox.mjs';
 
 const TTL = 60_000;
+/** Seen within this long counts as online on Savepoint (last_seen_at moves once a minute). */
+const SAVEPOINT_ONLINE = 3 * 60_000;
 const cache = new Map(); // key -> { at, value }
 
 async function cached(key, fn) {
@@ -72,12 +75,14 @@ async function xboxStatus(userId) {
 }
 
 /**
- * userId -> [{ platform: 'steam'|'playstation'|'xbox', online, status?, device?, playing }]
+ * userId -> [{ platform: 'steam'|'playstation'|'xbox'|'savepoint', online, status?, device?, playing }]
  * for the platforms each account has connected.
  */
 export async function presenceFor(userIds) {
   if (!userIds.length) return new Map();
-  const { rows: users } = await query('SELECT "id", "steam_id" FROM users WHERE "id" = ANY($1)', [userIds]);
+  const { rows: users } = await query('SELECT "id", "steam_id", "last_seen_at" FROM users WHERE "id" = ANY($1)', [
+    userIds,
+  ]);
   // Only the platforms with a presence (platform_logins also holds the Twitch sign-in).
   const { rows: logins } = await query(
     `SELECT "user_id", "platform" FROM platform_logins WHERE "user_id" = ANY($1) AND "platform" IN ('playstation', 'xbox')`,
@@ -88,6 +93,9 @@ export async function presenceFor(userIds) {
   for (const u of users) {
     const s = u.steam_id && steam.get(u.steam_id);
     if (s) result.get(u.id).push({ platform: 'steam', ...s });
+    const seen = u.last_seen_at ? new Date(u.last_seen_at).getTime() : 0;
+    if (Date.now() - seen < SAVEPOINT_ONLINE)
+      result.get(u.id).push({ platform: 'savepoint', online: true, playing: null });
   }
   await Promise.all(
     logins.map(async ({ user_id: id, platform }) => {

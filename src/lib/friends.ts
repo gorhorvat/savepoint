@@ -4,7 +4,8 @@
 /** Tells the header's Friends badge to look again (after accepting or declining a request). */
 export const FRIENDS_CHANGED = 'savepoint:friends-changed';
 
-export type PresencePlatform = 'steam' | 'playstation' | 'xbox';
+/** savepoint: used Savepoint in the last few minutes. */
+export type PresencePlatform = 'steam' | 'playstation' | 'xbox' | 'savepoint';
 
 export interface Presence {
   platform: PresencePlatform;
@@ -120,19 +121,36 @@ export const savePublicProfile = (profile: PublicProfile) => call('/api/profile/
 /** The address that sends you a friend request when someone opens it. */
 export const friendLink = (code: string) => `${location.origin}/add/${code}`;
 
-const PLATFORM_NAMES: Record<PresencePlatform, string> = { steam: 'Steam', playstation: 'PlayStation', xbox: 'Xbox' };
+const PLATFORM_NAMES: Record<PresencePlatform, string> = {
+  steam: 'Steam',
+  playstation: 'PlayStation',
+  xbox: 'Xbox',
+  savepoint: 'Savepoint',
+};
 
 const where = (p: Presence) => (p.platform === 'playstation' && p.device ? p.device : PLATFORM_NAMES[p.platform]);
 
-/** "Playing Hades II on Steam", "Online on PS5 · Away on Steam", or "Offline". */
+// Playing something beats plain online; consoles before Steam (whose "online" is
+// often just the client left running); Savepoint only when nothing else is.
+const PLATFORM_ORDER: PresencePlatform[] = ['playstation', 'xbox', 'steam', 'savepoint'];
+const away = (p: Presence) => !!p.status && p.status !== 'online';
+const rank = (p: Presence) => (p.playing ? 0 : away(p) ? 20 : 10) + PLATFORM_ORDER.indexOf(p.platform);
+
+/** Where a friend is online, most telling first; Savepoint only if nowhere else. */
+export function onlineWhere(presence: Presence[]): Presence[] {
+  const online = presence.filter((p) => p.online).sort((a, b) => rank(a) - rank(b));
+  const elsewhere = online.filter((p) => p.platform !== 'savepoint');
+  return elsewhere.length ? elsewhere : online;
+}
+
+/** "Playing Hades II on Steam", "Online on PS5 · Away on Steam", "Online on Savepoint" or "Offline". */
 export function describePresence(presence: Presence[]): string {
-  const online = presence.filter((p) => p.online);
+  const online = onlineWhere(presence);
   if (!online.length) return 'Offline';
   return online
     .map((p) => {
       if (p.playing) return `Playing ${p.playing} on ${where(p)}`;
-      const state =
-        p.status && !['online'].includes(p.status) ? p.status[0].toUpperCase() + p.status.slice(1) : 'Online';
+      const state = away(p) ? p.status![0].toUpperCase() + p.status!.slice(1) : 'Online';
       return `${state} on ${where(p)}`;
     })
     .join(' · ');
@@ -183,7 +201,8 @@ export const sendGift = (gift: {
   gameId?: string;
 }) => call<{ id: number }>('/api/gifts', 'POST', gift);
 export const openGift = (id: number) => call<{ key: string }>(`/api/gifts/${id}/open`, 'POST');
-export const markGiftRedeemed = (id: number) => call<{ ok: true; gameId?: string }>(`/api/gifts/${id}/redeemed`, 'POST');
+export const markGiftRedeemed = (id: number) =>
+  call<{ ok: true; gameId?: string }>(`/api/gifts/${id}/redeemed`, 'POST');
 export const takeBackGift = (id: number) => call(`/api/gifts/${id}`, 'DELETE');
 
 // ---------------------------------------------------------------- leaderboards
@@ -204,8 +223,7 @@ export interface Leaderboard {
   you: LeaderboardRow | null;
 }
 
-export const fetchLeaderboard = (scope: 'friends' | 'global') =>
-  call<Leaderboard>(`/api/leaderboard?scope=${scope}`);
+export const fetchLeaderboard = (scope: 'friends' | 'global') => call<Leaderboard>(`/api/leaderboard?scope=${scope}`);
 
 /** Adds a Savepoint friend on PlayStation or Xbox: { sent } when done directly, else a page to finish it on. */
 export const addOnPlatform = (id: number, platform: 'playstation' | 'xbox') =>

@@ -139,8 +139,9 @@ async function accountState(id) {
   );
   const row = rows[0] ?? null;
   accountStates.set(id, { at: Date.now(), row });
-  // Last seen, at most every ten minutes per account.
-  if (row && (!row.last_seen_at || Date.now() - new Date(row.last_seen_at).getTime() > 10 * 60_000)) {
+  // Last seen, at most once a minute per account: friends see you as online on
+  // Savepoint for a few minutes after it (server/presence.mjs).
+  if (row && (!row.last_seen_at || Date.now() - new Date(row.last_seen_at).getTime() > 60_000)) {
     row.last_seen_at = new Date().toISOString();
     void query('UPDATE users SET "last_seen_at" = now() WHERE "id" = $1', [id]).catch(() => {});
   }
