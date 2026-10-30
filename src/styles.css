@@ -846,14 +846,24 @@ h3,
 }
 
 /* Friends online: a green dot on the header's Friends button. */
+.mantine-ActionIcon-root:has(.header-count, .header-online) {
+  overflow: visible;
+}
+
 .header-online {
   position: absolute;
-  bottom: 3px;
-  right: 3px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+  bottom: -2px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
   background: #2fb344;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
   box-shadow: 0 0 0 2px var(--sp-shell);
 }
 

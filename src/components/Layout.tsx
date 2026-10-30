@@ -14,6 +14,7 @@ import {
   IconBuildingStore,
   IconChartPie,
   IconDisc,
+  IconGift,
   IconHeart,
   IconMessageCircle,
   IconMessages,
@@ -76,8 +77,9 @@ export function Logo({ size = 22 }: { size?: number }) {
 }
 
 /**
- * Friends in the header, with the number of friend requests and unopened gifts
- * waiting, and a green dot when any friend is online.
+ * Friends in the header: the number of friend requests waiting (top) and of
+ * friends online (green, bottom). Gifts waiting to be opened get their own
+ * button, shown only while there are some.
  */
 function FriendsButton() {
   const [incoming, setIncoming] = useState(0);
@@ -85,49 +87,68 @@ function FriendsButton() {
   const [gifts, setGifts] = useState(0);
   const { pathname } = useLocation();
   useEffect(() => {
-    const check = () =>
-      Promise.all([
-        fetchFriendSummary()
-          .then((s) => {
-            setIncoming(s.incoming);
-            setOnline(s.online ?? 0);
-          })
-          .catch(() => {}),
-        fetchGiftSummary()
-          .then((s) => setGifts(s.unopened))
-          .catch(() => {}),
-      ]);
+    const check = () => {
+      if (document.visibilityState !== 'visible') return;
+      void fetchFriendSummary()
+        .then((s) => {
+          setIncoming(s.incoming);
+          setOnline(s.online ?? 0);
+        })
+        .catch(() => {});
+      void fetchGiftSummary()
+        .then((s) => setGifts(s.unopened))
+        .catch(() => {});
+    };
     check();
-    const timer = setInterval(check, 120_000);
+    const timer = setInterval(check, 60_000);
     window.addEventListener(FRIENDS_CHANGED, check);
+    document.addEventListener('visibilitychange', check);
     return () => {
       clearInterval(timer);
       window.removeEventListener(FRIENDS_CHANGED, check);
+      document.removeEventListener('visibilitychange', check);
     };
   }, [pathname]);
   const parts = [
-    incoming && `${incoming} ${incoming === 1 ? 'request' : 'requests'}`,
-    gifts && `${gifts} ${gifts === 1 ? 'gift' : 'gifts'}`,
+    incoming && `${incoming} friend ${incoming === 1 ? 'request' : 'requests'}`,
+    online && `${online} online`,
   ].filter(Boolean);
-  if (online) parts.push(`${online} online`);
   const label = parts.length ? `Friends: ${parts.join(', ')}` : 'Friends';
-  const count = incoming + gifts;
+  const giftLabel = `${gifts} ${gifts === 1 ? 'gift' : 'gifts'} to open`;
   return (
-    <Tooltip label={label}>
-      <ActionIcon
-        component={Link}
-        to="/friends"
-        variant="subtle"
-        color="gray"
-        size="lg"
-        aria-label={label}
-        pos="relative"
-      >
-        <IconUsers size={20} />
-        {count > 0 && <span className="header-count num">{count}</span>}
-        {online > 0 && <span className="header-online" aria-hidden />}
-      </ActionIcon>
-    </Tooltip>
+    <>
+      {gifts > 0 && (
+        <Tooltip label={giftLabel}>
+          <ActionIcon
+            component={Link}
+            to="/friends#gifts"
+            variant="subtle"
+            color="gray"
+            size="lg"
+            aria-label={giftLabel}
+            pos="relative"
+          >
+            <IconGift size={20} />
+            <span className="header-count num">{gifts}</span>
+          </ActionIcon>
+        </Tooltip>
+      )}
+      <Tooltip label={label}>
+        <ActionIcon
+          component={Link}
+          to="/friends"
+          variant="subtle"
+          color="gray"
+          size="lg"
+          aria-label={label}
+          pos="relative"
+        >
+          <IconUsers size={20} />
+          {incoming > 0 && <span className="header-count num">{incoming}</span>}
+          {online > 0 && <span className="header-online num">{online}</span>}
+        </ActionIcon>
+      </Tooltip>
+    </>
   );
 }
 

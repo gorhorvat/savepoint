@@ -151,7 +151,7 @@ export function GiftsSection() {
   const received = gifts.received.filter(recent);
   const sent = gifts.sent.filter(recent);
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" id="gifts">
       <Title order={2}>Gifts</Title>
       {received.length > 0 && (
         <Paper p={{ base: 'md', sm: 'lg' }}>
