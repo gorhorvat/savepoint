@@ -219,7 +219,7 @@ export function AlertsSection() {
           through the free ntfy app.
         </Text>
       </div>
-      <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+      <Paper p={{ base: 'md', sm: 'lg' }}>
         <Stack gap="sm">
           {settings === null && !error ? (
             <Text size="sm" c="dimmed">
@@ -314,7 +314,7 @@ export function AlertsSection() {
         </Stack>
       </Paper>
       {topic && (
-        <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+        <Paper p={{ base: 'md', sm: 'lg' }}>
           <Stack gap="md">
             <div>
               <Title order={3}>Free games and big deals</Title>

@@ -33,7 +33,7 @@ export function MessageAlertsSection() {
           How a new message from a friend gets your attention. The unread count on the messages icon is always there.
         </Text>
       </div>
-      <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+      <Paper p={{ base: 'md', sm: 'lg' }}>
         <Stack gap="md">
           <Switch
             checked={alerts.toast}

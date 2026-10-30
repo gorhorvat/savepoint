@@ -40,7 +40,7 @@ export function HomepageSection() {
           Pick what your homepage shows and in which order. Changes show up straight away.
         </Text>
       </div>
-      <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+      <Paper p={{ base: 'md', sm: 'lg' }}>
         <Stack gap={0}>
           {widgets.map((w, i) => {
             const info = HOME_WIDGETS[w.id];
@@ -91,7 +91,7 @@ export function HomepageSection() {
         </Stack>
       </Paper>
       {freeOn && (
-        <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+        <Paper p={{ base: 'md', sm: 'lg' }}>
           <Stack gap="xs">
             <Text fw={600}>Free games</Text>
             <Text size="xs" c="dimmed">
@@ -129,7 +129,7 @@ export function HomepageSection() {
         </Paper>
       )}
       {newsOn && (
-        <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+        <Paper p={{ base: 'md', sm: 'lg' }}>
           <Stack gap="xs">
             <Text fw={600}>News sites</Text>
             <Text size="xs" c="dimmed">

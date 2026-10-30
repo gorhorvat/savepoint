@@ -19,6 +19,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconBrandSteam, IconDownload, IconPlus, IconRefresh } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { GameSearch } from '../components/GameSearch';
 import { ListImport } from '../components/ListImport';
 import { PlatformIcon } from '../components/PlatformBadge';
@@ -33,6 +34,7 @@ import {
   importSteam,
   importXbox,
   steamProfileUrl,
+  unlinkSteam,
   useServerStatus,
   type Account,
   type FoundGame,
@@ -105,6 +107,17 @@ function SteamPanel({ status }: { status: ServerStatus | null }) {
   const importedOnReturn = useRef(false); // Development mode runs effects twice.
   const [error, setError] = useState<string | null>(() => STEAM_CONNECT_ERRORS[steamReturn ?? ''] ?? null);
 
+  const [unlinking, setUnlinking] = useState(false);
+  const unlink = async () => {
+    setUnlinking(true);
+    setError(null);
+    const problem = await unlinkSteam();
+    setUnlinking(false);
+    if (problem) return setError(problem);
+    notifications.show({ message: 'Steam unlinked.' });
+    setAccount(await fetchAccount().catch(() => null));
+  };
+
   const run = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -167,7 +180,10 @@ function SteamPanel({ status }: { status: ServerStatus | null }) {
             <Anchor href={steamProfileUrl(account.steamId)} target="_blank" rel="noopener noreferrer">
               your Steam account
             </Anchor>
-            . Game details must be public in Steam&apos;s privacy settings.
+            . Game details must be public in Steam&apos;s privacy settings.{' '}
+            {account.hasPassword
+              ? 'You can log in with Steam or with your username and password.'
+              : 'You log in with Steam.'}
           </Text>
           <Group gap="sm">
             <Button
@@ -182,7 +198,25 @@ function SteamPanel({ status }: { status: ServerStatus | null }) {
                 Remove imported games
               </Button>
             )}
+            <Button
+              variant="subtle"
+              color="gray"
+              loading={unlinking}
+              disabled={!account.hasPassword}
+              onClick={() => void unlink()}
+            >
+              Unlink Steam
+            </Button>
           </Group>
+          {!account.hasPassword && (
+            <Text size="xs" c="dimmed">
+              To unlink Steam, first set a password in{' '}
+              <Anchor component={Link} to="/profile" inherit>
+                Profile
+              </Anchor>
+              , so you can still log in.
+            </Text>
+          )}
         </>
       )}
       {error && (

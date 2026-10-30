@@ -1,5 +1,4 @@
 import {
-  Anchor,
   Avatar,
   Button,
   FileButton,
@@ -10,28 +9,15 @@ import {
   Progress,
   Stack,
   TagsInput,
-  TextInput,
   Text,
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconBrandSteam, IconCopy, IconLock, IconLogout, IconPhoto, IconRefresh, IconTrash, IconUsers } from '@tabler/icons-react';
+import { IconPhoto, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  changePassword,
-  fetchAccount,
-  fetchInviteCode,
-  fetchTaxonomy,
-  unlinkSteam,
-  updateInviteCode,
-  useServerStatus,
-  type Account,
-  type Taxonomy,
-} from '../lib/api';
+import { changePassword, fetchAccount, fetchTaxonomy, type Account, type Taxonomy } from '../lib/api';
 import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } from '../lib/favorites';
 import { useLibrary } from '../lib/library';
-import { logOut } from '../lib/serverStorage';
 import { useStore } from '../lib/store';
 import { nextRank, useXp, XP } from '../lib/xp';
 
@@ -298,223 +284,7 @@ function LevelSection() {
   );
 }
 
-/** The invite code for sign-up; only the super admin sees this. */
-function InviteSection() {
-  const [code, setCode] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchInviteCode()
-      .then(setCode)
-      .catch((e: Error) => setError(e.message));
-  }, []);
-
-  const change = async (next: { code: string } | { generate: true }) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const saved = await updateInviteCode(next);
-      setCode(saved);
-      setEditing(false);
-      notifications.show({ message: saved ? 'Invite code changed.' : 'Sign-up is closed.' });
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code ?? '');
-      notifications.show({ message: 'Invite code copied.', autoClose: 2000 });
-    } catch {
-      notifications.show({ message: "Couldn't copy. Select the code and copy it instead.", color: 'red' });
-    }
-  };
-
-  return (
-    <Paper p={{ base: 'md', sm: 'lg' }} maw={480}>
-      <Stack gap="sm">
-        <div>
-          <Text fw={600}>Invite code</Text>
-          <Text size="sm" c="dimmed">
-            Anyone with this code can create an account from the login screen. Only you see it here. Changing it
-            doesn&apos;t affect accounts already created.
-          </Text>
-        </div>
-        {code === null && !error ? (
-          <Text size="sm" c="dimmed">
-            Loading…
-          </Text>
-        ) : editing ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void change({ code: draft });
-            }}
-          >
-            <Stack gap="xs">
-              <TextInput
-                aria-label="New invite code"
-                value={draft}
-                onChange={(e) => setDraft(e.currentTarget.value)}
-                placeholder="At least 6 characters"
-                autoFocus
-              />
-              <Group gap="xs">
-                <Button type="submit" size="xs" loading={busy}>
-                  Save code
-                </Button>
-                <Button size="xs" variant="subtle" color="gray" onClick={() => setEditing(false)}>
-                  Cancel
-                </Button>
-              </Group>
-            </Stack>
-          </form>
-        ) : (
-          <>
-            {code ? (
-              <Group gap="xs" wrap="nowrap">
-                <Text className="num" fw={700} fz="lg" style={{ letterSpacing: '0.04em', wordBreak: 'break-all' }}>
-                  {code}
-                </Text>
-                <Button
-                  size="xs"
-                  variant="default"
-                  leftSection={<IconCopy size={14} />}
-                  onClick={copy}
-                  style={{ flexShrink: 0 }}
-                >
-                  Copy
-                </Button>
-              </Group>
-            ) : (
-              <Text size="sm">Sign-up is closed: nobody can create an account until you set a code.</Text>
-            )}
-            <Group gap="xs">
-              <Button
-                size="xs"
-                variant="default"
-                leftSection={<IconRefresh size={14} />}
-                loading={busy}
-                onClick={() => void change({ generate: true })}
-              >
-                {code ? 'New random code' : 'Open sign-up with a random code'}
-              </Button>
-              <Button
-                size="xs"
-                variant="default"
-                onClick={() => {
-                  setDraft(code ?? '');
-                  setEditing(true);
-                }}
-              >
-                Type my own
-              </Button>
-              {code && (
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  color="gray"
-                  leftSection={<IconLock size={14} />}
-                  onClick={() => void change({ code: '' })}
-                >
-                  Close sign-up
-                </Button>
-              )}
-            </Group>
-          </>
-        )}
-        {error && (
-          <Text size="sm" c="red">
-            {error}
-          </Text>
-        )}
-      </Stack>
-    </Paper>
-  );
-}
-
-/**
- * The connected Steam account: it logs in through Steam and is the one whose
- * library is imported. Connected in Settings, Platforms, or from the login screen.
- */
-function SteamLoginSection({ account, onChange }: { account: Account; onChange: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const unlink = async () => {
-    setBusy(true);
-    setError(null);
-    const problem = await unlinkSteam();
-    setBusy(false);
-    if (problem) setError(problem);
-    else {
-      notifications.show({ message: 'Steam unlinked.' });
-      onChange();
-    }
-  };
-
-  return (
-    <Paper p={{ base: 'md', sm: 'lg' }} maw={480}>
-      <Stack gap="sm">
-        <Group gap="xs">
-          <IconBrandSteam size={20} />
-          <Text fw={600}>Steam</Text>
-        </Group>
-        {account.steamId ? (
-          <>
-            <Text size="sm" c="dimmed">
-              Connected to{' '}
-              <Anchor href={`https://steamcommunity.com/profiles/${account.steamId}/`} target="_blank" rel="noreferrer">
-                this Steam account
-              </Anchor>
-              .{' '}
-              {account.hasPassword
-                ? 'Your Steam games come from it, and you can log in with it or with your username and password.'
-                : 'Your Steam games come from it, and you log in with it.'}
-            </Text>
-            <Button
-              size="xs"
-              variant="default"
-              w="fit-content"
-              loading={busy}
-              disabled={!account.hasPassword}
-              onClick={() => void unlink()}
-            >
-              Unlink Steam
-            </Button>
-            {!account.hasPassword && (
-              <Text size="xs" c="dimmed">
-                Set a password below before unlinking, so you can still log in.
-              </Text>
-            )}
-          </>
-        ) : (
-          <Text size="sm" c="dimmed">
-            Not connected.{' '}
-            <Anchor component={Link} to="/settings">
-              Connect Steam in Settings
-            </Anchor>{' '}
-            to import your Steam games and log in with Steam.
-          </Text>
-        )}
-        {error && (
-          <Text size="sm" c="red">
-            {error}
-          </Text>
-        )}
-      </Stack>
-    </Paper>
-  );
-}
-
 function AccountSection() {
-  const [status] = useServerStatus();
   const [account, setAccount] = useState<Account | null>(null);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -555,8 +325,7 @@ function AccountSection() {
   return (
     <Stack gap="lg">
       <Title order={2}>Account</Title>
-      {account && <SteamLoginSection account={account} onChange={loadAccount} />}
-      <Paper p={{ base: 'md', sm: 'lg' }} maw={480}>
+      <Paper p={{ base: 'md', sm: 'lg' }}>
         <form onSubmit={submit}>
           <Stack gap="sm">
             <div>
@@ -604,21 +373,6 @@ function AccountSection() {
           </Stack>
         </form>
       </Paper>
-      {status?.superAdmin && <InviteSection />}
-      {status?.superAdmin && (
-        <Button component={Link} to="/admin" variant="default" leftSection={<IconUsers size={16} />} w="fit-content">
-          Manage users
-        </Button>
-      )}
-      <Button
-        variant="subtle"
-        color="gray"
-        leftSection={<IconLogout size={16} />}
-        onClick={() => void logOut()}
-        w="fit-content"
-      >
-        Log out
-      </Button>
     </Stack>
   );
 }

@@ -144,7 +144,7 @@ export function StreamingSection() {
           ones live now can go on your homepage.
         </Text>
       </div>
-      <Paper p={{ base: 'md', sm: 'lg' }} maw={640}>
+      <Paper p={{ base: 'md', sm: 'lg' }}>
         <Stack gap="lg">
           {nothingSetUp ? (
             <Text size="sm" c="dimmed">
