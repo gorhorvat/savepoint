@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { GameCard } from '../components/GameCard';
 import { formatPlaytime } from '../lib/format';
 import { ownedPlatforms, useLibrary, useUnlinkedPhysicalTitles } from '../lib/library';
-import { recommend, tasteProfile } from '../lib/recommend';
+import { newestFirst, recommend, tasteProfile } from '../lib/recommend';
 import { useStore } from '../lib/store';
 import { useFavorites } from '../lib/favorites';
 import { useSuggestionPool } from '../lib/suggestions';
@@ -30,7 +30,10 @@ export function DiscoverPage() {
   const favorites = useFavorites();
   const alsoOwned = useUnlinkedPhysicalTitles();
   const recs = useMemo(
-    () => recommend(lib, { owned, exclude: new Set(dismissed), pool: pool.games, favorites, alsoOwned, watched }),
+    () =>
+      newestFirst(
+        recommend(lib, { owned, exclude: new Set(dismissed), pool: pool.games, favorites, alsoOwned, watched }),
+      ),
     [lib, owned, dismissed, pool.games, favorites, alsoOwned, watched],
   );
 
@@ -49,8 +52,9 @@ export function DiscoverPage() {
         <div>
           <Title order={1}>Play next</Title>
           <Text c="dimmed" mt={6} size="lg" maw={620}>
-            Picked from the genres you spend the most hours in. Hours count with diminishing returns, so one huge game
-            doesn't decide everything.{watched.length > 0 && ' The games your favourite streamers play count too.'}{' '}
+            Picked from the genres you spend the most hours in, newest first within each 10% match band. Hours count
+            with diminishing returns, so one huge game doesn't decide everything.
+            {watched.length > 0 && ' The games your favourite streamers play count too.'}{' '}
             <Anchor component={Link} to="/stats" inherit>
               See your genres
             </Anchor>
@@ -140,7 +144,8 @@ export function DiscoverPage() {
                       <IconBroadcast size={14} style={{ flexShrink: 0, marginTop: 3, opacity: 0.7 }} />
                       <Text size="sm" lh={1.4}>
                         {r.streamedBy.slice(0, 2).join(' and ')}
-                        {r.streamedBy.length > 2 ? ' and others' : ''} {r.streamedBy.length === 1 ? 'plays' : 'play'} it.
+                        {r.streamedBy.length > 2 ? ' and others' : ''} {r.streamedBy.length === 1 ? 'plays' : 'play'}{' '}
+                        it.
                       </Text>
                     </Group>
                   )}

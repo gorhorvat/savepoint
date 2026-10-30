@@ -223,3 +223,31 @@ export function recommend(
   const rank = (r: Recommendation) => r.fit * (r.onYourPlatforms.length ? 1 : 0.4);
   return recs.sort((a, b) => rank(b) - rank(a) || b.score - a.score);
 }
+
+/** When a game came out, as a sortable number (0 when unknown). */
+function released(g: Game) {
+  if (g.releaseDate) {
+    const t = Date.parse(g.releaseDate);
+    if (Number.isFinite(t)) return t;
+  }
+  return g.year ? Date.UTC(g.year, 6, 1) : 0;
+}
+
+/**
+ * Newest first, without letting a new game jump past much better matches:
+ * picks stay in 10-point match bands (90-100%, 80-89%, ...), and inside a band
+ * the newest released game comes first. Games not out yet follow the released
+ * ones in their band; games with no known date come last.
+ */
+export function newestFirst(recs: Recommendation[]): Recommendation[] {
+  const band = (r: Recommendation) => Math.floor(Math.min(99, r.fit * (r.onYourPlatforms.length ? 1 : 0.4)) / 10);
+  const group = (r: Recommendation) => (r.game.comingSoon ? 1 : released(r.game) ? 0 : 2);
+  return [...recs].sort(
+    (a, b) =>
+      band(b) - band(a) ||
+      group(a) - group(b) ||
+      (group(a) === 1 ? released(a.game) - released(b.game) : released(b.game) - released(a.game)) ||
+      b.fit - a.fit ||
+      b.score - a.score,
+  );
+}

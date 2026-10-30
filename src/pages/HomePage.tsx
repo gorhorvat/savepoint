@@ -19,7 +19,7 @@ import {
 } from '../lib/friends';
 import { HOME_WIDGETS, normalizeHomepage, type HomeWidgetId } from '../lib/homepage';
 import { ownedPlatforms, useLibrary, useUnlinkedPhysicalTitles, type LibraryGame } from '../lib/library';
-import { recommend } from '../lib/recommend';
+import { newestFirst, recommend } from '../lib/recommend';
 import { useGameResolver, useStore } from '../lib/store';
 import { fetchFollowedLive, watchedForTaste, type LiveStream } from '../lib/streaming';
 import { useSuggestionPool } from '../lib/suggestions';
@@ -53,7 +53,15 @@ function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []): T | null | 'e
   return value?.key === key ? value.v : null;
 }
 
-function Section({ title, more, children }: { title: string; more?: { to: string; label: string }; children: ReactNode }) {
+function Section({
+  title,
+  more,
+  children,
+}: {
+  title: string;
+  more?: { to: string; label: string };
+  children: ReactNode;
+}) {
   return (
     <Stack gap="sm" component="section" aria-label={title}>
       <Group justify="space-between" align="baseline">
@@ -140,16 +148,16 @@ function PlayNext({ lib }: { lib: LibraryGame[] }) {
   const alsoOwned = useUnlinkedPhysicalTitles();
   const recs = useMemo(
     () =>
-      recommend(lib, {
-        owned: ownedPlatforms(lib),
-        exclude: new Set(dismissed),
-        pool: pool.games,
-        favorites,
-        alsoOwned,
-        watched: watchedForTaste(streamTaste),
-      })
-        .filter((r) => r.onYourPlatforms.length > 0)
-        .slice(0, 8),
+      newestFirst(
+        recommend(lib, {
+          owned: ownedPlatforms(lib),
+          exclude: new Set(dismissed),
+          pool: pool.games,
+          favorites,
+          alsoOwned,
+          watched: watchedForTaste(streamTaste),
+        }).filter((r) => r.onYourPlatforms.length > 0),
+      ).slice(0, 8),
     [lib, dismissed, pool.games, favorites, alsoOwned, streamTaste],
   );
   return (
@@ -248,7 +256,9 @@ function FriendActivity() {
         </SimpleGrid>
       ) : (
         <Quiet>
-          {list.friends.length ? 'None of your friends are online right now.' : 'No friends yet. Add some on the Friends page.'}
+          {list.friends.length
+            ? 'None of your friends are online right now.'
+            : 'No friends yet. Add some on the Friends page.'}
         </Quiet>
       )}
     </Section>
@@ -268,7 +278,14 @@ function FreeGames() {
       ) : games.length ? (
         <div className="shelf">
           {games.slice(0, 10).map((g: FreeGiveaway) => (
-            <Anchor key={g.id} href={g.url} target="_blank" rel="noopener noreferrer" className="shelf-tile" underline="never">
+            <Anchor
+              key={g.id}
+              href={g.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shelf-tile"
+              underline="never"
+            >
               <div className="cover" style={{ aspectRatio: '460 / 215', borderRadius: 12 }}>
                 {g.image && <img src={g.image} alt="" loading="lazy" />}
               </div>
@@ -324,7 +341,15 @@ function BigDeals() {
                 style={{ borderTop: i ? '1px solid var(--sp-line)' : undefined }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <Anchor href={d.url} target="_blank" rel="noopener noreferrer" c="inherit" fw={600} size="sm" truncate>
+                  <Anchor
+                    href={d.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    c="inherit"
+                    fw={600}
+                    size="sm"
+                    truncate
+                  >
                     {d.title}
                   </Anchor>
                   <Text size="xs" c="dimmed">
@@ -380,7 +405,15 @@ function News() {
       ) : (
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
           {items.items.slice(0, 10).map((n) => (
-            <Anchor key={n.url} href={n.url} target="_blank" rel="noopener noreferrer" c="inherit" underline="never" className="news-row">
+            <Anchor
+              key={n.url}
+              href={n.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              c="inherit"
+              underline="never"
+              className="news-row"
+            >
               {n.image ? <img src={n.image} alt="" loading="lazy" /> : <span className="news-thumb" aria-hidden />}
               <div style={{ minWidth: 0 }}>
                 <Text fw={600} size="sm" lineClamp={2}>
@@ -520,12 +553,7 @@ export function HomePage() {
             Your games, streams, friends and news in one place.
           </Text>
         </div>
-        <Button
-          component={Link}
-          to="/settings#homepage"
-          variant="default"
-          leftSection={<IconAdjustments size={16} />}
-        >
+        <Button component={Link} to="/settings#homepage" variant="default" leftSection={<IconAdjustments size={16} />}>
           Customize
         </Button>
       </Group>
