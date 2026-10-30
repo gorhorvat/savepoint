@@ -36,7 +36,7 @@ export function HomepageSection() {
     <Stack gap="lg" id="homepage">
       <div>
         <Title order={2}>Homepage</Title>
-        <Text c="dimmed" mt={6} maw={640}>
+        <Text c="dimmed" mt={6}>
           Pick what your homepage shows and in which order. Changes show up straight away.
         </Text>
       </div>

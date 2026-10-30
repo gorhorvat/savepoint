@@ -846,6 +846,16 @@ h3,
 }
 
 /* Friends online: a green dot on the header's Friends button. */
+.page-head > :last-child {
+  flex-shrink: 0;
+}
+
+@media (max-width: 48em) {
+  .page-head {
+    flex-wrap: wrap !important;
+  }
+}
+
 .mantine-ActionIcon-root:has(.header-count, .header-online) {
   overflow: visible;
 }

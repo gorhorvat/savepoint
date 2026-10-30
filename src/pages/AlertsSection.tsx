@@ -102,7 +102,7 @@ function DealAlerts() {
           onChange={(e) => deals({ enabled: e.currentTarget.checked })}
         />
         {s.bigDeals.enabled && (
-          <Stack gap="sm" pl={{ base: 0, sm: 54 }} maw={480}>
+          <Stack gap="sm" pl={{ base: 0, sm: 54 }}>
             <div>
               <Text size="sm">At least {s.bigDeals.minCut}% off</Text>
               <Slider
@@ -210,7 +210,7 @@ export function AlertsSection() {
     <Stack gap="lg" id="alerts">
       <div>
         <Title order={2}>Price and deal alerts</Title>
-        <Text c="dimmed" mt={6} maw={640}>
+        <Text c="dimmed" mt={6}>
           Set a target price on a{' '}
           <Anchor component={Link} to="/wishlist">
             wishlist

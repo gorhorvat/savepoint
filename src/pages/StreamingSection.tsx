@@ -139,7 +139,7 @@ export function StreamingSection() {
     <Stack gap="lg" id="streaming">
       <div>
         <Title order={2}>Streaming</Title>
-        <Text c="dimmed" mt={6} maw={640}>
+        <Text c="dimmed" mt={6}>
           Bring in the streamers you watch. The games they play count toward Play next and More like this, and the
           ones live now can go on your homepage.
         </Text>

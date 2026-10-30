@@ -17,7 +17,7 @@ function ShopsSection() {
     <Stack gap="lg" id="shops">
       <div>
         <Title order={2}>Shops for physical games</Title>
-        <Text c="dimmed" mt={6} maw={640}>
+        <Text c="dimmed" mt={6}>
           Each game you&apos;re looking for, and each physical game you gift a friend, gets a search link for every shop
           here. Type a shop&apos;s web address, like amazon.de or vinted.hr.
         </Text>

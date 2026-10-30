@@ -21,7 +21,7 @@ export function StoreDirectory() {
         <Stack key={kind} gap="md">
           <div>
             <Title order={2}>{title}</Title>
-            <Text size="sm" c="dimmed" mt={4} maw={640}>
+            <Text size="sm" c="dimmed" mt={4}>
               {about}
             </Text>
           </div>

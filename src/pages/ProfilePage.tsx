@@ -139,7 +139,7 @@ function FavoritesSection() {
     <Stack gap="lg">
       <div>
         <Title order={2}>Favourites</Title>
-        <Text c="dimmed" mt={6} maw={680}>
+        <Text c="dimmed" mt={6}>
           Games in your favourite genres and franchises come first in Play next and &ldquo;More like this&rdquo;, and
           they&apos;re marked in rose with a heart wherever they appear.
         </Text>
@@ -273,7 +273,7 @@ function LevelSection() {
           </Group>
         ))}
       </Stack>
-      <Text size="sm" c="dimmed" mt="md" maw={680}>
+      <Text size="sm" c="dimmed" mt="md">
         XP only counts what Steam, PlayStation and Xbox confirm: trophies earn Sony&apos;s points (bronze {XP.bronze},
         silver {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
         {XP.steamPerfect} for completing a game, Xbox achievements their gamerscore, and {XP.perHour} per hour played.

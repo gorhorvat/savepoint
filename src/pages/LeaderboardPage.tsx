@@ -26,10 +26,10 @@ export function LeaderboardPage() {
 
   return (
     <Stack gap="xl">
-      <Group justify="space-between" align="flex-end" gap="md">
-        <div>
+      <Group justify="space-between" align="flex-end" gap="md" wrap="nowrap" className="page-head">
+        <div style={{ flex: 1, minWidth: 0 }}>
           <Title order={1}>Leaderboard</Title>
-          <Text c="dimmed" mt={6} size="lg" maw={620}>
+          <Text c="dimmed" mt={6} size="lg">
             Ranked by Savepoint XP: trophies, achievements and confirmed play time.{' '}
             <Text component={Link} to="/profile" span inherit c="var(--mantine-primary-color-filled)">
               How XP works

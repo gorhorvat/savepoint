@@ -29,7 +29,7 @@ export function MessageAlertsSection() {
     <Stack gap="lg" id="messages">
       <div>
         <Title order={2}>Message alerts</Title>
-        <Text c="dimmed" mt={6} maw={640}>
+        <Text c="dimmed" mt={6}>
           How a new message from a friend gets your attention. The unread count on the messages icon is always there.
         </Text>
       </div>

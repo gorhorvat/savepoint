@@ -705,7 +705,7 @@ export function PlatformsSection() {
     <Stack gap="lg" id="platforms">
       <div>
         <Title order={2}>Platforms</Title>
-        <Text c="dimmed" mt={6} maw={640}>
+        <Text c="dimmed" mt={6}>
           Steam, PlayStation and Xbox import play time automatically. Epic and Nintendo don't offer a way to read it, so
           add those games by hand.
         </Text>
