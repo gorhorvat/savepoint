@@ -12,13 +12,17 @@
 import express from 'express';
 import { query } from './db.mjs';
 import { forClient as ffxivForClient, LodestoneError, readCharacter, searchCharacters } from './ffxiv.mjs';
+import { LOL_REGIONS, readPlayer, riot, RiotError } from './lol.mjs';
+import { readCharacter as readWowCharacter, WowError } from './wow.mjs';
 
 const GAMES = new Set(['lol', 'gw2', 'ffxiv', 'cs2', 'dota2', 'wow']);
 const LOOKUP_TTL = 24 * 3600 * 1000;
 const LOOKUPS_PER_HOUR = 20; // reads of other people's characters, per account
 
-// Games where anyone can be looked up by name. search(q, extra) -> results;
-// read(id) -> { name, data } with the same shape as a connection's data.
+// Games where anyone can be looked up by name. search(q, { world, mine })
+// -> results (`mine` is the searcher's own connection, for defaults such as
+// the region); read(id) -> { name, data } shaped like a connection's data.
+const WOW_REGIONS = ['eu', 'us', 'kr', 'tw'];
 const LOOKUPS = {
   ffxiv: {
     label: 'Lodestone character',
@@ -34,6 +38,70 @@ const LOOKUPS = {
     async read(id) {
       const c = await readCharacter(id, null, { light: true });
       return { name: c.name, data: ffxivForClient(c) };
+    },
+  },
+  lol: {
+    label: 'Riot ID (Name#TAG)',
+    async search(q, { world, mine }) {
+      const [gameName, tagLine] = q.split('#').map((s) => s.trim());
+      if (!gameName || !tagLine) throw new RiotError('Type the Riot ID as Name#TAG.', 400);
+      const platform = (world || mine?.data?.platform || '').toLowerCase();
+      if (!LOL_REGIONS[platform]) {
+        throw new RiotError(`Which region? One of ${Object.keys(LOL_REGIONS).join(', ')}.`, 400);
+      }
+      const account = await riot(
+        LOL_REGIONS[platform][2],
+        `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
+      );
+      return [
+        {
+          id: `${platform}:${account.puuid}`,
+          name: `${account.gameName}#${account.tagLine}`,
+          note: LOL_REGIONS[platform][0],
+          avatar: null,
+        },
+      ];
+    },
+    async read(id) {
+      const [platform, puuid] = id.split(':');
+      if (!LOL_REGIONS[platform] || !puuid) throw new RiotError('No such player.', 404);
+      const p = await readPlayer(puuid, platform);
+      p.matches = [];
+      p.archive = null;
+      return { name: `${p.gameName}#${p.tagLine}`, data: p };
+    },
+  },
+  wow: {
+    label: 'World of Warcraft character (name, then realm; "us Illidan" for another region)',
+    async search(q, { world, mine }) {
+      let region = mine?.data?.characters?.[0]?.region ?? 'eu';
+      let realm = world;
+      const m = /^(eu|us|kr|tw)\s+(.+)$/i.exec(world);
+      if (m) {
+        region = m[1].toLowerCase();
+        realm = m[2];
+      }
+      if (!realm) throw new WowError('Type the realm too, e.g. Draenor (or "us Illidan" for another region).', 400);
+      if (!WOW_REGIONS.includes(region)) throw new WowError('No such region.', 400);
+      const c = await readWowCharacter(region, realm, q);
+      return [
+        {
+          id: c.key,
+          name: c.name,
+          note: [c.realm.name, region.toUpperCase(), c.className, c.level ? `level ${c.level}` : null]
+            .filter(Boolean)
+            .join(' · '),
+          avatar: c.images?.avatar ?? null,
+        },
+      ];
+    },
+    async read(id) {
+      // key: region/realm-slug/name (server/wow.mjs)
+      const [region, slug, ...rest] = id.split('/');
+      const name = rest.join('/');
+      if (!WOW_REGIONS.includes(region) || !slug || !name) throw new WowError('No such character.', 404);
+      const c = await readWowCharacter(region, slug, name);
+      return { name: c.name, data: { characters: [c] } };
     },
   },
 };
@@ -84,7 +152,9 @@ async function history(userId, game) {
 }
 
 function failed(res, err, what) {
-  if (err instanceof LodestoneError) return res.status(err.status ?? 502).json({ error: err.message });
+  if (err instanceof LodestoneError || err instanceof RiotError || err instanceof WowError) {
+    return res.status(err.status ?? 502).json({ error: err.message });
+  }
   console.error(`${what}:`, err);
   res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
 }
@@ -131,7 +201,8 @@ compareRouter.get('/api/games/:game/compare/search', async (req, res) => {
   const q = String(req.query.q ?? '').trim();
   if (q.length < 2) return res.status(400).json({ error: 'Type at least two letters.' });
   try {
-    const results = await lookup.search(q, { world: String(req.query.world ?? '').trim() });
+    const mine = await myConnection(req.userId, req.params.game);
+    const results = await lookup.search(q, { world: String(req.query.world ?? '').trim(), mine });
     res.json({ results });
   } catch (err) {
     failed(res, err, 'Compare search');
@@ -140,7 +211,9 @@ compareRouter.get('/api/games/:game/compare/search', async (req, res) => {
 
 compareRouter.get('/api/games/:game/compare', async (req, res) => {
   const game = req.params.game;
-  const [kind, id] = String(req.query.with ?? '').split(':');
+  const w = String(req.query.with ?? '');
+  const kind = w.slice(0, w.indexOf(':'));
+  const id = w.slice(kind.length + 1);
   if (!['user', 'lookup'].includes(kind) || !id) {
     return res.status(400).json({ error: 'Say who to compare with: with=user:<id> or with=lookup:<id>.' });
   }

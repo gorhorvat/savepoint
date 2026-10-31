@@ -272,6 +272,10 @@ const lol: CompareSpec<LolPlayer, LolSnapshot> = {
     { key: 'masteryPoints', label: 'Mastery points', value: (s) => s.masteryPoints },
     { key: 'challenges', label: 'Challenge points', value: (s) => s.challenges },
   ],
+  search: {
+    placeholder: 'Riot ID, e.g. Name#EUNE',
+    extra: { key: 'world', label: 'Region', placeholder: 'Region, e.g. euw1 (yours when empty)' },
+  },
 };
 
 const cs2: CompareSpec<Cs2Data, Cs2Snapshot> = {
@@ -379,6 +383,10 @@ const wow: CompareSpec<WowData, WowSnapshot> = {
     { key: 'achievements', label: 'Achievement points', value: (s) => wowBest(s, 'achievements') },
     { key: 'mounts', label: 'Mounts', value: (s) => wowBest(s, 'mounts') },
   ],
+  search: {
+    placeholder: 'Character name',
+    extra: { key: 'world', label: 'Realm', placeholder: 'Realm, e.g. Draenor or "us Illidan"' },
+  },
 };
 
 export const COMPARE: Record<GameStatsId, CompareSpec<never, never>> = {

@@ -46,7 +46,7 @@ export class RiotError extends Error {
 
 const riotKey = () => process.env.RIOT_API_KEY?.trim() || null;
 
-async function riot(host, path, { allow404 = false } = {}) {
+export async function riot(host, path, { allow404 = false } = {}) {
   const key = riotKey();
   if (!key) throw new RiotError("League of Legends stats aren't set up on this server yet.", 503);
   let r;
