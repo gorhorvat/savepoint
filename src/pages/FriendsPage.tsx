@@ -20,6 +20,7 @@ import {
   type FriendCard,
   type FriendsList,
 } from '../lib/friends';
+import { useTick } from '../lib/pulse';
 
 const REFRESH_MS = 60_000;
 
@@ -243,12 +244,8 @@ export function FriendsPage() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  useEffect(() => {
-    load();
-    // Keep online status fresh while the page is open.
-    const timer = setInterval(load, REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [load]);
+  // Keeps online status fresh while the page is open (and in use).
+  useTick(load, REFRESH_MS);
 
   // Online friends first, then the rest; alphabetical within each.
   const friends = [...(list?.friends ?? [])].sort(

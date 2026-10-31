@@ -81,10 +81,6 @@ export interface UnreadLatest {
   preview: string;
 }
 
-export function fetchUnread(): Promise<{ unread: number; latest: UnreadLatest | null }> {
-  return call('/api/messages/unread');
-}
-
 /** Settings: how new messages announce themselves (stored with the account). */
 export interface MessageAlerts {
   /** A pop-up inside Savepoint. */

@@ -1,7 +1,7 @@
 import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconArrowLeft, IconGift, IconHeartFilled, IconMessage, IconUserMinus } from '@tabler/icons-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AddOnPlatforms } from '../components/AddOnPlatforms';
 import { Cover } from '../components/Cover';
@@ -18,6 +18,7 @@ import {
   type ProfileGame,
   type ProfileWant,
 } from '../lib/friends';
+import { useTick } from '../lib/pulse';
 import type { Game, PlatformId } from '../types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -138,11 +139,7 @@ export function FriendProfilePage() {
       .catch((e: Error) => setError(e.message));
   }, [id]);
 
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 60_000); // Online status changes.
-    return () => clearInterval(timer);
-  }, [load]);
+  useTick(load, 60_000); // Online status changes.
 
   const remove = async () => {
     try {

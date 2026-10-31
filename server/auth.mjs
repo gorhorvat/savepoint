@@ -130,7 +130,7 @@ export const DISABLED = 'This account is disabled. Ask the Savepoint admin.';
 // for 30 seconds per instance, so a disabled account is locked out within that.
 const accountStates = new Map();
 
-async function accountState(id) {
+async function accountState(id, { touch = true } = {}) {
   const hit = accountStates.get(id);
   if (hit && hit.at > Date.now() - 30_000) return hit.row;
   const { rows } = await query(
@@ -140,8 +140,9 @@ async function accountState(id) {
   const row = rows[0] ?? null;
   accountStates.set(id, { at: Date.now(), row });
   // Last seen, at most once a minute per account: friends see you as online on
-  // Savepoint for a few minutes after it (server/presence.mjs).
-  if (row && (!row.last_seen_at || Date.now() - new Date(row.last_seen_at).getTime() > 60_000)) {
+  // Savepoint for a few minutes after it (server/presence.mjs). A request the
+  // app makes while its user is idle (X-Savepoint-Idle) doesn't count.
+  if (touch && row && (!row.last_seen_at || Date.now() - new Date(row.last_seen_at).getTime() > 60_000)) {
     row.last_seen_at = new Date().toISOString();
     void query('UPDATE users SET "last_seen_at" = now() WHERE "id" = $1', [id]).catch(() => {});
   }
@@ -263,7 +264,7 @@ export async function requireLogin(req, res, next) {
   if (!s) return res.status(401).json({ error: 'Not logged in.' });
   let account;
   try {
-    account = await accountState(s.id);
+    account = await accountState(s.id, { touch: req.headers['x-savepoint-idle'] !== '1' });
   } catch (err) {
     console.error('Session check:', err);
     return res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });

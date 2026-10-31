@@ -30,9 +30,10 @@ import {
   type Message,
   type SharedGame,
 } from '../lib/messages';
+import { useTick } from '../lib/pulse';
 import { useStore } from '../lib/store';
 
-const CHAT_POLL = 4000;
+const CHAT_POLL = 5000;
 const LIST_POLL = 15000;
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -49,24 +50,6 @@ function shortWhen(iso: string) {
   return d.toDateString() === new Date().toDateString()
     ? time(iso)
     : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-}
-
-/** Runs `fn` every `ms` while the tab is visible, and once when it becomes visible again. */
-function usePoll(fn: () => void, ms: number, enabled = true) {
-  const ref = useRef(fn);
-  useEffect(() => {
-    ref.current = fn;
-  });
-  useEffect(() => {
-    if (!enabled) return;
-    const tick = () => document.visibilityState === 'visible' && ref.current();
-    const timer = setInterval(tick, ms);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', tick);
-    };
-  }, [ms, enabled]);
 }
 
 function Person({ p, size = 36 }: { p: ChatPerson; size?: number }) {
@@ -199,7 +182,7 @@ function ChatView({ friendId, onSent }: { friendId: number; onSent: () => void }
   }, [friendId]);
 
   const lastId = messages?.length ? messages[messages.length - 1].id : 0;
-  usePoll(
+  useTick(
     () =>
       fetchChat(friendId, { after: lastId || undefined })
         .then((c) => {
@@ -435,7 +418,7 @@ export function MessagesPage() {
     window.addEventListener(MESSAGES_CHANGED, loadList);
     return () => window.removeEventListener(MESSAGES_CHANGED, loadList);
   }, [loadList]);
-  usePoll(loadList, LIST_POLL);
+  useTick(loadList, LIST_POLL);
 
   const conversations = <ConversationList list={list} active={active} friends={friends} />;
 

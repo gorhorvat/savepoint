@@ -51,6 +51,7 @@ import { friendsRouter } from './friends.mjs';
 import { messagesRouter } from './messages.mjs';
 import { adminRouter, resetRouter } from './admin.mjs';
 import { giftsRouter } from './gifts.mjs';
+import { pulseRouter } from './pulse.mjs';
 import { streamingRouter } from './streaming.mjs';
 import { latestNews } from './news.mjs';
 import { gameStatsRouter } from './ffxiv.mjs';
@@ -108,6 +109,7 @@ app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(messagesRouter); // /api/messages/*
 app.use(giftsRouter); // /api/gifts/*
+app.use(pulseRouter); // /api/me/pulse (header badges)
 app.use(streamingRouter); // /api/streams, /api/streaming/*, /api/auth/twitch/*
 app.use(gameStatsRouter); // /api/games/*
 app.use(gw2Router); // /api/games/gw2/*

@@ -28,10 +28,12 @@ import {
   IconLogout,
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import { fetchFriendSummary, fetchGiftSummary, FRIENDS_CHANGED } from '../lib/friends';
-import { fetchUnread, messageAlerts, MESSAGES_CHANGED, type UnreadLatest } from '../lib/messages';
+import { FRIENDS_CHANGED } from '../lib/friends';
+import { messageAlerts, MESSAGES_CHANGED, type UnreadLatest } from '../lib/messages';
+import { nudgePulse, usePulse } from '../lib/pulse';
+import { StillHere } from './StillHere';
 import { usePublicProfileSync } from '../lib/publicProfile';
 import { useAutoSync } from '../lib/autoSync';
 import { useStreamTasteSync } from '../lib/streaming';
@@ -86,33 +88,10 @@ export function Logo({ size = 22 }: { size?: number }) {
  * friends online (bottom, green). The tooltip says which is which.
  */
 function FriendsButton() {
-  const [incoming, setIncoming] = useState(0);
-  const [online, setOnline] = useState(0);
-  const [gifts, setGifts] = useState(0);
-  const { pathname } = useLocation();
-  useEffect(() => {
-    const check = () => {
-      if (document.visibilityState !== 'visible') return;
-      void fetchFriendSummary()
-        .then((s) => {
-          setIncoming(s.incoming);
-          setOnline(s.online ?? 0);
-        })
-        .catch(() => {});
-      void fetchGiftSummary()
-        .then((s) => setGifts(s.unopened))
-        .catch(() => {});
-    };
-    check();
-    const timer = setInterval(check, 60_000);
-    window.addEventListener(FRIENDS_CHANGED, check);
-    document.addEventListener('visibilitychange', check);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener(FRIENDS_CHANGED, check);
-      document.removeEventListener('visibilitychange', check);
-    };
-  }, [pathname]);
+  const pulse = usePulse();
+  const incoming = pulse?.requests ?? 0;
+  const online = pulse?.online ?? 0;
+  const gifts = pulse?.gifts ?? 0;
   const parts = [
     incoming && `${incoming} friend ${incoming === 1 ? 'request' : 'requests'}`,
     gifts && `${gifts} ${gifts === 1 ? 'gift' : 'gifts'} to open`,
@@ -141,13 +120,28 @@ function FriendsButton() {
 
 /** Messages in the header, with the number of unread messages. */
 function MessagesButton() {
-  const [unread, setUnread] = useState(0);
+  const pulse = usePulse();
+  const unread = pulse?.unread ?? 0;
   const { pathname } = useLocation();
   const navigate = useNavigate();
   // The newest unread message already announced (or there when the app opened).
   const announced = useRef<number | null>(null);
+  const latest = pulse?.latest ?? null;
+  const latestId = latest?.id ?? 0;
+
+  // Anything that changes messages, requests or gifts asks for a fresh pulse.
+  useEffect(() => {
+    const nudge = () => nudgePulse();
+    window.addEventListener(MESSAGES_CHANGED, nudge);
+    window.addEventListener(FRIENDS_CHANGED, nudge);
+    return () => {
+      window.removeEventListener(MESSAGES_CHANGED, nudge);
+      window.removeEventListener(FRIENDS_CHANGED, nudge);
+    };
+  }, []);
 
   useEffect(() => {
+    if (!pulse) return;
     const announce = (m: UnreadLatest) => {
       const alerts = messageAlerts(useStore.getState().messageAlerts);
       const chat = `/messages/${m.from.id}`;
@@ -185,32 +179,15 @@ function MessagesButton() {
         }
       }
     };
-    const check = () => {
-      const visible = document.visibilityState === 'visible';
-      // Hidden tabs keep checking only for browser notifications.
-      if (!visible && !messageAlerts(useStore.getState().messageAlerts).browser) return;
-      fetchUnread()
-        .then(({ unread: n, latest }) => {
-          setUnread(n);
-          if (!latest) {
-            announced.current ??= 0;
-            return;
-          }
-          if (announced.current !== null && latest.id > announced.current) announce(latest);
-          announced.current = Math.max(announced.current ?? 0, latest.id);
-        })
-        .catch(() => {});
-    };
-    check();
-    const timer = setInterval(check, 30_000);
-    window.addEventListener(MESSAGES_CHANGED, check);
-    document.addEventListener('visibilitychange', check);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener(MESSAGES_CHANGED, check);
-      document.removeEventListener('visibilitychange', check);
-    };
-  }, [pathname, navigate]);
+    if (!latest) {
+      announced.current ??= 0;
+      return;
+    }
+    if (announced.current !== null && latestId > announced.current) announce(latest);
+    announced.current = Math.max(announced.current ?? 0, latestId);
+    // Announce when a newer unread message arrives, not when the route changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestId]);
   const label = unread ? `Messages: ${unread} unread` : 'Messages';
   return (
     <Tooltip label={label}>
@@ -327,6 +304,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </AppShell.Header>
 
       <AppShell.Main>{children}</AppShell.Main>
+      <StillHere />
 
       <AppShell.Footer>
         <nav className="bottom-nav" aria-label="Main">
