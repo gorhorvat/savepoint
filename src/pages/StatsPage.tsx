@@ -27,6 +27,7 @@ import { Gw2Stats } from './Gw2Stats';
 import { LolStats } from './LolStats';
 import { Cs2Stats } from './Cs2Stats';
 import { Dota2Stats } from './Dota2Stats';
+import { WowStats } from './WowStats';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GENRE_COLORS = ['var(--sp-c1)', 'var(--sp-c2)', 'var(--sp-c3)', 'var(--sp-c4)', 'var(--sp-c5)'];
@@ -412,6 +413,7 @@ function GameTab({ id, onRemove }: { id: GameStatsId; onRemove: () => void }) {
       {id === 'lol' && <LolStats />}
       {id === 'cs2' && <Cs2Stats />}
       {id === 'dota2' && <Dota2Stats />}
+      {id === 'wow' && <WowStats />}
       <Anchor
         component="button"
         type="button"

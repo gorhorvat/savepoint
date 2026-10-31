@@ -2,7 +2,8 @@
 // the server from the character's public Lodestone pages; Guild Wars 2, read
 // from ArenaNet's API with the account's own API key; League of Legends, from
 // Riot's API with the app's key and the player's Riot ID; Counter-Strike 2
-// and Dota 2, from the account's linked Steam (Steam, Leetify and OpenDota).
+// and Dota 2, from the account's linked Steam (Steam, Leetify and OpenDota);
+// World of Warcraft characters by realm and name (Blizzard and Raider.IO).
 import type { GameStatsId } from './store';
 
 export const STATS_GAMES: { id: GameStatsId; name: string; short: string }[] = [
@@ -11,6 +12,7 @@ export const STATS_GAMES: { id: GameStatsId; name: string; short: string }[] = [
   { id: 'lol', name: 'League of Legends', short: 'LoL' },
   { id: 'cs2', name: 'Counter-Strike 2', short: 'CS2' },
   { id: 'dota2', name: 'Dota 2', short: 'Dota 2' },
+  { id: 'wow', name: 'World of Warcraft', short: 'WoW' },
 ];
 
 export interface FfxivJob {
@@ -854,4 +856,137 @@ export function refreshSteamGame<T>(game: 'cs2' | 'dota2'): Promise<GameConnecti
 
 export async function disconnectSteamGame(game: 'cs2' | 'dota2'): Promise<void> {
   await call(`/api/games/${game}`, { method: 'DELETE' });
+}
+
+// ---------------------------------------------------------------- World of Warcraft (server/wow.mjs)
+
+export interface WowRun {
+  dungeon: string;
+  short: string | null;
+  level: number | null;
+  upgrades: number;
+  minutes: number | null;
+  parMinutes: number | null;
+  score: number | null;
+  at: string | null;
+  affixes: string[];
+  url: string | null;
+}
+
+export interface WowCharacter {
+  key: string;
+  region: string;
+  realm: { name: string; slug: string };
+  name: string;
+  level: number | null;
+  race: string | null;
+  className: string | null;
+  spec: string | null;
+  role: string | null;
+  faction: string | null;
+  guild: string | null;
+  title: string | null;
+  itemLevel: number | null;
+  achievementPoints: number | null;
+  lastLogin: string | null;
+  images: { avatar: string | null; inset: string | null; main: string | null };
+  gear: {
+    slot: string;
+    itemId: number | null;
+    name: string;
+    itemLevel: number | null;
+    quality: string;
+    icon: string | null;
+    enchant: string | null;
+    gems: string[];
+  }[];
+  stats: {
+    health: number | null;
+    primary: [string, number] | null;
+    stamina: number | null;
+    crit: number | null;
+    haste: number | null;
+    mastery: number | null;
+    versatility: number | null;
+    leech: number | null;
+    speed: number | null;
+    avoidance: number | null;
+    armor: number | null;
+  } | null;
+  mythic: {
+    score: number | null;
+    color: string | null;
+    season: string | null;
+    roles: { tank: number; healer: number; dps: number } | null;
+    ranks: {
+      world: number | null;
+      region: number | null;
+      realm: number | null;
+      classWorld: number | null;
+      classRealm: number | null;
+    } | null;
+    best: WowRun[];
+    recent: WowRun[];
+  };
+  raids: {
+    expansion: string | null;
+    instances: { name: string; modes: { difficulty: string; killed: number; total: number }[] }[];
+  } | null;
+  raidProgress: {
+    slug: string;
+    name: string;
+    summary: string | null;
+    total: number;
+    normal: number;
+    heroic: number;
+    mythic: number;
+  }[];
+  pvp: {
+    honor: number | null;
+    brackets: { bracket: string; rating: number | null; played: number; won: number }[];
+  } | null;
+  professions: { name: string; tier: string | null; skill: number | null; max: number | null }[];
+  collections: { mounts: number | null; pets: number | null; toys: number | null; titles: number | null } | null;
+  sources: { blizzard: boolean; raiderio: boolean };
+  links: { armory: string; raiderio: string | null };
+}
+
+export interface WowData {
+  characters: WowCharacter[];
+}
+
+export interface WowSnapshot {
+  characters: Record<
+    string,
+    { itemLevel: number | null; mythic: number | null; achievements: number | null; mounts: number | null }
+  >;
+}
+
+export function fetchWowSetup(): Promise<{ blizzard: boolean; regions: { value: string; label: string }[] }> {
+  return call('/api/games/wow/setup');
+}
+
+export async function fetchWowRealms(region: string): Promise<{ name: string; slug: string }[]> {
+  return (await call<{ realms: { name: string; slug: string }[] }>(`/api/games/wow/realms?region=${region}`)).realms;
+}
+
+export function addWowCharacter(region: string, realm: string, name: string): Promise<GameConnection<WowData>> {
+  return call('/api/games/wow/characters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ region, realm, name }),
+  });
+}
+
+export function refreshWow(): Promise<GameConnection<WowData>> {
+  return call('/api/games/wow/refresh', { method: 'POST' });
+}
+
+/** Removes a character; null when it was the last one. */
+export async function removeWowCharacter(key: string): Promise<GameConnection<WowData> | null> {
+  const r = await call<GameConnection<WowData> | Record<string, never>>(
+    `/api/games/wow/characters/${encodeURIComponent(key)}`,
+    { method: 'DELETE' },
+  );
+  return 'game' in r ? (r as GameConnection<WowData>) : null;
 }
