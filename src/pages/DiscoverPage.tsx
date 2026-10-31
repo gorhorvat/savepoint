@@ -52,7 +52,7 @@ export function DiscoverPage() {
   return (
     <Stack gap={36}>
       <Group justify="space-between" align="flex-end" gap="md" wrap="nowrap" className="page-head">
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div>
           <Title order={1}>Play next</Title>
           <Text c="dimmed" mt={6} size="lg">
             Picked from the genres you spend the most hours in, newest first within each 10% match band. Hours count

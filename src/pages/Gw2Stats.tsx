@@ -190,7 +190,7 @@ function AccountStats({
 
   return (
     <Stack gap={48}>
-      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
+      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md" className="page-head">
         <div style={{ minWidth: 0 }}>
           <Text className="display" fz={28} lh={1.1} truncate>
             {a.name}

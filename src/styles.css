@@ -676,6 +676,50 @@ h3,
   margin-left: 6px;
   border-radius: 50%;
 }
+.profile-link--active {
+  box-shadow: 0 0 0 2px var(--mantine-primary-color-filled);
+}
+
+/* Messages, Friends and the profile in the header: the one you're on is gold,
+   and a tap answers with a quick press and a ring that fades out. */
+.header-icon--active {
+  --ai-color: var(--mantine-primary-color-filled) !important;
+}
+.header-icon {
+  position: relative;
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease;
+}
+/* The ring sits at full size and invisible; a press snaps it small and
+   visible, and letting go lets it grow and fade: a ripple, with no script. */
+.header-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(1.8);
+  background: color-mix(in srgb, var(--mantine-primary-color-filled) 40%, transparent);
+  transition:
+    transform 380ms ease-out,
+    opacity 380ms ease-out;
+}
+.header-icon:active {
+  transform: scale(0.9);
+}
+.header-icon:active::after {
+  opacity: 0.7;
+  transform: scale(0.9);
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-icon,
+  .header-icon::after {
+    transition: none;
+  }
+}
 
 .profile-link:focus-visible {
   outline: 2px solid var(--mantine-primary-color-filled);
@@ -855,7 +899,13 @@ h3,
   scroll-margin-top: 84px;
 }
 
-/* Friends online: a green dot on the header's Friends button. */
+/* A page's title and description with a control on the right. On phones the
+   text takes the whole line and the control drops below it, so descriptions
+   don't get squeezed into a narrow column. */
+.page-head > :first-child {
+  flex: 1 1 320px;
+  min-width: 0;
+}
 .page-head > :last-child {
   flex-shrink: 0;
 }
@@ -864,7 +914,12 @@ h3,
   .page-head {
     flex-wrap: wrap !important;
   }
+  .page-head > :first-child {
+    flex-basis: 100%;
+  }
 }
+
+/* Friends online: a green dot on the header's Friends button. */
 
 .mantine-ActionIcon-root:has(.header-count, .header-online) {
   overflow: visible;
@@ -887,12 +942,42 @@ h3,
   box-shadow: 0 0 0 2px var(--sp-shell);
 }
 
-/* Leaderboard rows: your own place stands out. */
+/* Leaderboard rows: your own place stands out. On phones the level and XP
+   move under the name, so names and ranks keep their room. */
 .leader-row {
   gap: 12px;
 }
 .leader-row--you {
   background: color-mix(in srgb, var(--mantine-primary-color-filled) 12%, transparent);
+}
+.leader-place {
+  width: 44px;
+  flex-shrink: 0;
+}
+.leader-stats {
+  text-align: right;
+  flex-shrink: 0;
+}
+@media (max-width: 36em) {
+  .leader-row {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .leader-place {
+    width: 28px;
+  }
+  .leader-name-line {
+    flex-wrap: wrap !important;
+    row-gap: 2px;
+  }
+  .leader-stats {
+    flex-basis: 100%;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    text-align: left;
+    padding-left: calc(28px + 12px + 40px + 12px);
+  }
 }
 
 /* League of Legends match scoreboard rows */

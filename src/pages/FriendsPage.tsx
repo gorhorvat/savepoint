@@ -254,7 +254,7 @@ export function FriendsPage() {
 
   return (
     <Stack gap={40}>
-      <Group justify="space-between" align="flex-end" gap="md">
+      <Group justify="space-between" align="flex-end" gap="md" className="page-head">
         <div>
           <Title order={1}>Friends</Title>
           <Text c="dimmed" mt={6} size="lg">

@@ -27,7 +27,7 @@ export function LeaderboardPage() {
   return (
     <Stack gap="xl">
       <Group justify="space-between" align="flex-end" gap="md" wrap="nowrap" className="page-head">
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div>
           <Title order={1}>Leaderboard</Title>
           <Text c="dimmed" mt={6} size="lg">
             Ranked by Savepoint XP: trophies, achievements and confirmed play time.{' '}

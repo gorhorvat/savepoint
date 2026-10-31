@@ -216,7 +216,7 @@ export function CompareButton({
       <Modal
         opened={open}
         onClose={() => setOpen(false)}
-        size="xl"
+        size="min(1180px, 94vw)"
         fullScreen={small}
         radius={small ? 0 : 'lg'}
         title={

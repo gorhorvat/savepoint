@@ -381,7 +381,7 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
 
   return (
     <Stack gap={48}>
-      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
+      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md" className="page-head">
         <Group gap="md" wrap="nowrap" style={{ minWidth: 0 }}>
           <Avatar src={ch.avatar} size={72} radius="xl" />
           <div style={{ minWidth: 0 }}>

@@ -437,7 +437,7 @@ export function StatsPage() {
   const current = gameStats.enabled && games.some((g) => g.id === tab) ? tab : 'overview';
 
   const header = (
-    <Group justify="space-between" align="flex-end" gap="md">
+    <Group justify="space-between" align="flex-end" gap="md" className="page-head">
       <div>
         <Title order={1}>My Stats</Title>
         <Text c="dimmed" mt={6} size="lg">

@@ -547,7 +547,7 @@ export function HomePage() {
 
   return (
     <Stack gap={44}>
-      <Group justify="space-between" align="flex-end" gap="md">
+      <Group justify="space-between" align="flex-end" gap="md" className="page-head">
         <div>
           <Title order={1}>{username ? `Welcome back, ${username}` : 'Home'}</Title>
           <Text c="dimmed" mt={6} size="lg">

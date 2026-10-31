@@ -86,7 +86,7 @@ export function Row({
         </Text>
         {who === 1 && <IconChevronLeft size={14} style={{ color: MINE, flexShrink: 0 }} />}
       </Group>
-      <Text component="div" size="sm" ta="center" style={{ flex: '1 1 0', minWidth: 0 }} truncate>
+      <Text component="div" size="sm" ta="center" style={{ flex: '1.6 1 0', minWidth: 0 }} lineClamp={2}>
         {label}
       </Text>
       <Group gap={4} wrap="nowrap" justify="flex-end" style={{ flex: '1 1 0', minWidth: 0 }}>

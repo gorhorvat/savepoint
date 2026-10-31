@@ -12,19 +12,17 @@ export function LeaderboardRow({ r, friend }: { r: RowData; friend?: boolean }) 
   const body = (
     <>
       <Text
-        className="display num"
+        className="display num leader-place"
         fw={700}
         fz={r.place <= 3 ? 22 : 18}
-        w={44}
         ta="center"
         c={r.place <= 3 ? MEDAL[r.place - 1] : 'dimmed'}
-        style={{ flexShrink: 0 }}
       >
         {r.place}
       </Text>
       <FriendAvatar friend={r} size={40} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <Group gap={8} wrap="nowrap">
+      <div className="leader-name" style={{ minWidth: 0, flex: 1 }}>
+        <Group gap={8} wrap="nowrap" className="leader-name-line">
           <Text fw={700} truncate>
             {r.username}
           </Text>
@@ -41,7 +39,7 @@ export function LeaderboardRow({ r, friend }: { r: RowData; friend?: boolean }) 
         </Group>
         <Progress value={progress} size={4} radius="xl" mt={6} maw={260} aria-hidden />
       </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+      <div className="leader-stats">
         <Text fw={700} className="num">
           Level {r.level ?? 1}
         </Text>

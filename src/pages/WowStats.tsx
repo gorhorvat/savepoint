@@ -303,7 +303,7 @@ function Characters({
         </Stack>
       )}
 
-      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md">
+      <Group justify="space-between" align="flex-start" wrap="nowrap" gap="md" className="page-head">
         <Group gap="md" wrap="nowrap" style={{ minWidth: 0 }}>
           <Avatar src={c.images.avatar} size={64} radius="md">
             {c.name.slice(0, 2)}

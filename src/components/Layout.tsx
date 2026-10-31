@@ -99,15 +99,19 @@ function FriendsButton() {
   ].filter(Boolean);
   const label = parts.length ? `Friends: ${parts.join(', ')}` : 'Friends';
   const waiting = incoming + gifts;
+  const { pathname } = useLocation();
+  const active = pathname.startsWith('/friends') || pathname.startsWith('/leaderboard');
   return (
     <Tooltip label={label}>
       <ActionIcon
         component={Link}
         to={incoming || !gifts ? '/friends' : '/friends#gifts'}
         variant="subtle"
-        color="gray"
+        color={active ? 'gold' : 'gray'}
         size="lg"
         aria-label={label}
+        aria-current={active ? 'page' : undefined}
+        className={`header-icon${active ? ' header-icon--active' : ''}`}
         pos="relative"
       >
         <IconUsers size={20} />
@@ -189,15 +193,18 @@ function MessagesButton() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestId]);
   const label = unread ? `Messages: ${unread} unread` : 'Messages';
+  const active = pathname.startsWith('/messages');
   return (
     <Tooltip label={label}>
       <ActionIcon
         component={Link}
         to="/messages"
         variant="subtle"
-        color="gray"
+        color={active ? 'gold' : 'gray'}
         size="lg"
         aria-label={label}
+        aria-current={active ? 'page' : undefined}
+        className={`header-icon${active ? ' header-icon--active' : ''}`}
         pos="relative"
       >
         <IconMessages size={20} />
@@ -216,11 +223,17 @@ function ProfileMenu({ size }: { size: number }) {
   const computed = useComputedColorScheme('light');
   const [status] = useServerStatus();
   const xp = useXp();
+  const { pathname } = useLocation();
   const dark = computed === 'dark';
+  const active = pathname.startsWith('/profile') || pathname.startsWith('/settings') || pathname.startsWith('/admin');
   return (
     <Menu position="bottom-end" width={220} shadow="md" withinPortal>
       <Menu.Target>
-        <UnstyledButton className="profile-link" aria-label="Profile menu">
+        <UnstyledButton
+          className={`profile-link header-icon${active ? ' profile-link--active' : ''}`}
+          aria-label="Profile menu"
+          aria-current={active ? 'page' : undefined}
+        >
           <LevelRing size={size} level={xp.level} progress={(xp.into / xp.needed) * 100}>
             <ProfileAvatar size={size} />
           </LevelRing>
