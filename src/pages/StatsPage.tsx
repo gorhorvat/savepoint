@@ -25,6 +25,8 @@ import { useStore, type GameStatsId } from '../lib/store';
 import { FfxivStats } from './FfxivStats';
 import { Gw2Stats } from './Gw2Stats';
 import { LolStats } from './LolStats';
+import { Cs2Stats } from './Cs2Stats';
+import { Dota2Stats } from './Dota2Stats';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GENRE_COLORS = ['var(--sp-c1)', 'var(--sp-c2)', 'var(--sp-c3)', 'var(--sp-c4)', 'var(--sp-c5)'];
@@ -408,6 +410,8 @@ function GameTab({ id, onRemove }: { id: GameStatsId; onRemove: () => void }) {
       {id === 'ffxiv' && <FfxivStats />}
       {id === 'gw2' && <Gw2Stats />}
       {id === 'lol' && <LolStats />}
+      {id === 'cs2' && <Cs2Stats />}
+      {id === 'dota2' && <Dota2Stats />}
       <Anchor
         component="button"
         type="button"

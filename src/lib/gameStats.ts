@@ -1,13 +1,16 @@
 // Game-specific stats (My Stats, a tab per game): FINAL FANTASY XIV, read by
 // the server from the character's public Lodestone pages; Guild Wars 2, read
 // from ArenaNet's API with the account's own API key; League of Legends, from
-// Riot's API with the app's key and the player's Riot ID.
+// Riot's API with the app's key and the player's Riot ID; Counter-Strike 2
+// and Dota 2, from the account's linked Steam (Steam, Leetify and OpenDota).
 import type { GameStatsId } from './store';
 
 export const STATS_GAMES: { id: GameStatsId; name: string; short: string }[] = [
   { id: 'ffxiv', name: 'FINAL FANTASY XIV Online', short: 'FFXIV' },
   { id: 'gw2', name: 'Guild Wars 2', short: 'GW2' },
   { id: 'lol', name: 'League of Legends', short: 'LoL' },
+  { id: 'cs2', name: 'Counter-Strike 2', short: 'CS2' },
+  { id: 'dota2', name: 'Dota 2', short: 'Dota 2' },
 ];
 
 export interface FfxivJob {
@@ -685,4 +688,170 @@ export async function backfillLol(): Promise<NonNullable<LolPlayer['archive']>> 
 
 export async function fetchGameHistory<T>(game: GameStatsId): Promise<Snapshot<T>[]> {
   return (await call<{ days: Snapshot<T>[] }>(`/api/games/${game}/history`)).days;
+}
+
+// ---------------------------------------------------------------- Counter-Strike 2 and Dota 2 (server/steamGames.mjs)
+
+export interface Cs2Leetify {
+  name: string | null;
+  winrate: number | null;
+  matches: number | null;
+  since: string | null;
+  premier: number | null;
+  faceit: number | null;
+  faceitElo: number | null;
+  wingman: number | null;
+  renown: number | null;
+  leetify: number | null;
+  competitive: { map: string; rank: number }[];
+  ratings: {
+    aim: number | null;
+    positioning: number | null;
+    utility: number | null;
+    clutch: number | null;
+    opening: number | null;
+    ct: number | null;
+    t: number | null;
+  } | null;
+  aim: {
+    headshot: number | null;
+    spotted: number | null;
+    spray: number | null;
+    preaim: number | null;
+    reaction: number | null;
+    counterStrafe: number | null;
+  } | null;
+  recent: {
+    id: string;
+    at: string;
+    source: string;
+    outcome: string;
+    map: string;
+    score: [number, number] | null;
+    rating: number | null;
+    rank: number | null;
+    rankType: number | null;
+  }[];
+  url: string;
+}
+
+export interface Cs2Data {
+  steamId: string;
+  hours: number | null;
+  hoursTwoWeeks: number | null;
+  lifetime: {
+    kills: number;
+    deaths: number;
+    kd: number | null;
+    headshots: number | null;
+    accuracy: number | null;
+    roundsWon: number;
+    rounds: number;
+    matchesWon: number;
+    matches: number;
+    mvps: number;
+    damage: number;
+    money: number;
+    planted: number;
+    defused: number;
+    hostages: number;
+    knifeKills: number;
+    enemyWeaponKills: number;
+    blinded: number;
+    zoomedSnipers: number;
+    dominations: number;
+    revenges: number;
+    timePlayed: number | null;
+  } | null;
+  weapons: { key: string; name: string; kills: number; accuracy: number | null }[];
+  maps: { key: string; name: string; rounds: number; wins: number }[];
+  lastMatch: {
+    kills: number;
+    deaths: number;
+    mvps: number;
+    damage: number;
+    roundsWon: number;
+    rounds: number;
+    money: number;
+  } | null;
+  leetify: Cs2Leetify | null;
+}
+
+export interface Cs2Snapshot {
+  premier: number | null;
+  faceitElo: number | null;
+  leetify: number | null;
+  hours: number | null;
+  kills: number | null;
+  kd: number | null;
+}
+
+export interface DotaHero {
+  id: number;
+  name: string;
+  image: string | null;
+}
+
+export interface DotaData {
+  steamId: string;
+  accountId: string;
+  name: string | null;
+  avatar: string | null;
+  plus: boolean;
+  medal: { tier: number; name: string | null; stars: number | null; leaderboard: number | null } | null;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+  heroes: (DotaHero & { games: number; wins: number; winRate: number | null; lastPlayed: string | null })[];
+  totals: {
+    kills: number | null;
+    deaths: number | null;
+    assists: number | null;
+    kda: number | null;
+    gpm: number | null;
+    xpm: number | null;
+    lastHits: number | null;
+    denies: number | null;
+    heroDamage: number | null;
+    towerDamage: number | null;
+    healing: number | null;
+    hours: number | null;
+  };
+  recent: {
+    id: string;
+    at: string;
+    hero: DotaHero;
+    won: boolean;
+    kills: number;
+    deaths: number;
+    assists: number;
+    minutes: number;
+    mode: string;
+    ranked: boolean;
+    gpm: number | null;
+    xpm: number | null;
+    lastHits: number | null;
+    heroDamage: number | null;
+  }[];
+  url: string;
+}
+
+export interface DotaSnapshot {
+  rankTier: number | null;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+}
+
+/** Reads the linked Steam account's stats for the first time. */
+export function connectSteamGame<T>(game: 'cs2' | 'dota2'): Promise<GameConnection<T>> {
+  return call(`/api/games/${game}/connect`, { method: 'POST' });
+}
+
+export function refreshSteamGame<T>(game: 'cs2' | 'dota2'): Promise<GameConnection<T>> {
+  return call(`/api/games/${game}/refresh`, { method: 'POST' });
+}
+
+export async function disconnectSteamGame(game: 'cs2' | 'dota2'): Promise<void> {
+  await call(`/api/games/${game}`, { method: 'DELETE' });
 }

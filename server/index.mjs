@@ -57,6 +57,7 @@ import { gameStatsRouter } from './ffxiv.mjs';
 import { gw2Router } from './gw2.mjs';
 import { lolRouter } from './lol.mjs';
 import { snapshotRouter } from './snapshots.mjs';
+import { steamGamesRouter } from './steamGames.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -110,6 +111,7 @@ app.use(streamingRouter); // /api/streams, /api/streaming/*, /api/auth/twitch/*
 app.use(gameStatsRouter); // /api/games/*
 app.use(gw2Router); // /api/games/gw2/*
 app.use(lolRouter); // /api/games/lol/*
+app.use(steamGamesRouter); // /api/games/cs2/*, /api/games/dota2/*
 app.use(snapshotRouter); // /api/games/:game/history
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);

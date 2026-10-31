@@ -6,7 +6,7 @@
 import express from 'express';
 import { query } from './db.mjs';
 
-const GAMES = new Set(['lol', 'gw2', 'ffxiv']);
+const GAMES = new Set(['lol', 'gw2', 'ffxiv', 'cs2', 'dota2']);
 
 /** Saves today's numbers for a game. Never fails the read it belongs to. */
 export async function saveSnapshot(userId, game, data) {
