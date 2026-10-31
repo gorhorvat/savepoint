@@ -1033,3 +1033,14 @@ h3,
 .compare-pick:hover {
   background: var(--sp-line);
 }
+
+/* Phones zoom in on any text field with text under 16px when it's tapped
+   (iOS Safari), and stay zoomed in. On touch screens fields use 16px. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  .mantine-Input-input {
+    font-size: max(16px, 1em) !important;
+  }
+}

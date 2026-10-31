@@ -1,4 +1,14 @@
-import { ActionIcon, Badge, Button, Chip, createTheme, Paper, type MantineColorsTuple } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Chip,
+  createTheme,
+  Drawer,
+  Modal,
+  Paper,
+  type MantineColorsTuple,
+} from '@mantine/core';
 
 // Accent: trophy gold, the console's selection highlight. Used for what you can
 // act on and what's selected; colour otherwise comes from box art and platforms.
@@ -57,6 +67,10 @@ export const theme = createTheme({
     ActionIcon: ActionIcon.extend({ defaultProps: { autoContrast: true } }),
     Badge: Badge.extend({ defaultProps: { autoContrast: true } }),
     Chip: Chip.extend({ defaultProps: { autoContrast: true } }),
+    // The scroll lock behind an open modal blocks touch gestures; let pinch zoom
+    // through, so a phone that zoomed in can always zoom back out.
+    Modal: Modal.extend({ defaultProps: { removeScrollProps: { allowPinchZoom: true } } }),
+    Drawer: Drawer.extend({ defaultProps: { removeScrollProps: { allowPinchZoom: true } } }),
     // Panels are only for forms and grouped controls: no outline, a quiet raised fill.
     Paper: Paper.extend({
       defaultProps: { withBorder: false, radius: 'lg' },
