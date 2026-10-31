@@ -81,17 +81,24 @@ export function Row({
   return (
     <Group justify="space-between" wrap="nowrap" gap="xs" py={6} style={{ borderTop: '1px solid var(--sp-line)' }}>
       <Group gap={4} wrap="nowrap" style={{ flex: '1 1 0', minWidth: 0 }}>
-        <Text className="num" fw={who === 1 ? 700 : 400} c={who === 1 ? undefined : 'dimmed'} truncate>
+        <Text component="div" className="num" fw={who === 1 ? 700 : 400} c={who === 1 ? undefined : 'dimmed'} truncate>
           {mine}
         </Text>
         {who === 1 && <IconChevronLeft size={14} style={{ color: MINE, flexShrink: 0 }} />}
       </Group>
-      <Text size="sm" ta="center" style={{ flex: '1 1 0', minWidth: 0 }} truncate>
+      <Text component="div" size="sm" ta="center" style={{ flex: '1 1 0', minWidth: 0 }} truncate>
         {label}
       </Text>
       <Group gap={4} wrap="nowrap" justify="flex-end" style={{ flex: '1 1 0', minWidth: 0 }}>
         {who === -1 && <IconChevronRight size={14} style={{ color: THEIRS, flexShrink: 0 }} />}
-        <Text className="num" fw={who === -1 ? 700 : 400} c={who === -1 ? undefined : 'dimmed'} truncate ta="right">
+        <Text
+          component="div"
+          className="num"
+          fw={who === -1 ? 700 : 400}
+          c={who === -1 ? undefined : 'dimmed'}
+          truncate
+          ta="right"
+        >
           {theirs}
         </Text>
       </Group>
