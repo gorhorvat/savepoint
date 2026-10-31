@@ -19,6 +19,7 @@ import {
 import { IconDots, IconRefresh, IconUnlink } from '@tabler/icons-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { StatTile } from '../components/charts';
+import { CompareButton } from '../components/compare/CompareButton';
 import { Section } from '../components/GameSection';
 import { ChallengesTab } from '../components/lol/Challenges';
 import { ChampionsTab } from '../components/lol/Champions';
@@ -232,6 +233,7 @@ function PlayerStats({
           </div>
         </Group>
         <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <CompareButton game="lol" />
           <Button
             variant="default"
             size="sm"

@@ -19,6 +19,7 @@ import {
 import { IconDots, IconExternalLink, IconRefresh, IconUnlink } from '@tabler/icons-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { StatTile } from '../components/charts';
+import { CompareButton } from '../components/compare/CompareButton';
 import { Section } from '../components/GameSection';
 import { AchievementsTab } from '../components/gw2/Achievements';
 import { CharactersTab } from '../components/gw2/Characters';
@@ -199,6 +200,7 @@ function AccountStats({
           </Text>
         </div>
         <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <CompareButton game="gw2" />
           <Button
             variant="default"
             size="sm"

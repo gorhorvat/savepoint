@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // A single-series line, for the progress graphs in My Stats (over days) and
 // in-match graphs (over minutes): 2px line, recessive grid, a marker on the
 // last point, a zero line when values cross zero, and a crosshair with a
-// tooltip on hover. The title outside names the series, so no legend.
+// tooltip on hover. The title outside names the series, so no legend, unless
+// a second series (`other`, someone you compare with) is drawn in blue.
 
 export interface TrendPoint {
   /** A day (YYYY-MM-DD) or, with `minutes`, a minute number. */
@@ -41,8 +42,14 @@ export function TrendChart({
   tickFormat,
   yTicks,
   empty = 'Not enough days yet. Savepoint saves a point each day you refresh.',
+  other,
+  labels,
 }: {
   points: TrendPoint[];
+  /** A second line to compare with, in blue. */
+  other?: TrendPoint[];
+  /** Names for the two lines, shown in the tooltip and as a legend. */
+  labels?: [string, string];
   format?: (v: number) => string;
   /** Labels on the y axis, when shorter than `format`. */
   tickFormat?: (v: number) => string;
@@ -64,9 +71,10 @@ export function TrendChart({
 
   const geo = useMemo(() => {
     if (points.length < 2) return null;
-    const t0 = xOf(points[0].day);
-    const t1 = xOf(points[points.length - 1].day);
-    const vals = points.map((p) => p.value);
+    const all = other?.length ? [...points, ...other] : points;
+    const t0 = Math.min(...all.map((p) => xOf(p.day)));
+    const t1 = Math.max(...all.map((p) => xOf(p.day)));
+    const vals = all.map((p) => p.value);
     let lo = Math.min(...vals);
     let hi = Math.max(...vals);
     if (lo === hi) {
@@ -84,17 +92,19 @@ export function TrendChart({
     const x = (day: string | number) => left + ((xOf(day) - t0) / Math.max(1, t1 - t0)) * (w - left - PAD.right);
     const y = (v: number) => PAD.top + (1 - (v - lo) / (hi - lo)) * (H - PAD.top - PAD.bottom);
     const xy = points.map((p) => [x(p.day), y(p.value)] as const);
+    const xy2 = (other ?? []).map((p) => [x(p.day), y(p.value)] as const);
     const first = String(points[0].day);
     const zero = lo < 0 && hi > 0 ? y(0) : null;
     return {
       xy,
+      xy2,
       ys,
       y,
       zero,
       left,
       spansYears: first.slice(0, 4) !== String(points[points.length - 1].day).slice(0, 4),
     };
-  }, [points, w, yTicks, format, tickFormat]);
+  }, [points, other, w, yTicks, format, tickFormat]);
 
   if (!geo) {
     return (
@@ -104,8 +114,14 @@ export function TrendChart({
     );
   }
 
-  const { xy, ys, y, zero, left, spansYears } = geo;
-  const path = xy.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)},${py.toFixed(1)}`).join('');
+  const { xy, xy2, ys, y, zero, left, spansYears } = geo;
+  const toPath = (list: readonly (readonly [number, number])[]) =>
+    list.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)},${py.toFixed(1)}`).join('');
+  const path = toPath(xy);
+  const path2 = xy2.length > 1 ? toPath(xy2) : null;
+  const OTHER = 'var(--mantine-color-blue-5)';
+  /** The other line's value on the hovered day, if it has one. */
+  const otherAt = (i: number) => other?.find((p) => String(p.day) === String(points[i].day))?.value;
   const last = xy.length - 1;
   const xLabels = [0, Math.floor(last / 2), last].filter((v, i, a) => a.indexOf(v) === i);
   const h = hover ?? null;
@@ -149,6 +165,17 @@ export function TrendChart({
         ))}
         {zero != null && (
           <line x1={left} x2={w - PAD.right} y1={zero} y2={zero} stroke="var(--sp-muted)" strokeWidth={1} />
+        )}
+        {path2 && <path d={path2} fill="none" stroke={OTHER} strokeWidth={2} strokeLinejoin="round" />}
+        {xy2.length > 1 && (
+          <circle
+            cx={xy2[xy2.length - 1][0]}
+            cy={xy2[xy2.length - 1][1]}
+            r={4}
+            fill={OTHER}
+            stroke="var(--sp-surface)"
+            strokeWidth={2}
+          />
         )}
         <path
           d={path}
@@ -214,9 +241,22 @@ export function TrendChart({
             {dayLabel(points[h].day, true)}
           </Text>
           <Text size="sm" fw={600} className="num">
+            {labels ? `${labels[0]}: ` : ''}
             {format(points[h].value)}
           </Text>
+          {other && otherAt(h) != null && (
+            <Text size="sm" fw={600} className="num" c="blue.5">
+              {labels ? `${labels[1]}: ` : ''}
+              {format(otherAt(h)!)}
+            </Text>
+          )}
         </Paper>
+      )}
+      {labels && other && (
+        <Text size="xs" c="dimmed" mt={4}>
+          <span style={{ color: 'var(--mantine-primary-color-filled)' }}>■</span> {labels[0]}{' '}
+          <span style={{ color: OTHER, marginLeft: 8 }}>■</span> {labels[1]}
+        </Text>
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { Alert, Anchor, Button, Card, Group, Loader, Menu, Stack, Text, Title } 
 import { IconBrandSteam, IconDots, IconExternalLink, IconRefresh, IconUnlink } from '@tabler/icons-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { CompareButton } from './compare/CompareButton';
 import {
   ago,
   connectSteamGame,
@@ -108,6 +109,7 @@ export function SteamGameTab<T>({
           </Text>
         </div>
         <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <CompareButton game={game} />
           <Button
             variant="default"
             size="sm"

@@ -448,6 +448,20 @@ CREATE TABLE IF NOT EXISTS game_snapshots (
   PRIMARY KEY ("user_id", "game", "day")
 );
 
+-- Whether friends may see (and compare with) this account's game stats.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "share_stats" boolean NOT NULL DEFAULT true;
+
+-- Other people's characters read for a comparison (server/compare.mjs), kept
+-- a day so the same opponent isn't read from the game's site again and again.
+CREATE TABLE IF NOT EXISTS game_lookups (
+  "game" text NOT NULL,
+  "external_id" text NOT NULL,
+  "name" text,
+  "data" jsonb,
+  "fetched_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("game", "external_id")
+);
+
 -- League of Legends match archive (server/lol.mjs): every stored match with all
 -- ten players, kept small; the timeline is added when someone opens it.
 CREATE TABLE IF NOT EXISTS lol_matches (

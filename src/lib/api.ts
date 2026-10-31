@@ -559,6 +559,8 @@ export interface Account {
   hasPassword: boolean;
   /** SteamID64 when Steam is linked as a way to log in. */
   steamId: string | null;
+  /** Friends may see and compare with this account's game stats. */
+  shareStats: boolean;
 }
 
 export function fetchAccount(): Promise<Account> {

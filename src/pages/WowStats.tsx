@@ -19,6 +19,7 @@ import {
 import { IconDots, IconExternalLink, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { StatTile } from '../components/charts';
+import { CompareButton } from '../components/compare/CompareButton';
 import { Section } from '../components/GameSection';
 import { Heading, Line, Meter } from '../components/StatParts';
 import { TrendChart, type TrendPoint } from '../components/TrendChart';
@@ -323,6 +324,7 @@ function Characters({
           </div>
         </Group>
         <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <CompareButton game="wow" />
           <Button
             variant="default"
             size="sm"

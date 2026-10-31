@@ -8,6 +8,7 @@ import {
   PasswordInput,
   Progress,
   Stack,
+  Switch,
   TagsInput,
   Text,
   Title,
@@ -16,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPhoto, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { changePassword, fetchAccount, fetchTaxonomy, type Account, type Taxonomy } from '../lib/api';
+import { setShareStats } from '../lib/compare';
 import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } from '../lib/favorites';
 import { useLibrary } from '../lib/library';
 import { useStore } from '../lib/store';
@@ -372,6 +374,24 @@ function AccountSection() {
             </Button>
           </Stack>
         </form>
+      </Paper>
+      <Paper p={{ base: 'md', sm: 'lg' }}>
+        <Switch
+          label="Friends can see my game stats"
+          description="Your friends can open and compare with your FFXIV, GW2, LoL and other game stats in My Stats. Off, and your stats stay yours alone."
+          checked={account?.shareStats ?? true}
+          disabled={!account}
+          onChange={(e) => {
+            const on = e.currentTarget.checked;
+            setAccount((a) => (a ? { ...a, shareStats: on } : a));
+            setShareStats(on)
+              .then((r) => setAccount((a) => (a ? { ...a, shareStats: r.shareStats } : a)))
+              .catch((err: Error) => {
+                notifications.show({ color: 'red', message: err.message });
+                setAccount((a) => (a ? { ...a, shareStats: !on } : a));
+              });
+          }}
+        />
       </Paper>
     </Stack>
   );

@@ -20,6 +20,7 @@ import {
 import { IconDots, IconExternalLink, IconRefresh, IconUnlink } from '@tabler/icons-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { StatTile } from '../components/charts';
+import { CompareButton } from '../components/compare/CompareButton';
 import { AchievementsTab } from '../components/ffxiv/Achievements';
 import { Crest } from '../components/ffxiv/Crest';
 import { FreeCompanyTab } from '../components/ffxiv/FreeCompany';
@@ -398,6 +399,7 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
           </div>
         </Group>
         <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <CompareButton game="ffxiv" />
           <Tooltip label="Read the Lodestone again">
             <Button
               variant="default"

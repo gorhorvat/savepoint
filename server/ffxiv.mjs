@@ -307,12 +307,12 @@ const entries = (a) =>
  * The achievement history, newest first. Each read takes the first page and up
  * to ACHIEVEMENT_PAGES pages past what was read before, 4 at a time.
  */
-async function readAchievements(id, firstHtml, previous) {
+async function readAchievements(id, firstHtml, previous, morePages = ACHIEVEMENT_PAGES) {
   const a = parsePage(firstHtml, selectors.achievements);
   const isPrivate = !a.ENTRY?.length && !a.ACHIEVEMENT_POINTS && !a.TOTAL_ACHIEVEMENTS;
   if (isPrivate) return { summary: { public: false, total: null, points: null, recent: [] }, list: null };
   const pages = num(a.PAGE_INFO?.NumPages) ?? 1;
-  const upTo = Math.min(pages, Math.max(1, previous?.pagesRead ?? 0) + ACHIEVEMENT_PAGES);
+  const upTo = Math.min(pages, Math.max(1, previous?.pagesRead ?? 0) + morePages);
   const got = [entries(a)];
   const wanted = [];
   for (let n = 2; n <= upTo; n++) wanted.push(n);
@@ -339,8 +339,12 @@ async function readAchievements(id, firstHtml, previous) {
   };
 }
 
-/** A character's public Lodestone pages, read and tidied into one object. */
-export async function readCharacter(id, previous = null) {
+/**
+ * A character's public Lodestone pages, read and tidied into one object.
+ * `light` (comparing with someone else's character) reads only the first page
+ * of achievements: the totals, without the history.
+ */
+export async function readCharacter(id, previous = null, { light = false } = {}) {
   const [profileHtml, jobsHtml, achievementsHtml, mountsHtml, minionsHtml] = await Promise.all([
     page(`/character/${id}/`),
     page(`/character/${id}/class_job/`),
@@ -372,6 +376,7 @@ export async function readCharacter(id, previous = null) {
         id,
         achievementsHtml,
         samePerson ? { pagesRead: previous.achievements?.pagesRead, list: previous.achievementList } : null,
+        light ? 0 : ACHIEVEMENT_PAGES,
       ).catch((err) => {
         console.error('Lodestone achievements:', err);
         return null;
@@ -464,7 +469,7 @@ function snapshotOf(c) {
 }
 
 /** The connection as sent to the browser: the achievement history stays behind. */
-const forClient = (data) => {
+export const forClient = (data) => {
   if (!data || typeof data !== 'object') return data;
   const { achievementList: _list, ...rest } = data;
   return rest;

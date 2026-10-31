@@ -935,3 +935,16 @@ h3,
 .chat-row--active {
   background: var(--sp-raised);
 }
+
+/* ---------------------------------------------------------------- compare */
+
+/* Someone to compare with, in the Compare picker. */
+.compare-pick {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--mantine-radius-md);
+}
+.compare-pick:hover {
+  background: var(--sp-line);
+}

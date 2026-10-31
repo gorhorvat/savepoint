@@ -52,6 +52,7 @@ import { messagesRouter } from './messages.mjs';
 import { adminRouter, resetRouter } from './admin.mjs';
 import { giftsRouter } from './gifts.mjs';
 import { pulseRouter } from './pulse.mjs';
+import { compareRouter } from './compare.mjs';
 import { streamingRouter } from './streaming.mjs';
 import { latestNews } from './news.mjs';
 import { gameStatsRouter } from './ffxiv.mjs';
@@ -111,6 +112,7 @@ app.use(messagesRouter); // /api/messages/*
 app.use(giftsRouter); // /api/gifts/*
 app.use(pulseRouter); // /api/me/pulse (header badges)
 app.use(streamingRouter); // /api/streams, /api/streaming/*, /api/auth/twitch/*
+app.use(compareRouter); // /api/games/:game/compare*, /api/account/share-stats
 app.use(gameStatsRouter); // /api/games/*
 app.use(gw2Router); // /api/games/gw2/*
 app.use(lolRouter); // /api/games/lol/*

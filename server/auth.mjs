@@ -296,11 +296,17 @@ export const accountRouter = express.Router();
 // The account's login methods, for Profile.
 accountRouter.get('/api/account', async (req, res) => {
   try {
-    const { rows } = await query('SELECT "username", "password_hash", "steam_id" FROM users WHERE "id" = $1', [
-      req.userId,
-    ]);
+    const { rows } = await query(
+      'SELECT "username", "password_hash", "steam_id", "share_stats" FROM users WHERE "id" = $1',
+      [req.userId],
+    );
     if (!rows[0]) return res.status(401).json({ error: 'Not logged in.' });
-    res.json({ username: rows[0].username, hasPassword: !!rows[0].password_hash, steamId: rows[0].steam_id });
+    res.json({
+      username: rows[0].username,
+      hasPassword: !!rows[0].password_hash,
+      steamId: rows[0].steam_id,
+      shareStats: rows[0].share_stats !== false,
+    });
   } catch (err) {
     console.error('Account:', err);
     res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
