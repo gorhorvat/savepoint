@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Code,
+  Divider,
   Group,
   List,
   Modal,
@@ -24,12 +25,15 @@ import { GameSearch } from '../components/GameSearch';
 import { ListImport } from '../components/ListImport';
 import { PlatformIcon } from '../components/PlatformBadge';
 import { PLATFORM_BY_ID } from '../data/platforms';
-import { applyXboxAchievements, runAchievementsSync } from '../lib/achievements';
+import { PasteConnect } from '../components/PasteConnect';
+import { applyImportedAchievements, applyXboxAchievements, runAchievementsSync } from '../lib/achievements';
 import {
+  connectEpic,
   connectPsn,
   connectXbox,
   disconnectPlatform,
   fetchAccount,
+  importEpic,
   importPsn,
   importSteam,
   importXbox,
@@ -603,6 +607,18 @@ function XboxPanel({ status, refresh }: { status: ServerStatus | null; refresh: 
 }
 
 function ManualPanel({ platform, why, where }: { platform: PlatformId; why: string; where: string }) {
+  return (
+    <PlatformPanel platform={platform} method="Added by hand">
+      <Text size="sm" c="dimmed">
+        {why} {where}
+      </Text>
+      <ManualAdd platform={platform} />
+    </PlatformPanel>
+  );
+}
+
+/** Search or type a game, hours and a date, and add it to a platform by hand. */
+function ManualAdd({ platform }: { platform: PlatformId }) {
   const add = useStore((s) => s.addManualEntry);
   const saveFound = useStore((s) => s.saveFound);
   const [picked, setPicked] = useState<{ title: string; found?: FoundGame } | null>(null);
@@ -631,10 +647,7 @@ function ManualPanel({ platform, why, where }: { platform: PlatformId; why: stri
   };
 
   return (
-    <PlatformPanel platform={platform} method="Added by hand">
-      <Text size="sm" c="dimmed">
-        {why} {where}
-      </Text>
+    <>
       {picked && !typing ? (
         <Group justify="space-between" wrap="nowrap" gap="xs">
           <Text fw={600} size="sm">
@@ -691,11 +704,84 @@ function ManualPanel({ platform, why, where }: { platform: PlatformId; why: stri
       >
         Add game
       </Button>
+    </>
+  );
+}
+
+const EPIC_CODE_PAGE = `https://www.epicgames.com/id/login?redirectUrl=${encodeURIComponent(
+  'https://www.epicgames.com/id/api/redirect?clientId=34a02cf8f4414e29b15921876da36f9a&responseType=code',
+)}`;
+
+/** Epic's one-time code in whatever was copied: its whole JSON page, or the code itself. */
+function findEpicCode(text: string): string | null {
+  const t = text.trim();
+  return /"authorizationCode"\s*:\s*"([0-9a-f]{32})"/i.exec(t)?.[1] ?? (/^[0-9a-f]{32}$/i.test(t) ? t : null);
+}
+
+function EpicPanel({ status, refresh }: { status: ServerStatus | null; refresh: () => void }) {
+  const conn = useStore((s) => s.connections.epic);
+  const importLibrary = useStore((s) => s.importLibrary);
+  const disconnect = useStore((s) => s.disconnect);
+
+  const run = async () => {
+    const res = await importEpic();
+    const r = importLibrary('epic', 'epic', res.games);
+    applyImportedAchievements('epic', 'epic', res.games);
+    const played = res.games.filter((g) => g.minutes > 0).length;
+    notifications.show({ title: 'Epic Games imported', message: `${r.added} games, ${played} with play time.` });
+  };
+
+  return (
+    <PlatformPanel platform="epic" method="Epic, unofficial">
+      {!status?.online ? (
+        <ServerHint status={status} />
+      ) : status.epic ? (
+        <ConnectedControls
+          platformName="Epic Games"
+          account={status.epicAccount}
+          synced={!!conn}
+          importLabel="Import from Epic"
+          onImport={run}
+          onDisconnect={async () => {
+            await disconnectPlatform('epic');
+            disconnect('epic');
+            refresh();
+          }}
+        />
+      ) : (
+        <PasteConnect
+          intro="Sign in on Epic's site. Afterwards Epic shows a short page with a one-time code: copy it, and Savepoint imports your games with the play time Epic recorded."
+          openLabel="Sign in to Epic Games"
+          openUrl={EPIC_CODE_PAGE}
+          copyHelp={
+            <>
+              After signing in, Epic shows a page with <Code>{'"authorizationCode":"…"'}</Code>. Select everything and
+              copy it (<Code>Ctrl+A</Code>, <Code>Ctrl+C</Code>), then come back here. The code works once, for a few
+              minutes.
+            </>
+          }
+          pasteLabel="Or paste it here"
+          pastePlaceholder="Paste Epic's page or the code"
+          find={findEpicCode}
+          notFound="No code in what was copied. On Epic's page, select everything (Ctrl+A) and copy it (Ctrl+C)."
+          note="Epic has no public way for apps to read your games, so this signs in the way the Epic launcher (and launchers like Heroic) do. Savepoint keeps only an encrypted sign-in it renews each day, and only reads your games, play time and achievements. Epic records play time for games started through its launcher."
+          onConnect={async (code) => {
+            await connectEpic(code);
+            refresh();
+            await run();
+          }}
+        />
+      )}
+      <Divider label="Or add play time by hand" labelPosition="left" mt="xs" />
+      <Text size="sm" c="dimmed">
+        For games Epic didn&apos;t record. Hours added by hand don&apos;t count towards XP.
+      </Text>
+      <ManualAdd platform="epic" />
     </PlatformPanel>
   );
 }
 
-/** Platforms: connect Steam, PlayStation and Xbox, and add Switch and Epic hours by hand. */
+/** Platforms: connect Steam, PlayStation, Xbox and Epic, and add Switch hours by hand. */
 export function PlatformsPage() {
   const [status, refreshStatus] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
@@ -706,8 +792,8 @@ export function PlatformsPage() {
       <div>
         <Title order={1}>Platforms</Title>
         <Text c="dimmed" mt={6}>
-          Steam, PlayStation and Xbox import play time automatically. Epic and Nintendo don't offer a way to read it, so
-          add those games by hand.
+          Steam, PlayStation, Xbox and Epic import play time automatically, and it counts towards your XP. Nintendo
+          doesn&apos;t offer a way to read it, so add those games by hand.
         </Text>
       </div>
 
@@ -733,11 +819,7 @@ export function PlatformsPage() {
           why="Nintendo has no public API for play time."
           where="On Switch, find hours on your user page under Play Activity, or in the Parental Controls app."
         />
-        <ManualPanel
-          platform="epic"
-          why="Epic doesn't share play time with other apps."
-          where="The Epic Games Launcher shows hours played on each game in your library."
-        />
+        <EpicPanel status={status} refresh={refreshStatus} />
       </SimpleGrid>
     </Stack>
   );

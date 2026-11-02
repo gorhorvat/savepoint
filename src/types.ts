@@ -50,7 +50,7 @@ export interface Game {
   comingSoon?: boolean;
 }
 
-export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'manual';
+export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'epic' | 'manual';
 
 /** Where a game stands for you. "completed" = everything done (100%). */
 export type PlayStatus = 'playing' | 'backlog' | 'finished' | 'completed' | 'dropped';
@@ -100,6 +100,8 @@ export interface PlayEntry {
   minutes: number;
   lastPlayed: string | null;
   source: EntrySource;
+  /** The platform's own id for the game (Epic namespace, Xbox title id…), for its achievement list. */
+  ref?: string;
 }
 
 export interface WishlistItem {

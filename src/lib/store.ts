@@ -32,8 +32,10 @@ export interface ImportedGame {
   isApp?: boolean;
   /** Steam: minutes in the last two weeks, for profiles that send no last-played date. */
   recentMinutes?: number;
-  /** Xbox: achievements and gamerscore, which come with the game list. */
-  achievements?: { earned: number; total: number; gamerscore: number; totalGamerscore: number };
+  /** Achievements that come with the game list (Xbox with gamerscore, Epic). */
+  achievements?: { earned: number; total: number; gamerscore?: number; totalGamerscore?: number };
+  /** The platform's own id for the game. */
+  externalId?: string;
 }
 
 export interface Connection {
@@ -118,7 +120,8 @@ interface State {
     minutes: number;
     lastPlayed: string | null;
   }) => string;
-  removeEntry: (gameId: string, platform: PlatformId) => void;
+  /** Removes a game's play time on a platform (only from `source`, when given). */
+  removeEntry: (gameId: string, platform: PlatformId, source?: EntrySource) => void;
   disconnect: (platform: PlatformId) => void;
   removeDemo: () => void;
   setGenres: (gameId: string, genres: string[], subgenres: string[]) => void;
@@ -289,6 +292,7 @@ export const useStore = create<State>()(
             gameId,
             platform,
             source,
+            ref: prev?.ref ?? g.externalId,
             minutes: (prev?.minutes ?? 0) + g.minutes,
             lastPlayed: [prev?.lastPlayed, lastPlayed].filter(Boolean).sort().pop() ?? null,
           });
@@ -321,7 +325,10 @@ export const useStore = create<State>()(
       addManualEntry: ({ gameId, title, platform, minutes, lastPlayed }) => {
         const customGames = { ...get().customGames };
         const id = gameId ?? ensureGame(customGames, { name: title ?? 'Untitled', minutes, lastPlayed }, platform);
-        const others = get().entries.filter((e) => !(e.gameId === id && e.platform === platform));
+        // Replaces earlier hand-added time; what a platform imported stays.
+        const others = get().entries.filter(
+          (e) => !(e.gameId === id && e.platform === platform && e.source === 'manual'),
+        );
         set({
           customGames,
           entries: [...others, { gameId: id, platform, minutes, lastPlayed, source: 'manual' }],
@@ -329,17 +336,20 @@ export const useStore = create<State>()(
         return id;
       },
 
-      removeEntry: (gameId, platform) =>
-        set({ entries: get().entries.filter((e) => !(e.gameId === gameId && e.platform === platform)) }),
+      removeEntry: (gameId, platform, source) =>
+        set({
+          entries: get().entries.filter(
+            (e) => !(e.gameId === gameId && e.platform === platform && (!source || e.source === source)),
+          ),
+        }),
 
       disconnect: (platform) => {
         const connections = { ...get().connections };
         delete connections[platform];
         set({
           connections,
-          entries: get().entries.filter(
-            (e) => !(e.platform === platform && (e.source === 'steam' || e.source === 'psn')),
-          ),
+          // Imported games go; games added by hand stay.
+          entries: get().entries.filter((e) => !(e.platform === platform && e.source !== 'manual')),
         });
       },
 

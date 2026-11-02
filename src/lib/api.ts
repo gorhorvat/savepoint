@@ -28,6 +28,10 @@ export interface ServerStatus {
   xbox?: boolean;
   /** The gamertag it's connected as, when known. */
   xboxAccount?: string | null;
+  /** This account has connected its own Epic Games account (unofficially). */
+  epic?: boolean;
+  /** The Epic display name it's connected as, when known. */
+  epicAccount?: string | null;
   /** True for the super admin, who manages the invite code. */
   superAdmin?: boolean;
 }
@@ -112,6 +116,10 @@ export function importPsn() {
 
 export function importXbox() {
   return getJson<{ games: ImportedGame[] }>('/api/xbox/library');
+}
+
+export function importEpic() {
+  return getJson<{ games: ImportedGame[] }>('/api/epic/library');
 }
 
 // ---------------------------------------------------------------- genres
@@ -588,9 +596,20 @@ export async function connectXbox(key: string): Promise<void> {
   await sendJson('/api/xbox/connect', 'POST', { key });
 }
 
-/** Forgets this account's PlayStation or Xbox connection. */
-export async function disconnectPlatform(platform: 'playstation' | 'xbox'): Promise<void> {
-  await sendJson(platform === 'playstation' ? '/api/psn/connect' : '/api/xbox/connect', 'DELETE');
+/** Connects this account's own Epic Games account with the code Epic shows after signing in. */
+export async function connectEpic(code: string): Promise<void> {
+  await sendJson('/api/epic/connect', 'POST', { code });
+}
+
+const CONNECT_URLS = {
+  playstation: '/api/psn/connect',
+  xbox: '/api/xbox/connect',
+  epic: '/api/epic/connect',
+} as const;
+
+/** Forgets one of this account's platform connections. */
+export async function disconnectPlatform(platform: keyof typeof CONNECT_URLS): Promise<void> {
+  await sendJson(CONNECT_URLS[platform], 'DELETE');
 }
 
 async function sendJson(url: string, method: string, body?: object): Promise<unknown> {

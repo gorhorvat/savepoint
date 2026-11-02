@@ -9,8 +9,9 @@ import { resolveGame, useStore } from './store';
 //   completing every achievement in a game earns a platinum-sized bonus.
 // - Xbox achievements are worth their gamerscore (a full game is 1,000 G,
 //   close to what a platinum PlayStation game earns).
-// - Play time counts only when Steam, PlayStation or Xbox reported it; hours
-//   added by hand (Switch, Epic) and non-game apps earn nothing.
+// - Epic achievements count like Steam's (no grades either).
+// - Play time counts only when a platform reported it (Steam, PlayStation,
+//   Xbox, Epic); hours added by hand and non-game apps earn nothing.
 
 export const XP = {
   bronze: 15,
@@ -25,12 +26,23 @@ export const XP = {
   perHour: 10,
 } as const;
 
-const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox']);
+const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox', 'epic']);
+
+/** Platforms whose achievements have no grades, so they earn XP the way Steam's do. */
+export const LIKE_STEAM: { platform: PlatformId; label: string }[] = [{ platform: 'epic', label: 'Epic' }];
+
+export interface AchievementXp {
+  achievements: number;
+  perfectGames: number;
+  xp: number;
+}
 
 export interface XpBreakdown {
   total: number;
   trophies: { bronze: number; silver: number; gold: number; platinum: number; ungraded: number; xp: number };
-  steam: { achievements: number; perfectGames: number; xp: number };
+  steam: AchievementXp;
+  /** Epic and the others in LIKE_STEAM, by platform. */
+  more: Partial<Record<PlatformId, AchievementXp>>;
   xbox: { achievements: number; gamerscore: number; xp: number };
   hours: { confirmed: number; unconfirmed: number; xp: number };
 }
@@ -87,6 +99,7 @@ export function computeXp(
   const trophies = { bronze: 0, silver: 0, gold: 0, platinum: 0, ungraded: 0, xp: 0 };
   const steam = { achievements: 0, perfectGames: 0, xp: 0 };
   const xbox = { achievements: 0, gamerscore: 0, xp: 0 };
+  const more: Partial<Record<PlatformId, AchievementXp>> = {};
   for (const [id, per] of Object.entries(achievements)) {
     if (!isGame(id)) continue;
     const ps = per.playstation;
@@ -110,6 +123,13 @@ export function computeXp(
       xbox.achievements += xb.earned;
       xbox.gamerscore += xb.gamerscore ?? 0;
     }
+    for (const { platform } of LIKE_STEAM) {
+      const a = per[platform];
+      if (!a?.earned) continue;
+      const m = (more[platform] ??= { achievements: 0, perfectGames: 0, xp: 0 });
+      m.achievements += a.earned;
+      if (a.total > 0 && a.earned === a.total) m.perfectGames++;
+    }
   }
   trophies.xp =
     trophies.bronze * XP.bronze +
@@ -119,6 +139,11 @@ export function computeXp(
     trophies.ungraded * XP.ungradedTrophy;
   steam.xp = steam.achievements * XP.steamAchievement + steam.perfectGames * XP.steamPerfect;
   xbox.xp = xbox.gamerscore * XP.perGamerscore;
+  let moreXp = 0;
+  for (const m of Object.values(more)) {
+    m.xp = m.achievements * XP.steamAchievement + m.perfectGames * XP.steamPerfect;
+    moreXp += m.xp;
+  }
 
   let confirmed = 0;
   let unconfirmed = 0;
@@ -133,7 +158,7 @@ export function computeXp(
     xp: Math.floor(confirmed / 60) * XP.perHour,
   };
 
-  return { total: trophies.xp + steam.xp + xbox.xp + hours.xp, trophies, steam, xbox, hours };
+  return { total: trophies.xp + steam.xp + moreXp + xbox.xp + hours.xp, trophies, steam, more, xbox, hours };
 }
 
 /** Your XP and level, from your own data. */

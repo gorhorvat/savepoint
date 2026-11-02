@@ -50,6 +50,7 @@ import {
   psnAuthFor,
   fillMissingNames,
   resetPsnSession,
+  usersWithLogin,
   xboxKeyFor,
 } from './platformLogins.mjs';
 import { accountRouter, authRouter, requireLogin } from './auth.mjs';
@@ -68,6 +69,7 @@ import { lolRouter } from './lol.mjs';
 import { snapshotRouter } from './snapshots.mjs';
 import { steamGamesRouter } from './steamGames.mjs';
 import { wowRouter } from './wow.mjs';
+import { epicRouter, refreshEpicLogin } from './epic.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -87,6 +89,20 @@ process.on('unhandledRejection', (err) => logCrash('unhandledRejection', err));
 
 export const app = express();
 
+/**
+ * Sign-ins that expire unless they're used (Epic's refresh token) are renewed
+ * once a day, so a connection survives weeks without a visit.
+ */
+async function keepLoginsAlive() {
+  let epic = 0;
+  for (const userId of await usersWithLogin('epic')) {
+    await refreshEpicLogin(userId)
+      .then(() => epic++)
+      .catch(() => {});
+  }
+  return { epic };
+}
+
 // Vercel Cron (vercel.json) calls this once a day with "Authorization: Bearer
 // <CRON_SECRET>"; locally startAlertTimer() does the checking instead.
 app.get('/api/cron/alerts', async (req, res) => {
@@ -99,7 +115,8 @@ app.get('/api/cron/alerts', async (req, res) => {
   try {
     const prices = await checkAlerts();
     const deals = await checkDealAlerts().catch((err) => ({ error: err.message }));
-    res.json({ ...prices, deals });
+    const logins = await keepLoginsAlive().catch((err) => ({ error: err.message }));
+    res.json({ ...prices, deals, logins });
   } catch (err) {
     logCrash('cron/alerts', err);
     res.status(502).json({ error: err.message });
@@ -114,6 +131,7 @@ app.use(platformContext); // Lets game search use the searcher's own PlayStation
 app.use(accountRouter); // /api/account, /api/account/*, /api/admin/invite
 app.use(adminRouter); // /api/admin/users/*
 app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
+app.use(epicRouter); // /api/epic/*
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(messagesRouter); // /api/messages/*
 app.use(giftsRouter); // /api/gifts/*
@@ -150,10 +168,14 @@ app.get('/api/status', async (req, res) => {
       .then((l) => ({
         psn: !!l.playstation,
         xbox: !!l.xbox,
+        epic: !!l.epic,
+        gog: !!l.gog,
         psnAccount: l.playstation?.account,
         xboxAccount: l.xbox?.account,
+        epicAccount: l.epic?.account,
+        gogAccount: l.gog?.account,
       }))
-      .catch(() => ({ psn: false, xbox: false }))),
+      .catch(() => ({ psn: false, xbox: false, epic: false, gog: false }))),
     keyshops: has('GGDEALS_API_KEY'),
     prices: true,
     igdb: igdbConfigured(),
@@ -1117,6 +1139,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     startAlertTimer(async () => {
       await checkAlerts();
       await checkDealAlerts();
+      await keepLoginsAlive();
     });
     console.log(
       assistantProvider() === 'gemini'

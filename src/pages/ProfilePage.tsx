@@ -21,7 +21,7 @@ import { setShareStats } from '../lib/compare';
 import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } from '../lib/favorites';
 import { useLibrary } from '../lib/library';
 import { useStore } from '../lib/store';
-import { nextRank, useXp, XP } from '../lib/xp';
+import { LIKE_STEAM, nextRank, useXp, XP } from '../lib/xp';
 
 /** Center-crops and shrinks a picture to a small JPEG, so it stays light to save and sync. */
 async function toAvatar(file: File): Promise<string> {
@@ -216,6 +216,20 @@ function LevelSection() {
       } completed`,
       xp: xp.steam.xp,
     },
+    ...LIKE_STEAM.flatMap(({ platform, label }) => {
+      const m = xp.more[platform];
+      return m?.achievements
+        ? [
+            {
+              label: `${label} achievements`,
+              detail: `${fmt(m.achievements)} achievements, ${fmt(m.perfectGames)} ${
+                m.perfectGames === 1 ? 'game' : 'games'
+              } completed`,
+              xp: m.xp,
+            },
+          ]
+        : [];
+    }),
     ...(xp.xbox.achievements
       ? [
           {
@@ -227,7 +241,7 @@ function LevelSection() {
       : []),
     {
       label: 'Play time',
-      detail: `${fmt(xp.hours.confirmed)} hours confirmed by Steam, PlayStation and Xbox`,
+      detail: `${fmt(xp.hours.confirmed)} hours your platforms confirmed`,
       xp: xp.hours.xp,
     },
   ];
@@ -276,11 +290,12 @@ function LevelSection() {
         ))}
       </Stack>
       <Text size="sm" c="dimmed" mt="md">
-        XP only counts what Steam, PlayStation and Xbox confirm: trophies earn Sony&apos;s points (bronze {XP.bronze},
-        silver {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
-        {XP.steamPerfect} for completing a game, Xbox achievements their gamerscore, and {XP.perHour} per hour played.
+        XP only counts what your platforms confirm: trophies earn Sony&apos;s points (bronze {XP.bronze}, silver{' '}
+        {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
+        {XP.steamPerfect} for completing a game ({LIKE_STEAM.map((p) => p.label).join(', ')} achievements count the same
+        way), Xbox achievements their gamerscore, and {XP.perHour} per hour played.
         {xp.hours.unconfirmed >= 1 &&
-          ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand (Switch, Epic) don't count, and neither do apps.`}
+          ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand don't count, and neither do apps.`}
       </Text>
     </section>
   );

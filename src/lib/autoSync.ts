@@ -1,7 +1,16 @@
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
-import { applyXboxAchievements } from './achievements';
-import { fetchAccount, fetchStatus, fetchSteamWishlist, importPsn, importSteam, importXbox, steamProfileUrl } from './api';
+import { applyImportedAchievements, applyXboxAchievements } from './achievements';
+import {
+  fetchAccount,
+  fetchStatus,
+  fetchSteamWishlist,
+  importEpic,
+  importPsn,
+  importSteam,
+  importXbox,
+  steamProfileUrl,
+} from './api';
 import { useStore } from './store';
 
 const MAX_AGE = 6 * 60 * 60 * 1000;
@@ -40,7 +49,7 @@ async function steamNeverImported(): Promise<boolean> {
 
 /**
  * When the app opens, re-syncs every connected source whose last sync is
- * more than 6 hours old: Steam, PlayStation and Xbox libraries, Steam wishlist.
+ * more than 6 hours old: Steam, PlayStation, Xbox and Epic libraries, Steam wishlist.
  * Runs once per page load, silently; the manual sync buttons still work.
  */
 export async function autoSync(): Promise<void> {
@@ -83,6 +92,16 @@ export async function autoSync(): Promise<void> {
         const res = await importXbox();
         useStore.getState().importLibrary('xbox', 'xbox', res.games);
         applyXboxAchievements(res.games);
+      },
+    });
+  }
+  if (status.epic && connections.epic?.lastSync && stale(connections.epic.lastSync)) {
+    jobs.push({
+      name: 'Epic library',
+      run: async () => {
+        const res = await importEpic();
+        useStore.getState().importLibrary('epic', 'epic', res.games);
+        applyImportedAchievements('epic', 'epic', res.games);
       },
     });
   }

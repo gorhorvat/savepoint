@@ -50,6 +50,7 @@ const SOURCE_LABEL: Record<EntrySource, string> = {
   steam: 'Imported from Steam',
   psn: 'Imported from PlayStation Network',
   xbox: 'Imported from Xbox',
+  epic: 'Imported from Epic Games',
   manual: 'Added by you',
   demo: 'Sample data',
 };
@@ -422,7 +423,7 @@ export function GamePage() {
                 <Stack gap={0}>
                   {item.plays.map((p, i) => (
                     <Group
-                      key={p.platform}
+                      key={`${p.platform}-${p.source}`}
                       justify="space-between"
                       wrap="nowrap"
                       py={10}
@@ -446,7 +447,7 @@ export function GamePage() {
                               variant="subtle"
                               color="gray"
                               aria-label={`Remove ${p.platform} play time`}
-                              onClick={() => removeEntry(game.id, p.platform)}
+                              onClick={() => removeEntry(game.id, p.platform, p.source)}
                             >
                               <IconTrash size={16} />
                             </ActionIcon>

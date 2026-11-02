@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { AchievementProgress } from '../types';
+import type { AchievementProgress, EntrySource, PlatformId } from '../types';
 import { fetchPsnTrophies, fetchStatus, fetchSteamAchievements } from './api';
 import { normalizeTitle } from './match';
 import { resolveGame, useStore, type ImportedGame } from './store';
@@ -97,17 +97,22 @@ export function useAchievementsSync() {
 }
 
 /**
- * Xbox sends achievements and gamerscore with its game list, so they're saved
- * straight after an Xbox import: matched to the imported games by title.
+ * Platforms that send achievements with their game list (Xbox with gamerscore,
+ * Epic) have them saved straight after the import: matched to the imported
+ * games by the platform's id, or by title.
  */
-export function applyXboxAchievements(games: ImportedGame[]) {
-  const byTitle = new Map(games.filter((g) => g.achievements).map((g) => [normalizeTitle(g.name), g.achievements!]));
+export function applyImportedAchievements(platform: PlatformId, source: EntrySource, games: ImportedGame[]) {
+  const withAchievements = games.filter((g) => g.achievements);
+  const byRef = new Map(withAchievements.filter((g) => g.externalId).map((g) => [g.externalId!, g.achievements!]));
+  const byTitle = new Map(withAchievements.map((g) => [normalizeTitle(g.name), g.achievements!]));
   const { entries, customGames, genreOverrides, details } = useStore.getState();
   const out: Record<string, Result> = {};
-  for (const e of entries.filter((x) => x.platform === 'xbox' && x.source === 'xbox')) {
+  for (const e of entries.filter((x) => x.platform === platform && x.source === source)) {
     const title = resolveGame(e.gameId, customGames, genreOverrides, details)?.title;
-    const a = title && byTitle.get(normalizeTitle(title));
+    const a = (e.ref && byRef.get(e.ref)) || (title && byTitle.get(normalizeTitle(title)));
     if (a) out[e.gameId] = { ...a, minutesAt: e.minutes };
   }
-  useStore.getState().applyAchievements('xbox', out);
+  useStore.getState().applyAchievements(platform, out);
 }
+
+export const applyXboxAchievements = (games: ImportedGame[]) => applyImportedAchievements('xbox', 'xbox', games);
