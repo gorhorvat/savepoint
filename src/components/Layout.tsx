@@ -12,6 +12,8 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import {
   IconBooks,
+  IconBroadcast,
+  IconDeviceGamepad2,
   IconHome,
   IconChartPie,
   IconDisc,
@@ -215,8 +217,8 @@ function MessagesButton() {
 }
 
 /**
- * The profile picture opens a menu: Profile, Settings, Manage users (super
- * admin), light or dark mode, and Log out.
+ * The profile picture opens a menu: Profile, Settings, Platforms, Streaming,
+ * Manage users (super admin), light or dark mode, and Log out.
  */
 function ProfileMenu({ size }: { size: number }) {
   const { setColorScheme } = useMantineColorScheme();
@@ -248,6 +250,12 @@ function ProfileMenu({ size }: { size: number }) {
         </Menu.Item>
         <Menu.Item component={Link} to="/settings" leftSection={<IconSettings size={16} />}>
           Settings
+        </Menu.Item>
+        <Menu.Item component={Link} to="/platforms" leftSection={<IconDeviceGamepad2 size={16} />}>
+          Platforms
+        </Menu.Item>
+        <Menu.Item component={Link} to="/streaming" leftSection={<IconBroadcast size={16} />}>
+          Streaming
         </Menu.Item>
         {status?.superAdmin && (
           <Menu.Item component={Link} to="/admin" leftSection={<IconUsersGroup size={16} />}>

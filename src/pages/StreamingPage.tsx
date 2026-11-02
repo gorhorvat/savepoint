@@ -77,10 +77,10 @@ function SignIn({
 }
 
 /**
- * Settings: Twitch sign-in, Kick channels, and the games your
+ * Twitch sign-in, Kick channels, and the games your
  * streamers play (they feed Play next and More like this).
  */
-export function StreamingSection() {
+export function StreamingPage() {
   const [status, setStatus] = useState<StreamingStatus | null>(null);
   const [params, setParams] = useSearchParams();
   const kick = useStore((s) => s.kickChannels);
@@ -88,8 +88,7 @@ export function StreamingSection() {
   const taste = useStore((s) => s.streamTaste);
   const [refreshing, setRefreshing] = useState(false);
 
-  const connections = (s: StreamingStatus | null) =>
-    (s?.twitch ? `t:${s.twitch.account}` : '');
+  const connections = (s: StreamingStatus | null) => (s?.twitch ? `t:${s.twitch.account}` : '');
 
   const refresh = async (s: StreamingStatus | null = status) => {
     setRefreshing(true);
@@ -127,7 +126,7 @@ export function StreamingSection() {
         setParams(params, { replace: true });
       }
     });
-    // Once, on opening Settings.
+    // Once, on opening the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -136,12 +135,12 @@ export function StreamingSection() {
   const nothingSetUp = configured && !configured.twitch && !configured.kick;
 
   return (
-    <Stack gap="lg" id="streaming">
+    <Stack gap={48}>
       <div>
-        <Title order={2}>Streaming</Title>
+        <Title order={1}>Streaming</Title>
         <Text c="dimmed" mt={6}>
-          Bring in the streamers you watch. The games they play count toward Play next and More like this, and the
-          ones live now can go on your homepage.
+          Bring in the streamers you watch. The games they play count toward Play next and More like this, and the ones
+          live now can go on your homepage.
         </Text>
       </div>
       <Paper p={{ base: 'md', sm: 'lg' }}>
@@ -167,7 +166,9 @@ export function StreamingSection() {
                   aria-label="Kick channels"
                   placeholder={kick.length ? 'Add another channel' : 'Channel name or kick.com link'}
                   value={kick}
-                  onChange={(next) => setKick([...new Set(next.map(normalizeKickChannel).filter(Boolean))].slice(0, 50))}
+                  onChange={(next) =>
+                    setKick([...new Set(next.map(normalizeKickChannel).filter(Boolean))].slice(0, 50))
+                  }
                   splitChars={[',', ' ']}
                   disabled={!configured?.kick}
                   clearable

@@ -695,16 +695,16 @@ function ManualPanel({ platform, why, where }: { platform: PlatformId; why: stri
   );
 }
 
-/** The Platforms section of Settings: connect Steam and PlayStation, add Switch and Epic hours by hand. */
-export function PlatformsSection() {
+/** Platforms: connect Steam, PlayStation and Xbox, and add Switch and Epic hours by hand. */
+export function PlatformsPage() {
   const [status, refreshStatus] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
   const removeDemo = useStore((s) => s.removeDemo);
 
   return (
-    <Stack gap="lg" id="platforms">
+    <Stack gap={48}>
       <div>
-        <Title order={2}>Platforms</Title>
+        <Title order={1}>Platforms</Title>
         <Text c="dimmed" mt={6}>
           Steam, PlayStation and Xbox import play time automatically. Epic and Nintendo don't offer a way to read it, so
           add those games by hand.

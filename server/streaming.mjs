@@ -409,14 +409,22 @@ async function streamingTaste(userId, kickSlugs) {
 }
 
 const cleanSlugs = (list) =>
-  [...new Set((Array.isArray(list) ? list : []).map((s) => String(s).trim().toLowerCase()).filter((s) => /^[\w-]{2,40}$/.test(s)))].slice(0, 50);
+  [
+    ...new Set(
+      (Array.isArray(list) ? list : [])
+        .map((s) => String(s).trim().toLowerCase())
+        .filter((s) => /^[\w-]{2,40}$/.test(s)),
+    ),
+  ].slice(0, 50);
 
 // ---------------------------------------------------------------- routes
 
 export const streamingRouter = express.Router();
 
 streamingRouter.get('/api/streams', async (req, res) => {
-  const title = String(req.query.title || '').trim().slice(0, 200);
+  const title = String(req.query.title || '')
+    .trim()
+    .slice(0, 200);
   const igdbId = Number(req.query.igdbId) || undefined;
   if (!title) return res.status(400).json({ error: 'title is required' });
   res.set('Cache-Control', 'private, max-age=120');
@@ -438,9 +446,15 @@ streamingRouter.get('/api/streaming', async (req, res) => {
 for (const service of Object.keys(SERVICES)) {
   streamingRouter.get(`/api/auth/${service}/start`, async (req, res) => {
     const s = SERVICES[service];
-    if (!s.configured()) return res.redirect(`/settings?${service}=unavailable#streaming`);
+    if (!s.configured()) return res.redirect(`/streaming?${service}=unavailable`);
     const nonce = randomBytes(16).toString('base64url');
-    setCookie(req, res, STATE_COOKIE, await signValue({ n: nonce, s: service, u: req.userId, exp: Date.now() + STATE_MS }), STATE_MS);
+    setCookie(
+      req,
+      res,
+      STATE_COOKIE,
+      await signValue({ n: nonce, s: service, u: req.userId, exp: Date.now() + STATE_MS }),
+      STATE_MS,
+    );
     const url = new URL(s.authorize);
     url.search = new URLSearchParams({
       client_id: s.clientId(),
@@ -455,7 +469,7 @@ for (const service of Object.keys(SERVICES)) {
   streamingRouter.get(`/api/auth/${service}/callback`, async (req, res) => {
     const state = await readSigned(req, STATE_COOKIE);
     setCookie(req, res, STATE_COOKIE, '', 0);
-    const back = (result) => res.redirect(`/settings?${service}=${result}#streaming`);
+    const back = (result) => res.redirect(`/streaming?${service}=${result}`);
     if (!state || state.s !== service || state.u !== req.userId || req.query.state !== state.n) return back('failed');
     if (req.query.error || typeof req.query.code !== 'string') return back('cancelled');
     try {

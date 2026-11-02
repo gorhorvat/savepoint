@@ -428,7 +428,7 @@ const row = (r) => ({ game: r.game, externalId: r.external_id, name: r.name, dat
 async function linkedSteam(userId) {
   const { rows } = await query('SELECT "steam_id" FROM users WHERE "id" = $1', [userId]);
   const id = rows[0]?.steam_id;
-  if (!id) throw new SteamGameError('Connect Steam in Settings, Platforms first: these stats come from it.', 409);
+  if (!id) throw new SteamGameError('Connect Steam on the Platforms page first: these stats come from it.', 409);
   return id;
 }
 

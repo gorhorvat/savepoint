@@ -83,9 +83,9 @@ export function SteamGameTab<T>({
           {error && (
             <Text size="sm" c="red">
               {error}{' '}
-              {/Settings/.test(error) && (
-                <Anchor component={Link} to="/settings#platforms" size="sm">
-                  Open Settings
+              {/Platforms/.test(error) && (
+                <Anchor component={Link} to="/platforms" size="sm">
+                  Open Platforms
                 </Anchor>
               )}
             </Text>

@@ -107,7 +107,7 @@ export async function psnAuthFor(userId) {
   const cached = psnSessions.get(userId);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
   const stored = await load(userId, 'playstation');
-  if (!stored) throw new NotConnected('Connect PlayStation first (Settings, Platforms).');
+  if (!stored) throw new NotConnected('Connect PlayStation first (Platforms page).');
   let tokens;
   try {
     tokens = await exchangeRefreshTokenForAuthTokens(stored.secret);
@@ -203,7 +203,7 @@ export const resetPsnSession = (userId) => psnSessions.delete(userId);
 /** The user's own OpenXBL key. Throws NotConnected. */
 export async function xboxKeyFor(userId) {
   const stored = await load(userId, 'xbox');
-  if (!stored) throw new NotConnected('Connect Xbox first (Settings, Platforms).');
+  if (!stored) throw new NotConnected('Connect Xbox first (Platforms page).');
   return stored.secret;
 }
 

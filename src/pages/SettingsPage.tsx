@@ -5,8 +5,6 @@ import { normalizeVendor, searchesDirectly, SHOP_SUGGESTIONS, vendorSearchUrl } 
 import { AlertsSection } from './AlertsSection';
 import { HomepageSection } from './HomepageSection';
 import { MessageAlertsSection } from './MessageAlertsSection';
-import { PlatformsSection } from './PlatformsSection';
-import { StreamingSection } from './StreamingSection';
 
 function ShopsSection() {
   const vendors = useStore((s) => s.vendors);
@@ -66,16 +64,14 @@ export function SettingsPage() {
       <div>
         <Title order={1}>Settings</Title>
         <Text c="dimmed" mt={6} size="lg">
-          Your homepage, shops for physical games, alerts, message alerts, streamers, and the platforms your play time
-          comes from.
+          Your homepage, shops for physical games, and alerts. Platforms and streaming have their own pages in your
+          profile menu.
         </Text>
       </div>
       <HomepageSection />
       <ShopsSection />
       <AlertsSection />
       <MessageAlertsSection />
-      <StreamingSection />
-      <PlatformsSection />
     </Stack>
   );
 }

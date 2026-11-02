@@ -124,7 +124,7 @@ export function AddOnPlatforms({ friend }: { friend: FriendProfile }) {
           a.xbox &&
             (mine?.xbox
               ? 'Xbox sends the request from your Xbox connection when it can, otherwise opens their profile.'
-              : 'Connect Xbox in Settings to send the request from here.'),
+              : 'Connect Xbox on the Platforms page to send the request from here.'),
         ]
           .filter(Boolean)
           .join(' ')}

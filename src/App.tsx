@@ -18,6 +18,8 @@ import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StatsPage } from './pages/StatsPage';
 import { WishlistPage } from './pages/WishlistPage';
+import { PlatformsPage } from './pages/PlatformsPage';
+import { StreamingPage } from './pages/StreamingPage';
 
 /** New page: back to the top, or to the section a link names ("/settings#alerts"). */
 function ScrollToTop() {
@@ -58,8 +60,8 @@ export default function App() {
           <Route path="/messages/:id" element={<MessagesPage />} />
           <Route path="/friends/:id" element={<FriendProfilePage />} />
           <Route path="/add/:code" element={<AddFriendPage />} />
-          {/* Platforms is a section of Settings now; keep old links working. */}
-          <Route path="/platforms" element={<Navigate to="/settings" replace />} />
+          <Route path="/platforms" element={<PlatformsPage />} />
+          <Route path="/streaming" element={<StreamingPage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </Layout>

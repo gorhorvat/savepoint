@@ -6,7 +6,14 @@ import { timingSafeEqual } from 'node:crypto';
 import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { getUserPlayedGames, getUserTitles } from 'psn-api';
-import { NINTENDO_GENRES, lookupDetails, nintendoPrice, searchAllPlatforms, searchGames, steamWishlist } from './search.mjs';
+import {
+  NINTENDO_GENRES,
+  lookupDetails,
+  nintendoPrice,
+  searchAllPlatforms,
+  searchGames,
+  steamWishlist,
+} from './search.mjs';
 import { lookupGameFacts } from './gameFacts.mjs';
 import { discoverPool } from './discover.mjs';
 import { howLongToBeat } from './hltb.mjs';
@@ -203,7 +210,7 @@ class NotFound extends Error {}
  */
 async function linkedSteamId(req) {
   const { rows } = await query('SELECT "steam_id" FROM users WHERE "id" = $1', [req.userId]);
-  if (!rows[0]?.steam_id) throw new NotFound('Connect Steam first (Settings, Platforms).');
+  if (!rows[0]?.steam_id) throw new NotFound('Connect Steam first (Platforms page).');
   return rows[0].steam_id;
 }
 

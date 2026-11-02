@@ -365,7 +365,7 @@ async function importNewSteamAccount() {
   } catch (e) {
     notifications.show({
       title: 'Welcome to Savepoint',
-      message: `Your Steam library couldn't be imported yet (${(e as Error).message}). Savepoint tries again the next time you open it, or import it in Settings, Platforms.`,
+      message: `Your Steam library couldn't be imported yet (${(e as Error).message}). Savepoint tries again the next time you open it, or import it on the Platforms page.`,
     });
   }
 }

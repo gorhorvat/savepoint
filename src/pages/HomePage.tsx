@@ -121,7 +121,7 @@ function ContinuePlaying({ lib }: { lib: LibraryGame[] }) {
           }))}
         />
       ) : (
-        <Quiet>Nothing played yet. Connect a platform in Settings to bring in your games.</Quiet>
+        <Quiet>Nothing played yet. Connect a platform on the Platforms page to bring in your games.</Quiet>
       )}
     </Section>
   );
@@ -181,7 +181,7 @@ function LiveNow() {
   const kick = useStore((s) => s.kickChannels);
   const live = useLoad(() => fetchFollowedLive(kick).then((r) => r.live), [kick]);
   return (
-    <Section title="Your streamers, live" more={{ to: '/settings#streaming', label: 'Streamers' }}>
+    <Section title="Your streamers, live" more={{ to: '/streaming', label: 'Streamers' }}>
       {live === null ? (
         <Quiet>Checking who&apos;s live…</Quiet>
       ) : live === 'error' ? (
@@ -195,7 +195,7 @@ function LiveNow() {
       ) : (
         <Quiet>
           Nobody you follow is live. Sign in with Twitch or add Kick channels in{' '}
-          <Anchor component={Link} to="/settings#streaming" inherit>
+          <Anchor component={Link} to="/streaming" inherit>
             Settings
           </Anchor>{' '}
           if you haven&apos;t.
