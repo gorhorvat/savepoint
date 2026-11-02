@@ -194,9 +194,9 @@ function LiveNow() {
         </div>
       ) : (
         <Quiet>
-          Nobody you follow is live. Sign in with Twitch or add Kick channels in{' '}
+          Nobody you follow is live. Sign in with Twitch or YouTube, or add Kick channels in{' '}
           <Anchor component={Link} to="/streaming" inherit>
-            Settings
+            Streaming
           </Anchor>{' '}
           if you haven&apos;t.
         </Quiet>

@@ -230,7 +230,8 @@ export interface StreamChannel {
 
 export interface StreamTaste {
   games: WatchedGame[];
-  channels: { twitch: StreamChannel[]; kick: StreamChannel[] };
+  /** YouTube is missing from tastes worked out before Savepoint read YouTube. */
+  channels: { twitch: StreamChannel[]; youtube?: StreamChannel[]; kick: StreamChannel[] };
   /** What it was worked out from (connections and Kick channels), to know when it's stale. */
   key: string;
   fetchedAt: string;

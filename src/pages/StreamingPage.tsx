@@ -11,7 +11,9 @@ import {
   fetchStreamingStatus,
   normalizeKickChannel,
   refreshStreamTaste,
+  signInKey,
   signInUrl,
+  type SignInService,
   type StreamingStatus,
 } from '../lib/streaming';
 
@@ -21,7 +23,11 @@ const RESULT: Record<string, string> = {
   failed: "sign-in didn't work. Try again.",
   unavailable: "isn't set up on this Savepoint server.",
 };
-const NAME = { twitch: 'Twitch' } as const;
+const NAME = { twitch: 'Twitch', youtube: 'YouTube' } as const;
+const BRINGS = {
+  twitch: 'Brings in the channels you follow.',
+  youtube: 'Brings in the channels you subscribe to and shows the ones live now.',
+} as const;
 
 function SignIn({
   service,
@@ -29,7 +35,7 @@ function SignIn({
   available,
   onChange,
 }: {
-  service: 'twitch';
+  service: SignInService;
   status: StreamingStatus | null;
   available: boolean;
   onChange: () => void;
@@ -54,11 +60,7 @@ function SignIn({
         <div style={{ minWidth: 0 }}>
           <Text fw={600}>{NAME[service]}</Text>
           <Text size="xs" c="dimmed" truncate>
-            {!available
-              ? 'Not set up on this server.'
-              : account
-                ? `Signed in as ${account}`
-                : 'Brings in the channels you follow.'}
+            {!available ? 'Not set up on this server.' : account ? `Signed in as ${account}` : BRINGS[service]}
           </Text>
         </div>
       </Group>
@@ -77,7 +79,7 @@ function SignIn({
 }
 
 /**
- * Twitch sign-in, Kick channels, and the games your
+ * Twitch and YouTube sign-ins, Kick channels, and the games your
  * streamers play (they feed Play next and More like this).
  */
 export function StreamingPage() {
@@ -88,7 +90,7 @@ export function StreamingPage() {
   const taste = useStore((s) => s.streamTaste);
   const [refreshing, setRefreshing] = useState(false);
 
-  const connections = (s: StreamingStatus | null) => (s?.twitch ? `t:${s.twitch.account}` : '');
+  const connections = signInKey;
 
   const refresh = async (s: StreamingStatus | null = status) => {
     setRefreshing(true);
@@ -112,7 +114,7 @@ export function StreamingPage() {
   useEffect(() => {
     void load().then((s) => {
       // Back from a sign-in: say how it went, and learn from it straight away.
-      for (const service of ['twitch'] as const) {
+      for (const service of ['twitch', 'youtube'] as const) {
         const result = params.get(service);
         if (!result) continue;
         notifications.show({
@@ -121,8 +123,9 @@ export function StreamingPage() {
         });
         if (result === 'connected' && s) void refresh(s);
       }
-      if (params.has('twitch')) {
+      if (params.has('twitch') || params.has('youtube')) {
         params.delete('twitch');
+        params.delete('youtube');
         setParams(params, { replace: true });
       }
     });
@@ -132,7 +135,7 @@ export function StreamingPage() {
 
   const configured = status?.configured;
   const channels = allChannels(taste);
-  const nothingSetUp = configured && !configured.twitch && !configured.kick;
+  const nothingSetUp = configured && !configured.twitch && !configured.youtube && !configured.kick;
 
   return (
     <Stack gap={48}>
@@ -147,11 +150,17 @@ export function StreamingPage() {
         <Stack gap="lg">
           {nothingSetUp ? (
             <Text size="sm" c="dimmed">
-              Streaming isn&apos;t set up on this server yet (Twitch and Kick keys in .env).
+              Streaming isn&apos;t set up on this server yet (Twitch, YouTube and Kick keys in .env).
             </Text>
           ) : (
             <>
               <SignIn service="twitch" status={status} available={!!configured?.twitch} onChange={() => void load()} />
+              <SignIn
+                service="youtube"
+                status={status}
+                available={!!configured?.youtube}
+                onChange={() => void load()}
+              />
               <Stack gap={6}>
                 <Group gap="sm" wrap="nowrap">
                   <ServiceIcon service="kick" size={22} />

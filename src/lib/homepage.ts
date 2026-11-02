@@ -55,7 +55,10 @@ export const DEFAULT_HOME_FREE_GAMES: HomeFreeGames = { stores: [], dlc: false, 
 export const HOME_WIDGETS: Record<HomeWidgetId, { label: string; description: string }> = {
   continue: { label: 'Continue playing', description: 'What you played most recently.' },
   picks: { label: 'Play next', description: 'Your best suggestions right now.' },
-  live: { label: 'Your streamers, live', description: 'Twitch and Kick channels you follow that are live now.' },
+  live: {
+    label: 'Your streamers, live',
+    description: 'Twitch, YouTube and Kick channels you follow that are live now.',
+  },
   friends: { label: 'Friend activity', description: 'Who is online, what they are playing, requests and gifts.' },
   free: { label: 'Free games', description: 'Games given away to keep right now.' },
   news: { label: 'Gaming news', description: 'The newest headlines from big gaming sites.' },

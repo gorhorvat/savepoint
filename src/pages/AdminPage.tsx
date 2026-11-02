@@ -19,6 +19,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconBrandKick,
+  IconBrandYoutube,
   IconBrandTwitch,
   IconCheck,
   IconCopy,
@@ -48,6 +49,7 @@ const PLATFORM_IDS = new Set(['steam', 'playstation', 'xbox', 'epic', 'gog', 're
 // Streaming services a user can connect; they sit apart from the game platforms.
 const STREAMING: Record<string, { name: string; Icon: typeof IconBrandTwitch; color: string }> = {
   twitch: { name: 'Twitch', Icon: IconBrandTwitch, color: '#9146ff' },
+  youtube: { name: 'YouTube', Icon: IconBrandYoutube, color: '#ff0033' },
   kick: { name: 'Kick', Icon: IconBrandKick, color: '#53fc18' },
 };
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });

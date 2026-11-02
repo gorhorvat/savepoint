@@ -3,17 +3,18 @@
 //
 // App-level keys (.env):
 //   TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET   (already used for IGDB) live streams, and Twitch sign-in
+//   YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET  Google sign-in for YouTube subscriptions (read-only)
 //   KICK_CLIENT_ID / KICK_CLIENT_SECRET       live streams on Kick, and reading Kick channels
 //
-// Per account: the Twitch sign-in (refresh token, encrypted in
+// Per account: the Twitch and YouTube sign-ins (refresh tokens, encrypted in
 // platform_logins like PlayStation's). Kick's API has no way to read who you
 // follow, so Kick channels are typed in (stored in the account's state).
 //
 // Mounted after requireLogin.
 //   GET    /api/streams?title=&igdbId=     { twitch, kick }, top 5 live each
 //   GET    /api/streaming                  connections and which services are set up
-//   GET    /api/auth/twitch/start, /callback
-//   DELETE /api/streaming/:service         disconnects Twitch
+//   GET    /api/auth/twitch/start, /callback, and the same for youtube
+//   DELETE /api/streaming/:service         disconnects Twitch or YouTube
 //   POST   /api/streaming/taste            { kick: [slugs] } -> { games, channels }
 //   POST   /api/streaming/live             { kick: [slugs] } -> { live } followed channels live now
 import express from 'express';
@@ -29,6 +30,7 @@ const has = (name) => Boolean(process.env[name]?.trim());
 const env = (name) => process.env[name].trim();
 export const streamingConfigured = () => ({
   twitch: has('TWITCH_CLIENT_ID') && has('TWITCH_CLIENT_SECRET'),
+  youtube: has('YOUTUBE_CLIENT_ID') && has('YOUTUBE_CLIENT_SECRET'),
   kick: has('KICK_CLIENT_ID') && has('KICK_CLIENT_SECRET'),
 });
 
@@ -206,6 +208,95 @@ async function kickChannels(slugs) {
   return out;
 }
 
+// ---------------------------------------------------------------- YouTube
+
+async function yt(path, accessToken) {
+  return getJson(`https://www.googleapis.com/youtube/v3/${path}`, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+}
+
+/** Channels the account subscribes to, most relevant first: { id, name }. Up to 300 (6 quota units). */
+async function youtubeSubscriptions(token) {
+  const out = [];
+  let page = '';
+  do {
+    const j = await yt(
+      `subscriptions?part=snippet&mine=true&maxResults=50&order=relevance${page ? `&pageToken=${page}` : ''}`,
+      token,
+    );
+    for (const s of j.items ?? []) {
+      const id = s.snippet?.resourceId?.channelId;
+      if (id) out.push({ id, name: s.snippet.title });
+    }
+    page = j.nextPageToken ?? '';
+  } while (page && out.length < 300);
+  return out;
+}
+
+const subsCache = memo(6 * 3600 * 1000);
+const feedCache = memo(10 * 60 * 1000);
+
+/** A channel's newest videos from its public feed, which costs no API quota: [{ id, published }]. */
+async function channelFeed(channelId) {
+  return feedCache(channelId, async () => {
+    const r = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return [];
+    const xml = await r.text();
+    return [
+      ...xml.matchAll(/<entry>[\s\S]*?<yt:videoId>([\w-]+)<\/yt:videoId>[\s\S]*?<published>([^<]+)<\/published>/g),
+    ]
+      .slice(0, 5)
+      .map((m) => ({ id: m[1], published: m[2] }));
+  });
+}
+
+const LIVE_CHANNELS = 100; // the most relevant subscriptions are checked for live streams
+
+/**
+ * Subscribed channels live now. Each channel's newest videos come from its free
+ * feed; one videos.list call (1 quota unit per 50 videos) says which are live.
+ */
+async function youtubeLive(userId) {
+  const token = await userToken(userId, 'youtube');
+  const subs = await subsCache(userId, () => youtubeSubscriptions(token));
+  const recent = Date.now() - 3 * 24 * 3600 * 1000;
+  const ids = [];
+  const channelOf = new Map();
+  const list = subs.slice(0, LIVE_CHANNELS);
+  for (let i = 0; i < list.length; i += 20) {
+    const feeds = await Promise.all(list.slice(i, i + 20).map((c) => channelFeed(c.id).catch(() => [])));
+    feeds.forEach((videos, k) => {
+      for (const v of videos) {
+        // A stream going on now was published (scheduled or started) recently.
+        if (Date.parse(v.published) < recent) continue;
+        ids.push(v.id);
+        channelOf.set(v.id, list[i + k].name);
+      }
+    });
+  }
+  const live = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const j = await yt(`videos?part=snippet,liveStreamingDetails&id=${ids.slice(i, i + 50).join(',')}`, token);
+    for (const v of j.items ?? []) {
+      if (v.snippet?.liveBroadcastContent !== 'live') continue;
+      live.push({
+        platform: 'youtube',
+        channel: v.snippet.channelTitle || channelOf.get(v.id),
+        title: v.snippet.title,
+        viewers: v.liveStreamingDetails?.concurrentViewers
+          ? Number(v.liveStreamingDetails.concurrentViewers)
+          : undefined,
+        thumbnail: v.snippet.thumbnails?.medium?.url ?? v.snippet.thumbnails?.default?.url,
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+      });
+    }
+  }
+  return live;
+}
+
 // ---------------------------------------------------------------- live in a game
 
 const liveTwitch = memo(3 * 60 * 1000);
@@ -236,6 +327,16 @@ const SERVICES = {
     clientSecret: () => env('TWITCH_CLIENT_SECRET'),
     scope: 'user:read:follows',
   },
+  youtube: {
+    configured: () => streamingConfigured().youtube,
+    authorize: 'https://accounts.google.com/o/oauth2/v2/auth',
+    token: 'https://oauth2.googleapis.com/token',
+    clientId: () => env('YOUTUBE_CLIENT_ID'),
+    clientSecret: () => env('YOUTUBE_CLIENT_SECRET'),
+    scope: 'https://www.googleapis.com/auth/youtube.readonly',
+    // Google only hands out a refresh token with these.
+    extra: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
+  },
 };
 
 const callbackUrl = (req, service) => `${origin(req)}/api/auth/${service}/callback`;
@@ -249,8 +350,13 @@ async function exchange(service, params) {
   });
 }
 
-/** Who signed in with Twitch: { id, name }. */
-async function whoAmI(accessToken) {
+/** Who signed in: { id, name }. */
+async function whoAmI(service, accessToken) {
+  if (service === 'youtube') {
+    // Accounts without a YouTube channel of their own still have subscriptions.
+    const me = (await yt('channels?part=snippet&mine=true', accessToken).catch(() => ({}))).items?.[0];
+    return { id: me?.id ?? null, name: me?.snippet?.title ?? 'your Google account' };
+  }
   const u = (await helix('users', accessToken)).data?.[0];
   return { id: u.id, name: u.display_name || u.login };
 }
@@ -355,7 +461,7 @@ async function streamingTaste(userId, kickSlugs) {
     prev.channels.add(channel);
     byGame.set(k, prev);
   };
-  const channels = { twitch: [], kick: [] };
+  const channels = { twitch: [], youtube: [], kick: [] };
   const c = streamingConfigured();
 
   if (c.twitch) {
@@ -363,6 +469,15 @@ async function streamingTaste(userId, kickSlugs) {
       const follows = await twitchFollows(userId);
       channels.twitch = follows.map((f) => ({ name: f.name, url: `https://www.twitch.tv/${f.login}`, game: f.game }));
       for (const f of follows) add(f.game, f.igdbId, f.name);
+    } catch (err) {
+      if (!(err instanceof NotConnected)) throw err;
+    }
+  }
+  if (c.youtube) {
+    try {
+      // YouTube doesn't say what game a channel plays, so these only list your channels.
+      const subs = await subsCache(userId, async () => youtubeSubscriptions(await userToken(userId, 'youtube')));
+      channels.youtube = subs.map((s) => ({ name: s.name, url: `https://www.youtube.com/channel/${s.id}` }));
     } catch (err) {
       if (!(err instanceof NotConnected)) throw err;
     }
@@ -401,6 +516,7 @@ async function streamingTaste(userId, kickSlugs) {
     games,
     channels: {
       twitch: channels.twitch.slice(0, 200),
+      youtube: channels.youtube.slice(0, 200),
       kick: channels.kick,
     },
   };
@@ -433,10 +549,11 @@ streamingRouter.get('/api/streams', async (req, res) => {
 
 streamingRouter.get('/api/streaming', async (req, res) => {
   try {
-    const twitch = await accountId(req.userId, 'twitch');
+    const [twitch, youtube] = await Promise.all([accountId(req.userId, 'twitch'), accountId(req.userId, 'youtube')]);
     res.json({
       configured: streamingConfigured(),
       twitch: twitch ? { account: twitch.account_name } : null,
+      youtube: youtube ? { account: youtube.account_name } : null,
     });
   } catch {
     res.status(502).json({ error: "Couldn't reach the database. Try again in a moment." });
@@ -462,6 +579,7 @@ for (const service of Object.keys(SERVICES)) {
       response_type: 'code',
       scope: s.scope,
       state: nonce,
+      ...s.extra,
     }).toString();
     res.redirect(url.toString());
   });
@@ -479,7 +597,7 @@ for (const service of Object.keys(SERVICES)) {
         redirect_uri: callbackUrl(req, service),
       });
       if (!j.refresh_token) return back('failed');
-      const me = await whoAmI(j.access_token);
+      const me = await whoAmI(service, j.access_token);
       await saveLogin(req.userId, service, j.refresh_token, me.name);
       await query('UPDATE platform_logins SET "account_id" = $3 WHERE "user_id" = $1 AND "platform" = $2', [
         req.userId,
@@ -520,7 +638,7 @@ streamingRouter.post('/api/streaming/taste', express.json({ limit: '10kb' }), as
 
 const liveFollowed = memo(2 * 60 * 1000);
 
-/** Followed channels live now: Twitch (signed in) and Kick (typed-in channels). */
+/** Followed channels live now: Twitch and YouTube (signed in) and Kick (typed-in channels). */
 streamingRouter.post('/api/streaming/live', express.json({ limit: '10kb' }), async (req, res) => {
   const slugs = cleanSlugs(req.body?.kick);
   const c = streamingConfigured();
@@ -543,6 +661,13 @@ streamingRouter.post('/api/streaming/live', express.json({ limit: '10kb' }), asy
               url: `https://www.twitch.tv/${s.user_login}`,
             })),
           );
+        } catch (err) {
+          if (!(err instanceof NotConnected)) throw err;
+        }
+      }
+      if (c.youtube) {
+        try {
+          out.push(...(await youtubeLive(req.userId)));
         } catch (err) {
           if (!(err instanceof NotConnected)) throw err;
         }

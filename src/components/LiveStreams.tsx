@@ -1,12 +1,12 @@
 import { Anchor, Group, Loader, SegmentedControl, Stack, Text, Title } from '@mantine/core';
-import { IconBrandKick, IconBrandTwitch, IconUsers } from '@tabler/icons-react';
+import { IconBrandKick, IconBrandTwitch, IconBrandYoutube, IconUsers } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { fetchGameStreams, SERVICE_NAME, type GameStreams, type LiveStream, type StreamService } from '../lib/streaming';
 
-const SERVICE_COLOR: Record<StreamService, string> = { twitch: '#9146ff', kick: '#53fc18' };
+const SERVICE_COLOR: Record<StreamService, string> = { twitch: '#9146ff', youtube: '#ff0033', kick: '#53fc18' };
 
 export function ServiceIcon({ service, size = 14 }: { service: StreamService; size?: number }) {
-  const Icon = service === 'twitch' ? IconBrandTwitch : IconBrandKick;
+  const Icon = service === 'twitch' ? IconBrandTwitch : service === 'youtube' ? IconBrandYoutube : IconBrandKick;
   return <Icon size={size} color={SERVICE_COLOR[service]} style={{ flexShrink: 0 }} aria-hidden />;
 }
 
@@ -58,7 +58,7 @@ export function LiveStreams({ title, igdbId }: { title: string; igdbId?: number 
 
   const streams = data?.key === key ? data.streams : undefined;
   if (streams === null) return null;
-  const services = streams ? (Object.keys(SERVICE_NAME) as StreamService[]).filter((s) => streams[s] !== null) : [];
+  const services = streams ? (Object.keys(SERVICE_NAME) as StreamService[]).filter((s) => streams[s] != null) : [];
   if (streams && !services.length) return null; // Nothing set up on the server.
 
   const all = streams

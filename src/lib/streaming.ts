@@ -1,13 +1,13 @@
-// Streaming: who's live in a game, your Twitch sign-in, Kick
+// Streaming: who's live in a game, your Twitch and YouTube sign-ins, Kick
 // channels, and the games your favourite streamers play (they feed Play next
 // and More like this). See server/streaming.mjs.
 import { useEffect } from 'react';
 import type { Game, StreamChannel, StreamTaste, WatchedGame } from '../types';
 import { useStore } from './store';
 
-export type StreamService = 'twitch' | 'kick';
+export type StreamService = 'twitch' | 'youtube' | 'kick';
 
-export const SERVICE_NAME: Record<StreamService, string> = { twitch: 'Twitch', kick: 'Kick' };
+export const SERVICE_NAME: Record<StreamService, string> = { twitch: 'Twitch', youtube: 'YouTube', kick: 'Kick' };
 
 export interface LiveStream {
   platform: StreamService;
@@ -27,8 +27,9 @@ export interface LiveStream {
 export type GameStreams = Record<StreamService, LiveStream[] | null>;
 
 export interface StreamingStatus {
-  configured: { twitch: boolean; kick: boolean };
+  configured: { twitch: boolean; youtube?: boolean; kick: boolean };
   twitch: { account: string } | null;
+  youtube?: { account: string } | null;
 }
 
 async function call<T>(url: string, method = 'GET', body?: object): Promise<T> {
@@ -63,13 +64,18 @@ export function fetchGameStreams(game: Pick<Game, 'title'> & { igdbId?: number }
 }
 
 export const fetchStreamingStatus = () => call<StreamingStatus>('/api/streaming');
-export const disconnectStreaming = (service: 'twitch') => call(`/api/streaming/${service}`, 'DELETE');
+export type SignInService = 'twitch' | 'youtube';
+export const disconnectStreaming = (service: SignInService) => call(`/api/streaming/${service}`, 'DELETE');
 export const fetchFollowedLive = (kick: string[]) => call<{ live: LiveStream[] }>('/api/streaming/live', 'POST', { kick });
 const fetchTaste = (kick: string[]) =>
   call<{ games: WatchedGame[]; channels: StreamTaste['channels'] }>('/api/streaming/taste', 'POST', { kick });
 
 /** Where the sign-in buttons go. */
-export const signInUrl = (service: 'twitch') => `/api/auth/${service}/start`;
+export const signInUrl = (service: SignInService) => `/api/auth/${service}/start`;
+
+/** What the taste was worked out from: the sign-ins (changing one works it out again). */
+export const signInKey = (s: StreamingStatus | null) =>
+  [s?.twitch ? `t:${s.twitch.account}` : '', s?.youtube ? `y:${s.youtube.account}` : ''].filter(Boolean).join(',');
 
 /** "kick.com/xqc", "https://kick.com/xQc/videos" or "xqc" -> "xqc"; empty when it isn't a channel. */
 export function normalizeKickChannel(input: string): string {
@@ -110,7 +116,7 @@ export function useStreamTasteSync() {
     fetchStreamingStatus()
       .then((s) => {
         if (cancelled) return;
-        const connections = s.twitch ? `t:${s.twitch.account}` : '';
+        const connections = signInKey(s);
         const key = `${connections}|${kick.join(',')}`;
         // Nothing connected and nothing typed in: nothing to learn from.
         if (!connections && !kick.length) {
@@ -135,5 +141,7 @@ export const watchedForTaste = (taste: StreamTaste | null): WatchedGame[] =>
 
 export const allChannels = (taste: StreamTaste | null): (StreamChannel & { service: StreamService })[] =>
   taste
-    ? (['twitch', 'kick'] as const).flatMap((service) => taste.channels[service].map((c) => ({ ...c, service })))
+    ? (['twitch', 'youtube', 'kick'] as const).flatMap((service) =>
+        (taste.channels[service] ?? []).map((c) => ({ ...c, service })),
+      )
     : [];
