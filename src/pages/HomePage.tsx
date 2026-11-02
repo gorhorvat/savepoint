@@ -121,7 +121,13 @@ function ContinuePlaying({ lib }: { lib: LibraryGame[] }) {
           }))}
         />
       ) : (
-        <Quiet>Nothing played yet. Connect a platform on the Platforms page to bring in your games.</Quiet>
+        <Quiet>
+          Nothing played yet. Connect a platform on the{' '}
+          <Anchor component={Link} to="/platforms" inherit>
+            Platforms page
+          </Anchor>{' '}
+          to bring in your games.
+        </Quiet>
       )}
     </Section>
   );

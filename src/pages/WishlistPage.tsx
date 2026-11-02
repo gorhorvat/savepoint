@@ -268,7 +268,7 @@ function SteamSync() {
     return (
       <Text size="sm" c="dimmed">
         To copy your Steam wishlist here,{' '}
-        <Anchor component={Link} to="/settings">
+        <Anchor component={Link} to="/platforms">
           connect Steam on the Platforms page
         </Anchor>{' '}
         first.

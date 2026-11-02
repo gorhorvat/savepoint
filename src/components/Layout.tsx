@@ -227,7 +227,7 @@ function ProfileMenu({ size }: { size: number }) {
   const xp = useXp();
   const { pathname } = useLocation();
   const dark = computed === 'dark';
-  const active = pathname.startsWith('/profile') || pathname.startsWith('/settings') || pathname.startsWith('/admin');
+  const active = ['/profile', '/settings', '/platforms', '/streaming', '/admin'].some((p) => pathname.startsWith(p));
   return (
     <Menu position="bottom-end" width={220} shadow="md" withinPortal>
       <Menu.Target>

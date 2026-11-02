@@ -372,9 +372,10 @@ export function LibraryPage() {
       <Paper p="xl" maw={560}>
         <Title order={2}>Your library is empty</Title>
         <Text c="dimmed" mt="sm">
-          Connect Steam or PlayStation to import play time automatically, or add Epic and Switch games by hand.
+          Connect Steam, PlayStation, Xbox, Epic, GOG, Nintendo or RetroAchievements to import your games, or add games
+          by hand.
         </Text>
-        <Button component={Link} to="/settings" mt="lg" leftSection={<IconPlugConnected size={18} />}>
+        <Button component={Link} to="/platforms" mt="lg" leftSection={<IconPlugConnected size={18} />}>
           Connect platforms
         </Button>
       </Paper>
@@ -388,8 +389,8 @@ export function LibraryPage() {
       {showingSample && (
         <Paper p="md" radius="md" style={{ borderStyle: 'dashed', background: 'transparent' }}>
           <Group justify="space-between" gap="sm" wrap="wrap">
-            <Text size="sm">This is a sample library. Import your games from Steam or PlayStation to replace it.</Text>
-            <Button component={Link} to="/settings" size="xs" leftSection={<IconPlugConnected size={16} />}>
+            <Text size="sm">This is a sample library. Import your games from any platform to replace it.</Text>
+            <Button component={Link} to="/platforms" size="xs" leftSection={<IconPlugConnected size={16} />}>
               Import my games
             </Button>
           </Group>
