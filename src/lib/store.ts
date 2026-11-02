@@ -36,6 +36,8 @@ export interface ImportedGame {
   achievements?: { earned: number; total: number; gamerscore?: number; totalGamerscore?: number };
   /** The platform's own id for the game. */
   externalId?: string;
+  /** RetroAchievements: the console it was played on. */
+  console?: string;
 }
 
 export interface Connection {
@@ -191,6 +193,20 @@ function ensureGame(
     // A later import's flag wins; manual entries (no flag) keep what's known.
     kind: item.isApp === undefined ? prev.kind : item.isApp ? 'app' : 'game',
   };
+  if (item.console && prev.console !== item.console) {
+    // A retro game's console arrived: genres looked up by title alone may belong to a
+    // newer game with the same name, so they're looked up again with the console.
+    customGames[id] = {
+      ...customGames[id],
+      console: item.console,
+      genres: [],
+      subgenres: [],
+      tags: [],
+      genreSource: undefined,
+    };
+  }
+  // RetroAchievements' box art is that exact release: it replaces an earlier, smaller icon.
+  if (item.console && item.imageUrl) customGames[id] = { ...customGames[id], imageUrl: item.imageUrl };
   return id;
 }
 
@@ -273,7 +289,12 @@ export const useStore = create<State>()(
         let matched = 0;
         const findLegacy = legacyMatcher(customGames);
         for (const g of games) {
+          const consoleBefore = customGames[`x-${slug(g.name)}`]?.console;
           const gameId = ensureGame(customGames, g, platform, findLegacy);
+          // A cover found by title alone may be another game's: look it up again with the console.
+          if (g.console && consoleBefore !== g.console && customGames[gameId]?.console === g.console) {
+            delete details[gameId];
+          }
           // Old catalog games have no image of their own; keep the platform's.
           if (!customGames[gameId]?.imageUrl && g.imageUrl && !details[gameId]?.imageUrl) {
             details[gameId] = { ...details[gameId], imageUrl: g.imageUrl };

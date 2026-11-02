@@ -48,6 +48,8 @@ export interface Game {
   releaseLabel?: string;
   /** True until the game is out. */
   comingSoon?: boolean;
+  /** A retro game's console (from RetroAchievements), e.g. "PlayStation": tells same-named games apart. */
+  console?: string;
 }
 
 export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'epic' | 'gog' | 'retro' | 'nintendo' | 'manual';

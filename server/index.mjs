@@ -478,9 +478,11 @@ app.get('/api/discover', async (req, res) => {
 app.get('/api/info', async (req, res) => {
   const title = String(req.query.title || '').trim();
   const steamAppId = Number(req.query.steamAppId) || undefined;
+  // A retro game's console (from RetroAchievements), to tell same-named games apart.
+  const retroConsole = String(req.query.console || '').slice(0, 60) || undefined;
   if (!title) return res.status(400).json({ error: 'title is required' });
   const [igdb, length, critic] = await Promise.all([
-    igdbGame({ title, steamAppId }).catch(() => null),
+    igdbGame({ title, steamAppId, console: retroConsole }).catch(() => null),
     howLongToBeat(title).catch(() => null),
     criticScore(title).catch(() => null),
   ]);
@@ -642,6 +644,7 @@ app.post('/api/details', async (req, res) => {
       switch: !!g.switch,
       playstation: !!g.playstation,
       epic: !!g.epic,
+      console: typeof g.console === 'string' ? g.console.slice(0, 60) : undefined,
     }));
   try {
     res.json({ results: await lookupDetails(games) });
@@ -672,7 +675,12 @@ app.post('/api/genres', async (req, res) => {
   const games = (req.body?.games ?? [])
     .filter((g) => g && typeof g.id === 'string' && typeof g.title === 'string' && g.title.trim())
     .slice(0, pass === 'steam' ? 1000 : pass === 'igdb' ? 40 : 200)
-    .map((g) => ({ id: g.id, title: g.title.trim(), steamAppId: Number(g.steamAppId) || undefined }));
+    .map((g) => ({
+      id: g.id,
+      title: g.title.trim(),
+      steamAppId: Number(g.steamAppId) || undefined,
+      console: typeof g.console === 'string' ? g.console.slice(0, 60) : undefined,
+    }));
   if (!games.length) return res.status(400).json({ error: 'games is required' });
   try {
     if (pass === 'steam') return res.json(await lookupSteam(games));

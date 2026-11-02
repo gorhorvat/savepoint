@@ -19,7 +19,7 @@ import { loadLogin, NotConnected, removeLogin, saveLogin } from './platformLogin
 const API = 'https://retroachievements.org/API';
 const MEDIA = 'https://media.retroachievements.org';
 const MAX_PLAYTIME_GAMES = 40; // per sync; the rest come from the cache or later syncs
-const playtimeCache = diskCache('retro-playtime', 0); // user:game -> { marker, minutes }
+const playtimeCache = diskCache('retro-playtime', 0); // user:game -> { marker, minutes, boxArt }
 
 export class RetroError extends Error {
   constructor(message, status = 502) {
@@ -129,16 +129,20 @@ export async function retroLibrary(userId) {
     games.set(id, g);
   }
 
-  // Play time: asked again only for games played (or unlocked in) since last time.
+  // Play time and box art: asked again only for games played (or unlocked in) since last time,
+  // or saved before box art was kept.
   const list = [...games.values()].sort((a, b) => (b.lastPlayed ?? '').localeCompare(a.lastPlayed ?? ''));
   const cached = await Promise.all(list.map((g) => playtimeCache.get(`${userId}:${g.id}`)));
-  const due = list.filter((g, i) => cached[i]?.marker !== g.marker).slice(0, MAX_PLAYTIME_GAMES);
+  const due = list
+    .filter((g, i) => cached[i]?.marker !== g.marker || cached[i]?.boxArt === undefined)
+    .slice(0, MAX_PLAYTIME_GAMES);
   await mapLimit(due, 4, async (g) => {
     const info = await ra('API_GetGameInfoAndUserProgress', { u: creds.user, g: g.id }, creds.key);
     // UserTotalPlaytime is RetroAchievements' running total for the game, in seconds.
     const minutes = Math.round((Number(info?.UserTotalPlaytime) || 0) / 60);
-    await playtimeCache.set(`${userId}:${g.id}`, { marker: g.marker, minutes });
-    cached[list.indexOf(g)] = { minutes };
+    const boxArt = info?.ImageBoxArt ? `${MEDIA}${info.ImageBoxArt}` : null;
+    await playtimeCache.set(`${userId}:${g.id}`, { marker: g.marker, minutes, boxArt });
+    cached[list.indexOf(g)] = { minutes, boxArt };
   });
 
   return list.map((g, i) => ({
@@ -147,7 +151,8 @@ export async function retroLibrary(userId) {
     console: g.console,
     minutes: cached[i]?.minutes ?? 0,
     lastPlayed: g.lastPlayed,
-    imageUrl: g.icon ? `${MEDIA}${g.icon}` : undefined,
+    // The box art is this exact release; the small icon is the fallback.
+    imageUrl: cached[i]?.boxArt || (g.icon ? `${MEDIA}${g.icon}` : undefined),
     achievements: g.total ? { earned: g.earned, total: g.total } : undefined,
   }));
 }

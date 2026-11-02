@@ -221,7 +221,10 @@ export async function fetchGenres(games: Game[], pass: 'steam' | 'igdb' | 'wikid
   const r = await fetch('/api/genres', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pass, games: games.map((g) => ({ id: g.id, title: g.title, steamAppId: g.steamAppId })) }),
+    body: JSON.stringify({
+      pass,
+      games: games.map((g) => ({ id: g.id, title: g.title, steamAppId: g.steamAppId, console: g.console })),
+    }),
   });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error ?? `Genre lookup failed (${r.status})`);
@@ -383,6 +386,7 @@ export async function fetchDetails(
         switch: g.availableOn.includes('switch'),
         playstation: g.availableOn.includes('playstation'),
         epic: g.availableOn.includes('epic'),
+        console: g.console,
       })),
     }),
   });
@@ -478,6 +482,7 @@ export function fetchInfo(game: Game): Promise<GameInfo | null> {
   if (!infoCache.has(game.id)) {
     const qs = new URLSearchParams({ title: game.title });
     if (game.steamAppId) qs.set('steamAppId', String(game.steamAppId));
+    if (game.console) qs.set('console', game.console);
     infoCache.set(
       game.id,
       getJson<GameInfo>(`/api/info?${qs}`).catch(() => {

@@ -177,9 +177,56 @@ function pickBest(list, title) {
 }
 
 /** Everything IGDB knows about one game, by Steam app id when given, else by title. Cached. */
-export async function igdbGame({ title, steamAppId }) {
+/**
+ * Matches IGDB platform names to a console as RetroAchievements names it
+ * ("PlayStation", "Mega Drive / Genesis", "SNES/Super Famicom"), so a retro
+ * game isn't mistaken for a newer one with the same name.
+ */
+const CONSOLE_RULES = [
+  [/^playstation$/i, /^PlayStation$/],
+  [/^playstation 2$/i, /^PlayStation 2$/],
+  [/playstation portable|^psp$/i, /PlayStation Portable/],
+  [/mega drive|genesis/i, /Genesis|Mega Drive/],
+  [/snes|super famicom|super nintendo/i, /Super Nintendo|Super Famicom/],
+  [/^(nes|famicom)|^nes\/|nintendo entertainment/i, /^(Nintendo Entertainment System|Family Computer)/],
+  [/nintendo 64/i, /Nintendo 64/],
+  [/^game boy$/i, /^Game Boy$/],
+  [/game boy color/i, /Game Boy Color/],
+  [/game boy advance/i, /Game Boy Advance/],
+  [/^nintendo ds$/i, /^Nintendo DS$/],
+  [/gamecube/i, /GameCube/],
+  [/master system/i, /Master System/],
+  [/game gear/i, /Game Gear/],
+  [/saturn/i, /Saturn/],
+  [/dreamcast/i, /Dreamcast/],
+  [/sega cd|mega-?cd/i, /Sega CD|Mega-CD/],
+  [/32x/i, /32X/],
+  [/pc engine|turbografx/i, /TurboGrafx|PC Engine/],
+  [/atari 2600/i, /Atari 2600/],
+  [/arcade/i, /Arcade/],
+];
+
+/** Does an IGDB game come out on `console`? Unknown consoles fall back to a loose name match. */
+export function onConsole(game, retroConsole) {
+  const names = (game.platforms ?? []).map((p) => p.name ?? '');
+  const rule = CONSOLE_RULES.find(([test]) => test.test(retroConsole))?.[1];
+  if (rule) return names.some((n) => rule.test(n));
+  const parts = retroConsole
+    .split('/')
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean);
+  return names.some((n) => parts.some((p) => n.toLowerCase().includes(p)));
+}
+
+/**
+ * IGDB info for a game by Steam app id or title. `console` (a retro game's
+ * console, from RetroAchievements) picks the same-named game released on it.
+ */
+export async function igdbGame({ title, steamAppId, console: retroConsole }) {
   if (!igdbConfigured()) return null;
-  const key = steamAppId ? `steam:${steamAppId}` : `t:${normalizeTitle(title)}`;
+  const key = steamAppId
+    ? `steam:${steamAppId}`
+    : `t:${normalizeTitle(title)}${retroConsole ? `|c:${retroConsole.toLowerCase()}` : ''}`;
   const cached = await cache.get(key);
   if (cached !== undefined) return cached;
   let found = null;
@@ -194,9 +241,22 @@ export async function igdbGame({ title, steamAppId }) {
     // An exact name may also be a bundle (Spyro Reignited Trilogy is three remakes in one).
     const exact = await query(
       'games',
-      `fields ${FIELDS}; where name ~ "${safe}" & game_type = (0,3,8,9,10,11) & version_parent = null; limit 5;`,
+      `fields ${FIELDS}; where name ~ "${safe}" & game_type = (0,3,8,9,10,11) & version_parent = null; limit ${retroConsole ? 20 : 5};`,
     );
-    found =
+    if (retroConsole) {
+      // A retro game: only one released on its console will do, else fall through to the usual pick.
+      const here = exact.filter((g) => onConsole(g, retroConsole));
+      found =
+        here.find((g) => g.game_type === 0) ??
+        here[0] ??
+        pickBest(
+          (await query('games', `search "${safe}"; fields ${FIELDS}; where ${MAIN}; limit 30;`)).filter((g) =>
+            onConsole(g, retroConsole),
+          ),
+          title,
+        );
+    }
+    found ??=
       exact.find((g) => g.game_type === 0) ??
       exact[0] ??
       pickBest(await query('games', `search "${safe}"; fields ${FIELDS}; where ${MAIN}; limit 20;`), title);

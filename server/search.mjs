@@ -526,7 +526,8 @@ export async function lookupDetails(games) {
   const index = await steamAppIndex().catch(() => null);
   const appidFor = new Map();
   for (const g of games) {
-    const appid = g.steamAppId ?? index?.byTitle.get(normalizeTitle(g.title));
+    // A retro game (with its console) isn't the Steam game of the same name.
+    const appid = g.steamAppId ?? (g.console ? undefined : index?.byTitle.get(normalizeTitle(g.title)));
     if (appid) appidFor.set(g.id, appid);
   }
   const steam = await steamItems([...new Set(appidFor.values())]).catch(() => new Map());
@@ -560,7 +561,9 @@ export async function lookupDetails(games) {
     // Unknown platform (e.g. a typed-in physical game): try them all.
     ...(!g.switch && !g.playstation && !g.epic ? ['playstation', 'epic', 'nintendo'] : []),
   ];
-  const rest = games.filter((g) => !out[g.id]).slice(0, MAX_STORE_SEARCHES);
+  // Retro games skip the stores (they'd find today's remakes) and go to IGDB with their console.
+  const retro = games.filter((g) => !out[g.id] && g.console);
+  const rest = games.filter((g) => !out[g.id] && !g.console).slice(0, MAX_STORE_SEARCHES);
   for (let i = 0; i < rest.length; i += 5) {
     await Promise.all(
       rest.slice(i, i + 5).map(async (g) => {
@@ -584,10 +587,10 @@ export async function lookupDetails(games) {
     );
   }
   // Last resort for covers: IGDB knows nearly every game on every platform.
-  for (const g of rest) {
+  for (const g of [...retro, ...rest]) {
     if (out[g.id]?.imageUrl) continue;
     try {
-      const info = await igdbGame({ title: g.title });
+      const info = await igdbGame({ title: g.title, console: g.console });
       if (info?.imageUrl)
         out[g.id] = { ...out[g.id], imageUrl: info.imageUrl, releaseDate: out[g.id]?.releaseDate ?? info.releaseDate };
     } catch {
@@ -596,6 +599,6 @@ export async function lookupDetails(games) {
   }
   // Mark only games that were actually searched as checked; any past the cap
   // stay out of the reply so the client asks again in its next batch.
-  for (const g of rest) out[g.id] ??= {};
+  for (const g of [...retro, ...rest]) out[g.id] ??= {};
   return out;
 }
