@@ -76,7 +76,8 @@ async function xboxStatus(userId) {
 
 /**
  * userId -> [{ platform: 'steam'|'playstation'|'xbox'|'savepoint', online, status?, device?, playing }]
- * for the platforms each account has connected.
+ * for the platforms each account has connected. Savepoint is always there, with
+ * `lastSeen` (when they last used Savepoint) while they're offline.
  */
 export async function presenceFor(userIds) {
   if (!userIds.length) return new Map();
@@ -96,6 +97,8 @@ export async function presenceFor(userIds) {
     const seen = u.last_seen_at ? new Date(u.last_seen_at).getTime() : 0;
     if (Date.now() - seen < SAVEPOINT_ONLINE)
       result.get(u.id).push({ platform: 'savepoint', online: true, playing: null });
+    else
+      result.get(u.id).push({ platform: 'savepoint', online: false, playing: null, lastSeen: u.last_seen_at ?? null });
   }
   await Promise.all(
     logins.map(async ({ user_id: id, platform }) => {

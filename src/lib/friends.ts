@@ -16,6 +16,8 @@ export interface Presence {
   device?: string | null;
   /** The game being played, when the platform shares it. */
   playing: string | null;
+  /** Savepoint, while offline: when they last used Savepoint (null if never). */
+  lastSeen?: string | null;
 }
 
 export interface FriendCard {
@@ -142,10 +144,33 @@ export function onlineWhere(presence: Presence[]): Presence[] {
   return elsewhere.length ? elsewhere : online;
 }
 
-/** "Playing Hades II on Steam", "Online on PS5 · Away on Steam", "Online on Savepoint" or "Offline". */
+/** "5 minutes ago", "3 hours ago", "yesterday", "4 days ago", or the date for longer. */
+export function lastSeenText(iso: string): string {
+  const minutes = Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(d.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
+  });
+}
+
+/**
+ * "Playing Hades II on Steam", "Online on PS5 · Away on Steam", "Online on Savepoint",
+ * or for someone offline "Last seen 3 hours ago" ("Offline" if they never were).
+ */
 export function describePresence(presence: Presence[]): string {
   const online = onlineWhere(presence);
-  if (!online.length) return 'Offline';
+  if (!online.length) {
+    const seen = presence.find((p) => p.platform === 'savepoint')?.lastSeen;
+    return seen ? `Last seen ${lastSeenText(seen)}` : 'Offline';
+  }
   return online
     .map((p) => {
       if (p.playing) return `Playing ${p.playing} on ${where(p)}`;
