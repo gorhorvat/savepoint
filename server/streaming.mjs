@@ -11,7 +11,7 @@
 // follow, so Kick channels are typed in (stored in the account's state).
 //
 // Mounted after requireLogin.
-//   GET    /api/streams?title=&igdbId=     { twitch, kick }, top 5 live each
+//   GET    /api/streams?title=&igdbId=     { twitch, youtube, kick }, top 10 live each
 //   GET    /api/streaming                  connections and which services are set up
 //   GET    /api/auth/twitch/start, /callback, and the same for youtube
 //   DELETE /api/streaming/:service         disconnects Twitch or YouTube
@@ -121,12 +121,15 @@ async function twitchGameId({ title, igdbId }) {
   });
 }
 
+/** Live streams per service on a game's page. */
+const PER_SERVICE = 10;
+
 const twitchThumb = (url) => url?.replace('{width}', '440').replace('{height}', '248');
 
 async function twitchStreams(game) {
   const id = await twitchGameId(game);
   if (!id) return [];
-  const { data = [] } = await helix(`streams?game_id=${id}&first=5&type=live`);
+  const { data = [] } = await helix(`streams?game_id=${id}&first=${PER_SERVICE}&type=live`);
   return data.map((s) => ({
     platform: 'twitch',
     channel: s.user_name,
@@ -177,10 +180,10 @@ async function kickCategoryId(title) {
 async function kickStreams({ title }) {
   const id = await kickCategoryId(title);
   if (!id) return [];
-  const { data = [] } = await kick(`v1/livestreams?category_id=${id}&sort=viewer_count&limit=5`);
+  const { data = [] } = await kick(`v1/livestreams?category_id=${id}&sort=viewer_count&limit=${PER_SERVICE}`);
   return data
     .sort((a, b) => (b.viewer_count ?? 0) - (a.viewer_count ?? 0))
-    .slice(0, 5)
+    .slice(0, PER_SERVICE)
     .map((s) => ({
       platform: 'kick',
       channel: s.slug,
@@ -302,15 +305,63 @@ async function youtubeLive(userId) {
 const liveTwitch = memo(3 * 60 * 1000);
 const liveKick = memo(3 * 60 * 1000);
 
-async function streamsFor(game) {
+// YouTube can only find live streams for a game by searching, and searches have
+// a small allowance of their own (about 100 a day per project). So a game's
+// results are shared by everyone for 30 minutes, and searching stops for the
+// day before the allowance runs out; the page then shows Twitch and Kick only.
+const ytGameCache = diskCache('youtube-game-live', 30 * 60 * 1000);
+const ytBudget = diskCache('youtube-search-budget', 2 * 24 * 3600 * 1000);
+const YT_SEARCHES_PER_DAY = 90;
+
+async function youtubeStreams(game, userId) {
+  const key = normalizeTitle(game.title);
+  const hit = await ytGameCache.get(key);
+  if (hit !== undefined) return hit;
+  // A signed-in viewer's YouTube sign-in makes the search (it counts against Savepoint's project either way).
+  const token = await userToken(userId, 'youtube');
+  const day = new Date().toISOString().slice(0, 10);
+  const used = (await ytBudget.get(day)) ?? 0;
+  if (used >= YT_SEARCHES_PER_DAY) return null;
+  await ytBudget.set(day, used + 1);
+  const found = await yt(
+    `search?part=snippet&type=video&eventType=live&videoCategoryId=20&order=viewCount&maxResults=${PER_SERVICE}` +
+      `&q=${encodeURIComponent(game.title)}`,
+    token,
+  );
+  const ids = (found.items ?? []).map((i) => i.id?.videoId).filter(Boolean);
+  let list = [];
+  if (ids.length) {
+    // Viewer counts come from videos.list (1 quota unit for all of them).
+    const j = await yt(`videos?part=snippet,liveStreamingDetails&id=${ids.join(',')}`, token);
+    list = (j.items ?? [])
+      .filter((v) => v.snippet?.liveBroadcastContent === 'live')
+      .map((v) => ({
+        platform: 'youtube',
+        channel: v.snippet.channelTitle,
+        title: v.snippet.title,
+        viewers: v.liveStreamingDetails?.concurrentViewers
+          ? Number(v.liveStreamingDetails.concurrentViewers)
+          : undefined,
+        thumbnail: v.snippet.thumbnails?.medium?.url ?? v.snippet.thumbnails?.default?.url,
+        startedAt: v.liveStreamingDetails?.actualStartTime,
+        url: `https://www.youtube.com/watch?v=${v.id}`,
+      }))
+      .sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0));
+  }
+  await ytGameCache.set(key, list);
+  return list;
+}
+
+async function streamsFor(game, userId) {
   const c = streamingConfigured();
   const key = normalizeTitle(game.title);
   const safe = (p) => p.catch(() => null);
-  const [twitch, kickList] = await Promise.all([
+  const [twitch, youtube, kickList] = await Promise.all([
     c.twitch ? safe(liveTwitch(`${game.igdbId ?? ''}|${key}`, () => twitchStreams(game))) : null,
+    c.youtube && userId ? safe(youtubeStreams(game, userId)) : null,
     c.kick ? safe(liveKick(key, () => kickStreams(game))) : null,
   ]);
-  return { twitch, kick: kickList };
+  return { twitch, youtube, kick: kickList };
 }
 
 // ---------------------------------------------------------------- sign-ins
@@ -544,7 +595,7 @@ streamingRouter.get('/api/streams', async (req, res) => {
   const igdbId = Number(req.query.igdbId) || undefined;
   if (!title) return res.status(400).json({ error: 'title is required' });
   res.set('Cache-Control', 'private, max-age=120');
-  res.json(await streamsFor({ title, igdbId }));
+  res.json(await streamsFor({ title, igdbId }, req.userId));
 });
 
 streamingRouter.get('/api/streaming', async (req, res) => {

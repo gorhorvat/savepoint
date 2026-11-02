@@ -40,7 +40,7 @@ export function StreamCard({ s, showGame }: { s: LiveStream; showGame?: boolean 
   );
 }
 
-/** Who's live in this game right now: the top five on Twitch and Kick. */
+/** Who's live in this game right now: the top ten across Twitch, YouTube and Kick, and per service. */
 export function LiveStreams({ title, igdbId }: { title: string; igdbId?: number }) {
   const [data, setData] = useState<{ key: string; streams: GameStreams | null } | null>(null);
   const [tab, setTab] = useState<'all' | StreamService>('all');
@@ -65,7 +65,7 @@ export function LiveStreams({ title, igdbId }: { title: string; igdbId?: number 
     ? services
         .flatMap((s) => streams[s] ?? [])
         .sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0))
-        .slice(0, 5)
+        .slice(0, 10)
     : [];
   const shown = tab === 'all' ? all : (streams?.[tab] ?? []);
 
@@ -79,7 +79,7 @@ export function LiveStreams({ title, igdbId }: { title: string; igdbId?: number 
             value={tab}
             onChange={(v) => setTab(v as typeof tab)}
             data={[
-              { value: 'all', label: 'Top 5' },
+              { value: 'all', label: 'Top 10' },
               ...services.map((s) => ({ value: s, label: `${SERVICE_NAME[s]} (${streams?.[s]?.length ?? 0})` })),
             ]}
           />

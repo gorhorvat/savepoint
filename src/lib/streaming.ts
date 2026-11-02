@@ -50,7 +50,7 @@ async function call<T>(url: string, method = 'GET', body?: object): Promise<T> {
 
 const streamCache = new Map<string, { at: number; promise: Promise<GameStreams> }>();
 
-/** Top 5 live streams on each service for a game; kept for two minutes. */
+/** Top 10 live streams on each service for a game; kept for two minutes. */
 export function fetchGameStreams(game: Pick<Game, 'title'> & { igdbId?: number }): Promise<GameStreams> {
   const qs = new URLSearchParams({ title: game.title });
   if (game.igdbId) qs.set('igdbId', String(game.igdbId));
