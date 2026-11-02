@@ -861,6 +861,7 @@ function RetroPanel({ status, refresh }: { status: ServerStatus | null; refresh:
   const importLibrary = useStore((s) => s.importLibrary);
   const disconnect = useStore((s) => s.disconnect);
   const [username, setUsername] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -876,8 +877,9 @@ function RetroPanel({ status, refresh }: { status: ServerStatus | null; refresh:
     setBusy(true);
     setError(null);
     try {
-      await connectRetro(username.trim());
+      await connectRetro(username.trim(), apiKey.trim());
       setUsername('');
+      setApiKey('');
       refresh();
       await run();
     } catch (err) {
@@ -891,13 +893,6 @@ function RetroPanel({ status, refresh }: { status: ServerStatus | null; refresh:
     <PlatformPanel platform="retro" method="RetroAchievements API">
       {!status?.online ? (
         <ServerHint status={status} />
-      ) : !status.retroReady ? (
-        <>
-          <Text size="sm" c="dimmed">
-            Retro games you play in emulators, with the play time and achievements RetroAchievements records.
-          </Text>
-          <ServerHint status={status} envVar="RA_API_KEY" />
-        </>
       ) : status.retro ? (
         <ConnectedControls
           platformName="RetroAchievements"
@@ -919,17 +914,33 @@ function RetroPanel({ status, refresh }: { status: ServerStatus | null; refresh:
               {external('https://retroachievements.org', 'RetroAchievements')} turned on: their play time and
               achievements, which count towards your XP.
             </Text>
+            <List size="sm" type="ordered" spacing={4}>
+              <List.Item>
+                Sign in at {external('https://retroachievements.org/settings', 'retroachievements.org')} and open
+                Settings.
+              </List.Item>
+              <List.Item>Under Keys, copy your Web API Key.</List.Item>
+            </List>
             <TextInput
               label="Your RetroAchievements username"
               placeholder="e.g. MaxMilyin"
               value={username}
               onChange={(e) => setUsername(e.currentTarget.value)}
+              autoComplete="off"
+              required
+            />
+            <PasswordInput
+              label="Your Web API Key"
+              placeholder="Paste the key"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.currentTarget.value)}
               error={error}
               autoComplete="off"
               required
             />
             <Text size="xs" c="dimmed">
-              Only your public RetroAchievements profile is read; no password needed.
+              The key is free, belongs to your own RetroAchievements account and only reads public data. Savepoint keeps
+              it encrypted and never shows it again; no password needed.
             </Text>
             <Button type="submit" loading={busy} w="fit-content">
               Connect

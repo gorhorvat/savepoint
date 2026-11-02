@@ -35,8 +35,6 @@ export interface ServerStatus {
   /** This account has connected its own GOG account (unofficially). */
   gog?: boolean;
   gogAccount?: string | null;
-  /** The server has a RetroAchievements key (RA_API_KEY). */
-  retroReady?: boolean;
   /** This account has connected its RetroAchievements username. */
   retro?: boolean;
   retroAccount?: string | null;
@@ -679,9 +677,9 @@ export async function connectGog(code: string): Promise<void> {
   await sendJson('/api/gog/connect', 'POST', { code });
 }
 
-/** Connects this account's RetroAchievements username. */
-export async function connectRetro(username: string): Promise<void> {
-  await sendJson('/api/retro/connect', 'POST', { username });
+/** Connects this account's own RetroAchievements account: username and Web API key. */
+export async function connectRetro(username: string, key: string): Promise<void> {
+  await sendJson('/api/retro/connect', 'POST', { username, key });
 }
 
 const CONNECT_URLS = {

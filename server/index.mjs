@@ -71,7 +71,7 @@ import { steamGamesRouter } from './steamGames.mjs';
 import { wowRouter } from './wow.mjs';
 import { epicRouter, refreshEpicLogin } from './epic.mjs';
 import { gogRouter } from './gog.mjs';
-import { retroConfigured, retroRouter } from './retro.mjs';
+import { retroRouter } from './retro.mjs';
 import { achievementListRouter } from './achievementLists.mjs';
 import { nintendoRouter, syncNintendo } from './nintendo.mjs';
 import { query } from './db.mjs';
@@ -195,7 +195,6 @@ app.get('/api/status', async (req, res) => {
         retroAccount: l.retro?.account,
       }))
       .catch(() => ({ psn: false, xbox: false, epic: false, gog: false, retro: false }))),
-    retroReady: retroConfigured(),
     keyshops: has('GGDEALS_API_KEY'),
     prices: true,
     igdb: igdbConfigured(),
