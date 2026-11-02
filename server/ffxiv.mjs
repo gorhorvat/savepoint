@@ -523,7 +523,8 @@ async function save(userId, character) {
 gameStatsRouter.get('/api/games/connections', async (req, res) => {
   try {
     const { rows } = await query(
-      'SELECT "game", "external_id", "name", "data", "fetched_at" FROM game_connections WHERE "user_id" = $1',
+      // Nintendo's row is a play log (server/nintendo.mjs), not a stats tab.
+      'SELECT "game", "external_id", "name", "data", "fetched_at" FROM game_connections WHERE "user_id" = $1 AND "game" <> \'nintendo\'',
       [req.userId],
     );
     res.json({

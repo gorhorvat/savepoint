@@ -40,6 +40,9 @@ export interface ServerStatus {
   /** This account has connected its RetroAchievements username. */
   retro?: boolean;
   retroAccount?: string | null;
+  /** This account has connected Nintendo Parental Controls (unofficially). */
+  nintendo?: boolean;
+  nintendoAccount?: string | null;
   /** True for the super admin, who manages the invite code. */
   superAdmin?: boolean;
 }
@@ -154,6 +157,38 @@ export function importEpic() {
 
 export function importGog() {
   return getJson<{ games: ImportedGame[] }>('/api/gog/library');
+}
+
+export interface NintendoLibrary {
+  games: ImportedGame[];
+  /** The people on the consoles; only selected ones' play counts. */
+  players: { id: string; name: string; selected: boolean }[];
+  /** The day logging started (YYYY-MM-DD). */
+  since: string;
+}
+
+export function importNintendo() {
+  return getJson<NintendoLibrary>('/api/nintendo/library');
+}
+
+export function fetchNintendoPlayers() {
+  return getJson<Omit<NintendoLibrary, 'games'>>('/api/nintendo/players');
+}
+
+/** Whose play counts: player ids, or null for everyone. */
+export async function setNintendoPlayers(selected: string[] | null): Promise<NintendoLibrary> {
+  return (await sendJson('/api/nintendo/players', 'POST', { selected })) as NintendoLibrary;
+}
+
+/** A fresh Nintendo sign-in link (its secret is kept on the server until the link comes back). */
+export async function nintendoLoginUrl(): Promise<string> {
+  return (await getJson<{ url: string }>('/api/nintendo/login')).url;
+}
+
+/** Connects Nintendo with the pasted "Select this person" link. */
+export async function connectNintendo(link: string): Promise<void> {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  await sendJson('/api/nintendo/connect', 'POST', { link, timeZone });
 }
 
 export function importRetro() {
@@ -655,6 +690,7 @@ const CONNECT_URLS = {
   epic: '/api/epic/connect',
   gog: '/api/gog/connect',
   retro: '/api/retro/connect',
+  nintendo: '/api/nintendo/connect',
 } as const;
 
 /** Forgets one of this account's platform connections. */

@@ -12,8 +12,8 @@ import { resolveGame, useStore } from './store';
 // - Epic, GOG and RetroAchievements achievements count like Steam's (a
 //   mastered RetroAchievements set earns the completion bonus).
 // - Play time counts only when a platform reported it (Steam, PlayStation,
-//   Xbox, Epic, RetroAchievements; GOG shares none); hours added by hand and
-//   non-game apps earn nothing.
+//   Xbox, Epic, RetroAchievements, Nintendo from the day it's connected; GOG
+//   shares none); hours added by hand and non-game apps earn nothing.
 
 export const XP = {
   bronze: 15,
@@ -28,7 +28,7 @@ export const XP = {
   perHour: 10,
 } as const;
 
-const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox', 'epic', 'gog', 'retro']);
+const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox', 'epic', 'gog', 'retro', 'nintendo']);
 
 /** Platforms whose achievements have no grades, so they earn XP the way Steam's do. */
 export const LIKE_STEAM: { platform: PlatformId; label: string }[] = [

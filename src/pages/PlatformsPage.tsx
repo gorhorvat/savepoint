@@ -3,6 +3,7 @@ import {
   Anchor,
   Badge,
   Button,
+  Chip,
   Code,
   Divider,
   Group,
@@ -30,6 +31,7 @@ import { applyImportedAchievements, applyXboxAchievements, runAchievementsSync }
 import {
   connectEpic,
   connectGog,
+  connectNintendo,
   connectPsn,
   connectRetro,
   connectXbox,
@@ -37,15 +39,20 @@ import {
   fetchAccount,
   importEpic,
   importGog,
+  importNintendo,
   importPsn,
   importRetro,
   importSteam,
   importXbox,
+  fetchNintendoPlayers,
+  nintendoLoginUrl,
+  setNintendoPlayers,
   steamProfileUrl,
   unlinkSteam,
   useServerStatus,
   type Account,
   type FoundGame,
+  type NintendoLibrary,
   type ServerStatus,
 } from '../lib/api';
 import { formatLastPlayed } from '../lib/format';
@@ -610,17 +617,6 @@ function XboxPanel({ status, refresh }: { status: ServerStatus | null; refresh: 
   );
 }
 
-function ManualPanel({ platform, why, where }: { platform: PlatformId; why: string; where: string }) {
-  return (
-    <PlatformPanel platform={platform} method="Added by hand">
-      <Text size="sm" c="dimmed">
-        {why} {where}
-      </Text>
-      <ManualAdd platform={platform} />
-    </PlatformPanel>
-  );
-}
-
 /** Search or type a game, hours and a date, and add it to a platform by hand. */
 function ManualAdd({ platform }: { platform: PlatformId }) {
   const add = useStore((s) => s.addManualEntry);
@@ -945,7 +941,125 @@ function RetroPanel({ status, refresh }: { status: ServerStatus | null; refresh:
   );
 }
 
-/** Platforms: connect Steam, PlayStation, Xbox, Epic, GOG and RetroAchievements, and add Switch hours by hand. */
+function NintendoPanel({ status, refresh }: { status: ServerStatus | null; refresh: () => void }) {
+  const conn = useStore((s) => s.connections.switch);
+  const importLibrary = useStore((s) => s.importLibrary);
+  const disconnect = useStore((s) => s.disconnect);
+  const [loginUrl, setLoginUrl] = useState<string | null>(null);
+  const [info, setInfo] = useState<Omit<NintendoLibrary, 'games'> | null>(null);
+  const connected = !!status?.nintendo;
+
+  // The sign-in link carries a one-time secret, so it's made when it's needed.
+  useEffect(() => {
+    if (!status?.online) return;
+    if (connected) {
+      fetchNintendoPlayers()
+        .then(setInfo)
+        .catch(() => {});
+      return;
+    }
+    nintendoLoginUrl()
+      .then(setLoginUrl)
+      .catch(() => setLoginUrl(null));
+  }, [status?.online, connected]);
+
+  const apply = (res: NintendoLibrary) => {
+    const r = importLibrary('switch', 'nintendo', res.games);
+    setInfo({ players: res.players, since: res.since });
+    return r;
+  };
+
+  const run = async () => {
+    const r = apply(await importNintendo());
+    notifications.show({ title: 'Nintendo synced', message: `${r.added} games played since logging started.` });
+  };
+
+  const choose = async (ids: string[]) => {
+    const all = info?.players.length ?? 0;
+    apply(await setNintendoPlayers(ids.length === 0 || ids.length === all ? null : ids));
+  };
+
+  return (
+    <PlatformPanel platform="switch" method="Parental Controls, unofficial">
+      {!status?.online ? (
+        <ServerHint status={status} />
+      ) : connected ? (
+        <>
+          <ConnectedControls
+            platformName="Nintendo"
+            account={status.nintendoAccount}
+            synced={!!conn}
+            importLabel="Sync play time"
+            onImport={run}
+            onDisconnect={async () => {
+              await disconnectPlatform('nintendo');
+              disconnect('switch');
+              setInfo(null);
+              refresh();
+            }}
+          />
+          {info && (
+            <Text size="xs" c="dimmed">
+              Logging play time since{' '}
+              {new Date(`${info.since}T12:00:00`).toLocaleDateString(undefined, { dateStyle: 'medium' })}. Nintendo
+              doesn&apos;t share hours from before that.
+            </Text>
+          )}
+          {info && info.players.length > 1 && (
+            <Stack gap={6}>
+              <Text size="sm" fw={600}>
+                Whose play time counts
+              </Text>
+              <Chip.Group
+                multiple
+                value={info.players.filter((p) => p.selected).map((p) => p.id)}
+                onChange={(ids) => void choose(ids)}
+              >
+                <Group gap="xs">
+                  {info.players.map((p) => (
+                    <Chip key={p.id} value={p.id} size="sm">
+                      {p.name}
+                    </Chip>
+                  ))}
+                </Group>
+              </Chip.Group>
+            </Stack>
+          )}
+        </>
+      ) : (
+        <PasteConnect
+          intro="Savepoint can log your Switch play time from today on, through Nintendo's Parental Controls app. Your Switch has to be linked to that app (set it up once on a phone). Nintendo doesn't share hours from before you connect."
+          openLabel="Sign in to Nintendo"
+          openUrl={loginUrl}
+          copyHelp={
+            <>
+              After signing in, Nintendo shows <b>Select this person</b>. Don&apos;t click it: right-click it (on a
+              phone, press and hold) and choose <b>Copy link</b>. Then come back here.
+            </>
+          }
+          pasteLabel="Or paste the link here"
+          pastePlaceholder="npf54789befb391a838://auth#session_token_code=…"
+          find={(t) => (/session_token_code=[\w.-]+/.test(t) ? t.trim() : null)}
+          notFound='No sign-in in what was copied. Copy the link of the "Select this person" button.'
+          note="Nintendo has no public way for apps to read play time, so this signs in the way its Parental Controls app does. Savepoint keeps the sign-in encrypted and only reads the daily play summaries. Hours logged this way count towards your XP."
+          onConnect={async (link) => {
+            await connectNintendo(link);
+            refresh();
+            await run();
+          }}
+        />
+      )}
+      <Divider label="Add play time by hand" labelPosition="left" mt="xs" />
+      <Text size="sm" c="dimmed">
+        For hours from before you connected: your Switch shows them on your user page under Play Activity. Hours added
+        by hand don&apos;t count towards XP.
+      </Text>
+      <ManualAdd platform="switch" />
+    </PlatformPanel>
+  );
+}
+
+/** Platforms: connect Steam, PlayStation, Xbox, Epic, GOG, RetroAchievements and Nintendo, and add hours by hand. */
 export function PlatformsPage() {
   const [status, refreshStatus] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
@@ -956,8 +1070,8 @@ export function PlatformsPage() {
       <div>
         <Title order={1}>Platforms</Title>
         <Text c="dimmed" mt={6}>
-          Steam, PlayStation, Xbox and Epic import play time automatically, and it counts towards your XP. Nintendo
-          doesn&apos;t offer a way to read it, so add those games by hand.
+          Steam, PlayStation, Xbox, Epic and RetroAchievements import play time automatically, and it counts towards
+          your XP. Nintendo logs it from the day you connect. GOG shares games and achievements, but no hours.
         </Text>
       </div>
 
@@ -978,11 +1092,7 @@ export function PlatformsPage() {
         <SteamPanel status={status} />
         <PsnPanel status={status} refresh={refreshStatus} />
         <XboxPanel status={status} refresh={refreshStatus} />
-        <ManualPanel
-          platform="switch"
-          why="Nintendo has no public API for play time."
-          where="On Switch, find hours on your user page under Play Activity, or in the Parental Controls app."
-        />
+        <NintendoPanel status={status} refresh={refreshStatus} />
         <EpicPanel status={status} refresh={refreshStatus} />
         <GogPanel status={status} refresh={refreshStatus} />
         <RetroPanel status={status} refresh={refreshStatus} />

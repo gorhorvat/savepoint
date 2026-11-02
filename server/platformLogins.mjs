@@ -97,6 +97,7 @@ export async function platformLogins(userId) {
     epic: one('epic'),
     gog: one('gog'),
     retro: one('retro'),
+    nintendo: one('nintendo'),
   };
 }
 

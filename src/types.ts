@@ -50,7 +50,7 @@ export interface Game {
   comingSoon?: boolean;
 }
 
-export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'epic' | 'gog' | 'retro' | 'manual';
+export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'epic' | 'gog' | 'retro' | 'nintendo' | 'manual';
 
 /** Where a game stands for you. "completed" = everything done (100%). */
 export type PlayStatus = 'playing' | 'backlog' | 'finished' | 'completed' | 'dropped';

@@ -54,6 +54,7 @@ const SOURCE_LABEL: Record<EntrySource, string> = {
   epic: 'Imported from Epic Games',
   gog: 'Imported from GOG',
   retro: 'Imported from RetroAchievements',
+  nintendo: 'Logged through Nintendo Parental Controls',
   manual: 'Added by you',
   demo: 'Sample data',
 };

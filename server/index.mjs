@@ -73,6 +73,7 @@ import { epicRouter, refreshEpicLogin } from './epic.mjs';
 import { gogRouter } from './gog.mjs';
 import { retroConfigured, retroRouter } from './retro.mjs';
 import { achievementListRouter } from './achievementLists.mjs';
+import { nintendoRouter, syncNintendo } from './nintendo.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -93,8 +94,8 @@ process.on('unhandledRejection', (err) => logCrash('unhandledRejection', err));
 export const app = express();
 
 /**
- * Sign-ins that expire unless they're used (Epic's refresh token) are renewed
- * once a day, so a connection survives weeks without a visit.
+ * Once a day: sign-ins that expire unless they're used (Epic's refresh token)
+ * are renewed, and Nintendo play time is logged, so neither needs a visit.
  */
 async function keepLoginsAlive() {
   let epic = 0;
@@ -103,7 +104,14 @@ async function keepLoginsAlive() {
       .then(() => epic++)
       .catch(() => {});
   }
-  return { epic };
+  // Nintendo keeps only a few weeks of daily play: store each day while it's there.
+  let nintendo = 0;
+  for (const userId of await usersWithLogin('nintendo')) {
+    await syncNintendo(userId)
+      .then(() => nintendo++)
+      .catch(() => {});
+  }
+  return { epic, nintendo };
 }
 
 // Vercel Cron (vercel.json) calls this once a day with "Authorization: Bearer
@@ -137,6 +145,7 @@ app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(epicRouter); // /api/epic/*
 app.use(gogRouter); // /api/gog/*
 app.use(retroRouter); // /api/retro/*
+app.use(nintendoRouter); // /api/nintendo/*
 app.use(achievementListRouter); // /api/steam/achievements/list, /api/psn/trophies/list, /api/xbox/achievements/list
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(messagesRouter); // /api/messages/*
@@ -179,6 +188,8 @@ app.get('/api/status', async (req, res) => {
         psnAccount: l.playstation?.account,
         xboxAccount: l.xbox?.account,
         retro: !!l.retro,
+        nintendo: !!l.nintendo,
+        nintendoAccount: l.nintendo?.account,
         epicAccount: l.epic?.account,
         gogAccount: l.gog?.account,
         retroAccount: l.retro?.account,
