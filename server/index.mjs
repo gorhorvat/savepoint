@@ -72,6 +72,7 @@ import { wowRouter } from './wow.mjs';
 import { epicRouter, refreshEpicLogin } from './epic.mjs';
 import { gogRouter } from './gog.mjs';
 import { retroConfigured, retroRouter } from './retro.mjs';
+import { achievementListRouter } from './achievementLists.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -136,6 +137,7 @@ app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(epicRouter); // /api/epic/*
 app.use(gogRouter); // /api/gog/*
 app.use(retroRouter); // /api/retro/*
+app.use(achievementListRouter); // /api/steam/achievements/list, /api/psn/trophies/list, /api/xbox/achievements/list
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(messagesRouter); // /api/messages/*
 app.use(giftsRouter); // /api/gifts/*

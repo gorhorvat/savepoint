@@ -126,6 +126,28 @@ export function importXbox() {
   return getJson<{ games: ImportedGame[] }>('/api/xbox/library');
 }
 
+/** One achievement or trophy on a game's page. */
+export interface AchievementItem {
+  name: string;
+  description: string;
+  icon: string | null;
+  /** When it was earned; '' when earned without a date; null while locked. */
+  earnedAt: string | null;
+  hidden: boolean;
+  /** Share of players who have it, in %. */
+  rarity: number | null;
+  /** RetroAchievements points or Xbox gamerscore. */
+  points?: number;
+  /** PlayStation trophy grade: bronze, silver, gold, platinum. */
+  grade?: string;
+  /** RetroAchievements: earned in hardcore mode. */
+  hardcore?: boolean;
+}
+
+export async function fetchAchievementList(url: string): Promise<AchievementItem[]> {
+  return (await getJson<{ items: AchievementItem[] }>(url)).items;
+}
+
 export function importEpic() {
   return getJson<{ games: ImportedGame[] }>('/api/epic/library');
 }

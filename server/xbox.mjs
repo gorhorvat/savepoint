@@ -180,3 +180,25 @@ export async function xboxAddFriend(key, gamertag) {
   await xbl(key, `/friends/add/${xuid}`);
   return true;
 }
+
+/**
+ * Every achievement of one game for the key's Xbox account (Xbox One and later
+ * games), for the game page: { name, description, icon, earnedAt, hidden, rarity, points }.
+ */
+export async function xboxTitleAchievements(key, titleId) {
+  const data = await xbl(key, `/achievements/title/${encodeURIComponent(titleId)}`);
+  return (data?.achievements ?? []).map((a) => {
+    const earned = a.progressState === 'Achieved';
+    const icon = (a.mediaAssets ?? []).find((m) => m.type === 'Icon' || m.name)?.url ?? null;
+    const gamerscore = (a.rewards ?? []).find((r) => r.type === 'Gamerscore');
+    return {
+      name: a.name,
+      description: (earned ? a.description : a.lockedDescription || a.description) ?? '',
+      icon,
+      earnedAt: earned ? (a.progression?.timeUnlocked ?? '') : null,
+      hidden: !!a.isSecret,
+      rarity: a.rarity?.currentPercentage ?? null,
+      points: gamerscore ? Number(gamerscore.value) || 0 : undefined,
+    };
+  });
+}
