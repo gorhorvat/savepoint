@@ -51,6 +51,7 @@ const SOURCE_LABEL: Record<EntrySource, string> = {
   psn: 'Imported from PlayStation Network',
   xbox: 'Imported from Xbox',
   epic: 'Imported from Epic Games',
+  gog: 'Imported from GOG',
   manual: 'Added by you',
   demo: 'Sample data',
 };

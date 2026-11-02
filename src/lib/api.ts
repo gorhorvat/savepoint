@@ -32,6 +32,9 @@ export interface ServerStatus {
   epic?: boolean;
   /** The Epic display name it's connected as, when known. */
   epicAccount?: string | null;
+  /** This account has connected its own GOG account (unofficially). */
+  gog?: boolean;
+  gogAccount?: string | null;
   /** True for the super admin, who manages the invite code. */
   superAdmin?: boolean;
 }
@@ -120,6 +123,10 @@ export function importXbox() {
 
 export function importEpic() {
   return getJson<{ games: ImportedGame[] }>('/api/epic/library');
+}
+
+export function importGog() {
+  return getJson<{ games: ImportedGame[] }>('/api/gog/library');
 }
 
 // ---------------------------------------------------------------- genres
@@ -601,10 +608,16 @@ export async function connectEpic(code: string): Promise<void> {
   await sendJson('/api/epic/connect', 'POST', { code });
 }
 
+/** Connects this account's own GOG account with the address GOG lands on after signing in. */
+export async function connectGog(code: string): Promise<void> {
+  await sendJson('/api/gog/connect', 'POST', { code });
+}
+
 const CONNECT_URLS = {
   playstation: '/api/psn/connect',
   xbox: '/api/xbox/connect',
   epic: '/api/epic/connect',
+  gog: '/api/gog/connect',
 } as const;
 
 /** Forgets one of this account's platform connections. */

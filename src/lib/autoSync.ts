@@ -6,6 +6,7 @@ import {
   fetchStatus,
   fetchSteamWishlist,
   importEpic,
+  importGog,
   importPsn,
   importSteam,
   importXbox,
@@ -49,7 +50,7 @@ async function steamNeverImported(): Promise<boolean> {
 
 /**
  * When the app opens, re-syncs every connected source whose last sync is
- * more than 6 hours old: Steam, PlayStation, Xbox and Epic libraries, Steam wishlist.
+ * more than 6 hours old: Steam, PlayStation, Xbox, Epic and GOG libraries, Steam wishlist.
  * Runs once per page load, silently; the manual sync buttons still work.
  */
 export async function autoSync(): Promise<void> {
@@ -102,6 +103,16 @@ export async function autoSync(): Promise<void> {
         const res = await importEpic();
         useStore.getState().importLibrary('epic', 'epic', res.games);
         applyImportedAchievements('epic', 'epic', res.games);
+      },
+    });
+  }
+  if (status.gog && connections.gog?.lastSync && stale(connections.gog.lastSync)) {
+    jobs.push({
+      name: 'GOG library',
+      run: async () => {
+        const res = await importGog();
+        useStore.getState().importLibrary('gog', 'gog', res.games);
+        applyImportedAchievements('gog', 'gog', res.games);
       },
     });
   }

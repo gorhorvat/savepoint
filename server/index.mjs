@@ -70,6 +70,7 @@ import { snapshotRouter } from './snapshots.mjs';
 import { steamGamesRouter } from './steamGames.mjs';
 import { wowRouter } from './wow.mjs';
 import { epicRouter, refreshEpicLogin } from './epic.mjs';
+import { gogRouter } from './gog.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -132,6 +133,7 @@ app.use(accountRouter); // /api/account, /api/account/*, /api/admin/invite
 app.use(adminRouter); // /api/admin/users/*
 app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(epicRouter); // /api/epic/*
+app.use(gogRouter); // /api/gog/*
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(messagesRouter); // /api/messages/*
 app.use(giftsRouter); // /api/gifts/*

@@ -29,11 +29,13 @@ import { PasteConnect } from '../components/PasteConnect';
 import { applyImportedAchievements, applyXboxAchievements, runAchievementsSync } from '../lib/achievements';
 import {
   connectEpic,
+  connectGog,
   connectPsn,
   connectXbox,
   disconnectPlatform,
   fetchAccount,
   importEpic,
+  importGog,
   importPsn,
   importSteam,
   importXbox,
@@ -673,7 +675,8 @@ function ManualAdd({ platform }: { platform: PlatformId }) {
       ) : (
         <Stack gap={4}>
           <GameSearch
-            platform={platform}
+            // Search doesn't know which games are on GOG: show everything.
+            platform={platform === 'gog' ? undefined : platform}
             actionLabel="Select"
             placeholder={`Search ${name} games`}
             onPick={(f) => setPicked({ title: f.title, found: f })}
@@ -781,7 +784,81 @@ function EpicPanel({ status, refresh }: { status: ServerStatus | null; refresh: 
   );
 }
 
-/** Platforms: connect Steam, PlayStation, Xbox and Epic, and add Switch hours by hand. */
+const GOG_LOGIN_PAGE = `https://auth.gog.com/auth?${new URLSearchParams({
+  client_id: '46899977096215655',
+  redirect_uri: 'https://embed.gog.com/on_login_success?origin=client',
+  response_type: 'code',
+  layout: 'client2',
+})}`;
+
+/** GOG's one-time code in whatever was copied: the address it lands on, or the code itself. */
+function findGogCode(text: string): string | null {
+  const t = text.trim();
+  return /[?&]code=([\w-]{20,})/.exec(t)?.[1] ?? (/^[\w-]{30,}$/.test(t) ? t : null);
+}
+
+function GogPanel({ status, refresh }: { status: ServerStatus | null; refresh: () => void }) {
+  const conn = useStore((s) => s.connections.gog);
+  const importLibrary = useStore((s) => s.importLibrary);
+  const disconnect = useStore((s) => s.disconnect);
+
+  const run = async () => {
+    const res = await importGog();
+    const r = importLibrary('gog', 'gog', res.games);
+    applyImportedAchievements('gog', 'gog', res.games);
+    notifications.show({ title: 'GOG imported', message: `${r.added} games.` });
+  };
+
+  return (
+    <PlatformPanel platform="gog" method="GOG Galaxy, unofficial">
+      {!status?.online ? (
+        <ServerHint status={status} />
+      ) : status.gog ? (
+        <ConnectedControls
+          platformName="GOG"
+          account={status.gogAccount}
+          synced={!!conn}
+          importLabel="Import from GOG"
+          onImport={run}
+          onDisconnect={async () => {
+            await disconnectPlatform('gog');
+            disconnect('gog');
+            refresh();
+          }}
+        />
+      ) : (
+        <PasteConnect
+          intro="Sign in on GOG's site. It then lands on an almost empty page whose address holds a one-time code: copy that address, and Savepoint imports the games you own and their achievements."
+          openLabel="Sign in to GOG"
+          openUrl={GOG_LOGIN_PAGE}
+          copyHelp={
+            <>
+              After signing in, GOG opens a page starting with <Code>embed.gog.com/on_login_success</Code>. Copy its
+              whole address from the address bar, then come back here. The code works once.
+            </>
+          }
+          pasteLabel="Or paste the address here"
+          pastePlaceholder="https://embed.gog.com/on_login_success?origin=client&code=…"
+          find={findGogCode}
+          notFound="No code in what was copied. Copy the whole address of the page GOG lands on after you sign in."
+          note="GOG has no public way for apps to read your games, so this signs in the way GOG Galaxy (and launchers like Heroic) do. Savepoint keeps the sign-in encrypted and only reads your games and achievements. GOG doesn't share play time, so GOG games come in without hours."
+          onConnect={async (code) => {
+            await connectGog(code);
+            refresh();
+            await run();
+          }}
+        />
+      )}
+      <Divider label="Add play time by hand" labelPosition="left" mt="xs" />
+      <Text size="sm" c="dimmed">
+        GOG Galaxy shows your hours on each game. Hours added by hand don&apos;t count towards XP.
+      </Text>
+      <ManualAdd platform="gog" />
+    </PlatformPanel>
+  );
+}
+
+/** Platforms: connect Steam, PlayStation, Xbox, Epic and GOG, and add Switch hours by hand. */
 export function PlatformsPage() {
   const [status, refreshStatus] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
@@ -820,6 +897,7 @@ export function PlatformsPage() {
           where="On Switch, find hours on your user page under Play Activity, or in the Parental Controls app."
         />
         <EpicPanel status={status} refresh={refreshStatus} />
+        <GogPanel status={status} refresh={refreshStatus} />
       </SimpleGrid>
     </Stack>
   );
