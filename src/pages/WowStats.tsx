@@ -22,22 +22,18 @@ import { StatTile } from '../components/charts';
 import { CompareButton } from '../components/compare/CompareButton';
 import { Section } from '../components/GameSection';
 import { Heading, Line, Meter } from '../components/StatParts';
-import { TrendChart, type TrendPoint } from '../components/TrendChart';
 import {
   addWowCharacter,
   ago,
   fetchGameConnections,
-  fetchGameHistory,
   fetchWowRealms,
   fetchWowSetup,
   refreshWow,
   removeWowCharacter,
   type GameConnection,
-  type Snapshot,
   type WowCharacter,
   type WowData,
   type WowRun,
-  type WowSnapshot,
 } from '../lib/gameStats';
 import { day, num } from '../lib/steamGameFormat';
 
@@ -379,7 +375,7 @@ function Characters({
         </Alert>
       )}
 
-      <CharacterView c={c} refreshedAt={conn.fetchedAt} />
+      <CharacterView c={c} />
     </Stack>
   );
 }
@@ -393,7 +389,7 @@ function raidSummary(c: WowCharacter) {
   return best ? { value: `${best.killed}/${best.total} ${best.difficulty.charAt(0)}`, note: inst.name } : null;
 }
 
-function CharacterView({ c, refreshedAt }: { c: WowCharacter; refreshedAt: string }) {
+function CharacterView({ c }: { c: WowCharacter }) {
   const raid = raidSummary(c);
   const m = c.mythic;
   return (
@@ -563,8 +559,6 @@ function CharacterView({ c, refreshedAt }: { c: WowCharacter; refreshedAt: strin
           <StatTile label="Titles" value={num(c.collections.titles)} />
         </SimpleGrid>
       )}
-
-      <WowProgress c={c} refreshedAt={refreshedAt} />
     </Stack>
   );
 }
@@ -668,30 +662,5 @@ function Raids({ c }: { c: WowCharacter }) {
         ))}
       </SimpleGrid>
     </Section>
-  );
-}
-
-function WowProgress({ c, refreshedAt }: { c: WowCharacter; refreshedAt: string }) {
-  const [days, setDays] = useState<Snapshot<WowSnapshot>[] | null>(null);
-  useEffect(() => {
-    fetchGameHistory<WowSnapshot>('wow')
-      .then(setDays)
-      .catch(() => setDays([]));
-  }, [refreshedAt]);
-  if (!days) return <Loader size="sm" />;
-  const series = (key: 'itemLevel' | 'mythic' | 'achievements'): TrendPoint[] =>
-    days.flatMap((d) => {
-      const value = d.data.characters?.[c.key]?.[key];
-      return value != null ? [{ day: d.day, value }] : [];
-    });
-  return (
-    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={48}>
-      <Section title="Item level over time">
-        <TrendChart points={series('itemLevel')} format={(v) => v.toFixed(1)} />
-      </Section>
-      <Section title="Mythic+ rating over time">
-        <TrendChart points={series('mythic')} format={(v) => Math.round(v).toLocaleString()} />
-      </Section>
-    </SimpleGrid>
   );
 }

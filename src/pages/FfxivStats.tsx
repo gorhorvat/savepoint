@@ -26,7 +26,6 @@ import { AchievementsTab } from '../components/ffxiv/Achievements';
 import { Crest } from '../components/ffxiv/Crest';
 import { FreeCompanyTab } from '../components/ffxiv/FreeCompany';
 import { GearTab } from '../components/ffxiv/Gear';
-import { ProgressTab } from '../components/ffxiv/Progress';
 import {
   ago,
   connectFfxiv,
@@ -455,7 +454,6 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
           <Tabs.Tab value="achievements">Achievements</Tabs.Tab>
           <Tabs.Tab value="collections">Mounts and minions</Tabs.Tab>
           <Tabs.Tab value="fc">Free Company</Tabs.Tab>
-          <Tabs.Tab value="progress">Progress</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="overview">
@@ -570,9 +568,6 @@ function CharacterStats({ conn, onChange }: { conn: GameConnection; onChange: (c
         </Tabs.Panel>
         <Tabs.Panel value="fc">
           <FreeCompanyTab ch={ch} />
-        </Tabs.Panel>
-        <Tabs.Panel value="progress">
-          <ProgressTab refreshedAt={conn.fetchedAt} />
         </Tabs.Panel>
       </Tabs>
 

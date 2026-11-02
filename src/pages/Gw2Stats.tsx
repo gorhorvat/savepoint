@@ -25,7 +25,6 @@ import { AchievementsTab } from '../components/gw2/Achievements';
 import { CharactersTab } from '../components/gw2/Characters';
 import { date, fmt, goldText } from '../components/gw2/format';
 import { Img } from '../components/gw2/parts';
-import { ProgressTab } from '../components/gw2/Progress';
 import { PvpTab } from '../components/gw2/Pvp';
 import { WealthTab } from '../components/gw2/Wealth';
 import { WeekTab } from '../components/gw2/Week';
@@ -262,7 +261,6 @@ function AccountStats({
           <Tabs.Tab value="wealth">Wealth</Tabs.Tab>
           <Tabs.Tab value="pvp">PvP and WvW</Tabs.Tab>
           <Tabs.Tab value="collections">Collections</Tabs.Tab>
-          <Tabs.Tab value="progress">Progress</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="overview">
@@ -430,9 +428,6 @@ function AccountStats({
               </Section>
             )}
           </Stack>
-        </Tabs.Panel>
-        <Tabs.Panel value="progress">
-          <ProgressTab refreshedAt={conn.fetchedAt} />
         </Tabs.Panel>
       </Tabs>
 

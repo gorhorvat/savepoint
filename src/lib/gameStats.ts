@@ -688,10 +688,6 @@ export async function backfillLol(): Promise<NonNullable<LolPlayer['archive']>> 
     .archive;
 }
 
-export async function fetchGameHistory<T>(game: GameStatsId): Promise<Snapshot<T>[]> {
-  return (await call<{ days: Snapshot<T>[] }>(`/api/games/${game}/history`)).days;
-}
-
 // ---------------------------------------------------------------- Counter-Strike 2 and Dota 2 (server/steamGames.mjs)
 
 export interface Cs2Leetify {

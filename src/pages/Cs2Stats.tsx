@@ -1,12 +1,10 @@
-import { Anchor, Badge, Group, Loader, SimpleGrid, Stack, Text } from '@mantine/core';
-import { useEffect, useState } from 'react';
+import { Anchor, Badge, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { BarList, StatTile } from '../components/charts';
 import { Section } from '../components/GameSection';
 import { Heading, Line, Meter } from '../components/StatParts';
 import { SteamGameTab } from '../components/SteamGameTab';
 import { day, num, resultColor } from '../lib/steamGameFormat';
-import { TrendChart, type TrendPoint } from '../components/TrendChart';
-import { fetchGameHistory, type Cs2Data, type Cs2Snapshot, type Snapshot } from '../lib/gameStats';
+import type { Cs2Data } from '../lib/gameStats';
 
 const SOURCES: Record<string, string> = { matchmaking: 'Premier / MM', faceit: 'FACEIT', renown: 'Renown' };
 
@@ -52,12 +50,12 @@ export function Cs2Stats() {
             : '',
       })}
     >
-      {(conn) => <Cs2Body d={conn.data} refreshedAt={conn.fetchedAt} />}
+      {(conn) => <Cs2Body d={conn.data} />}
     </SteamGameTab>
   );
 }
 
-function Cs2Body({ d, refreshedAt }: { d: Cs2Data; refreshedAt: string }) {
+function Cs2Body({ d }: { d: Cs2Data }) {
   const l = d.leetify;
   const life = d.lifetime;
   return (
@@ -242,33 +240,6 @@ function Cs2Body({ d, refreshedAt }: { d: Cs2Data; refreshedAt: string }) {
           </Section>
         </SimpleGrid>
       )}
-
-      <Cs2Progress refreshedAt={refreshedAt} hasLeetify={!!l} />
     </Stack>
-  );
-}
-
-const series = (days: Snapshot<Cs2Snapshot>[], key: keyof Cs2Snapshot): TrendPoint[] =>
-  days.filter((s) => s.data[key] != null).map((s) => ({ day: s.day, value: s.data[key] as number }));
-
-function Cs2Progress({ refreshedAt, hasLeetify }: { refreshedAt: string; hasLeetify: boolean }) {
-  const [days, setDays] = useState<Snapshot<Cs2Snapshot>[] | null>(null);
-  useEffect(() => {
-    fetchGameHistory<Cs2Snapshot>('cs2')
-      .then(setDays)
-      .catch(() => setDays([]));
-  }, [refreshedAt]);
-  if (!days) return <Loader size="sm" />;
-  return (
-    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={48}>
-      {hasLeetify && (
-        <Section title="Premier rating over time">
-          <TrendChart points={series(days, 'premier')} />
-        </Section>
-      )}
-      <Section title="Hours played over time">
-        <TrendChart points={series(days, 'hours')} />
-      </Section>
-    </SimpleGrid>
   );
 }

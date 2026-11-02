@@ -27,7 +27,6 @@ import { Champ, Heading, Line } from '../components/lol/common';
 import { fmt, pct, rankName, title } from '../components/lol/format';
 import { LiveTab } from '../components/lol/Live';
 import { MatchesTab, MatchRow } from '../components/lol/Matches';
-import { ProgressTab } from '../components/lol/Progress';
 import {
   ago,
   connectLol,
@@ -277,7 +276,6 @@ function PlayerStats({
           <Tabs.Tab value="champions">Champions</Tabs.Tab>
           <Tabs.Tab value="challenges">Challenges</Tabs.Tab>
           <Tabs.Tab value="live">Live game{p.live ? ' •' : ''}</Tabs.Tab>
-          <Tabs.Tab value="progress">Progress</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="overview">
@@ -385,9 +383,6 @@ function PlayerStats({
         </Tabs.Panel>
         <Tabs.Panel value="live">
           <LiveTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="progress">
-          <ProgressTab refreshedAt={conn.fetchedAt} />
         </Tabs.Panel>
       </Tabs>
 

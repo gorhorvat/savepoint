@@ -1,26 +1,16 @@
-import { Anchor, Avatar, Badge, Group, Loader, SimpleGrid, Stack, Text } from '@mantine/core';
-import { useEffect, useState } from 'react';
+import { Anchor, Avatar, Badge, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { BarList, StatTile } from '../components/charts';
 import { Section } from '../components/GameSection';
 import { Line } from '../components/StatParts';
 import { SteamGameTab } from '../components/SteamGameTab';
 import { day, num, resultColor } from '../lib/steamGameFormat';
-import { TrendChart, type TrendPoint } from '../components/TrendChart';
-import { fetchGameHistory, type DotaData, type DotaSnapshot, type Snapshot } from '../lib/gameStats';
-
-const MEDALS = ['', 'Herald', 'Guardian', 'Crusader', 'Archon', 'Legend', 'Ancient', 'Divine', 'Immortal'];
+import type { DotaData } from '../lib/gameStats';
 
 function medalText(m: DotaData['medal']) {
   if (!m?.name) return 'Uncalibrated';
   if (m.name === 'Immortal') return m.leaderboard ? `Immortal #${m.leaderboard}` : 'Immortal';
   return `${m.name}${m.stars ? ` ${m.stars}` : ''}`;
 }
-
-/** Rank as a number for the graph: Herald 1 is 11, Immortal is 80. */
-const tierTick = (v: number) => {
-  const m = Math.floor(v / 10);
-  return MEDALS[m] ? `${MEDALS[m]}${m < 8 && v % 10 ? ` ${v % 10}` : ''}` : '';
-};
 
 function HeroIcon({ image, name, size = 32 }: { image: string | null; name: string; size?: number }) {
   return (
@@ -55,12 +45,12 @@ export function Dota2Stats() {
         detail: `${medalText(d.medal)}${d.totals.hours != null ? ` · ${num(d.totals.hours)} h in matches` : ''}`,
       })}
     >
-      {(conn) => <DotaBody d={conn.data} refreshedAt={conn.fetchedAt} />}
+      {(conn) => <DotaBody d={conn.data} />}
     </SteamGameTab>
   );
 }
 
-function DotaBody({ d, refreshedAt }: { d: DotaData; refreshedAt: string }) {
+function DotaBody({ d }: { d: DotaData }) {
   const t = d.totals;
   const games = d.wins + d.losses;
   return (
@@ -165,31 +155,6 @@ function DotaBody({ d, refreshedAt }: { d: DotaData; refreshedAt: string }) {
           </Stack>
         </Section>
       )}
-
-      <DotaProgress refreshedAt={refreshedAt} />
     </Stack>
-  );
-}
-
-const series = (days: Snapshot<DotaSnapshot>[], key: keyof DotaSnapshot): TrendPoint[] =>
-  days.filter((s) => s.data[key] != null).map((s) => ({ day: s.day, value: s.data[key] as number }));
-
-function DotaProgress({ refreshedAt }: { refreshedAt: string }) {
-  const [days, setDays] = useState<Snapshot<DotaSnapshot>[] | null>(null);
-  useEffect(() => {
-    fetchGameHistory<DotaSnapshot>('dota2')
-      .then(setDays)
-      .catch(() => setDays([]));
-  }, [refreshedAt]);
-  if (!days) return <Loader size="sm" />;
-  return (
-    <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={48}>
-      <Section title="Rank over time">
-        <TrendChart points={series(days, 'rankTier')} format={tierTick} tickFormat={tierTick} />
-      </Section>
-      <Section title="Win rate over time">
-        <TrendChart points={series(days, 'winRate')} format={(v) => `${v.toFixed(1)}%`} />
-      </Section>
-    </SimpleGrid>
   );
 }
