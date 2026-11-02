@@ -62,7 +62,7 @@ adminRouter.get('/api/admin/users', async (_req, res) => {
       `SELECT u."id", u."username", u."role", u."created_at", u."last_seen_at", u."disabled_at",
               u."steam_id" IS NOT NULL AS steam, u."password_hash" IS NOT NULL AS has_password,
               COALESCE((SELECT array_agg(l."platform" ORDER BY l."platform") FROM platform_logins l
-                        WHERE l."user_id" = u."id"), '{}') AS logins,
+                        WHERE l."user_id" = u."id" AND l."platform" NOT LIKE '%-pending'), '{}') AS logins,
               (SELECT count(*)::int FROM play_entries e WHERE e."user_id" = u."id") AS games,
               (SELECT count(*)::int FROM friendships f WHERE f."status" = 'accepted'
                  AND (f."requester_id" = u."id" OR f."addressee_id" = u."id")) AS friends,

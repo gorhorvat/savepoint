@@ -44,7 +44,7 @@ import {
 import { formatLastPlayed } from '../lib/format';
 import type { PlatformId } from '../types';
 
-const PLATFORM_IDS = new Set(['steam', 'playstation', 'xbox']);
+const PLATFORM_IDS = new Set(['steam', 'playstation', 'xbox', 'epic', 'gog', 'retro', 'switch']);
 // Streaming services a user can connect; they sit apart from the game platforms.
 const STREAMING: Record<string, { name: string; Icon: typeof IconBrandTwitch; color: string }> = {
   twitch: { name: 'Twitch', Icon: IconBrandTwitch, color: '#9146ff' },
@@ -52,7 +52,9 @@ const STREAMING: Record<string, { name: string; Icon: typeof IconBrandTwitch; co
 };
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-function Platforms({ list }: { list: string[] }) {
+function Platforms({ list: logins }: { list: string[] }) {
+  // Nintendo's sign-in is the Switch's play time.
+  const list = logins.map((p) => (p === 'nintendo' ? 'switch' : p));
   if (!list.length) return <Text size="sm" c="dimmed">None</Text>;
   const games = list.filter((p) => PLATFORM_IDS.has(p));
   const streaming = list.filter((p) => p in STREAMING);
