@@ -195,6 +195,10 @@ function FavoritesSection() {
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
+/** "Epic, GOG and RetroAchievements" */
+const listOf = (items: string[]) =>
+  items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : (items[0] ?? '');
+
 /** Level, rank and where your XP comes from. */
 function LevelSection() {
   const xp = useXp();
@@ -221,7 +225,7 @@ function LevelSection() {
       return m?.achievements
         ? [
             {
-              label: `${label} achievements`,
+              label: /achievements$/i.test(label) ? label : `${label} achievements`,
               detail: `${fmt(m.achievements)} achievements, ${fmt(m.perfectGames)} ${
                 m.perfectGames === 1 ? 'game' : 'games'
               } completed`,
@@ -292,8 +296,8 @@ function LevelSection() {
       <Text size="sm" c="dimmed" mt="md">
         XP only counts what your platforms confirm: trophies earn Sony&apos;s points (bronze {XP.bronze}, silver{' '}
         {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
-        {XP.steamPerfect} for completing a game ({LIKE_STEAM.map((p) => p.label).join(', ')} achievements count the same
-        way), Xbox achievements their gamerscore, and {XP.perHour} per hour played.
+        {XP.steamPerfect} for completing a game (achievements from {listOf(LIKE_STEAM.map((p) => p.label))} count the
+        same way), Xbox achievements their gamerscore, and {XP.perHour} per hour played.
         {xp.hours.unconfirmed >= 1 &&
           ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand don't count, and neither do apps.`}
       </Text>

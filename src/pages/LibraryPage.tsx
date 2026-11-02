@@ -216,7 +216,9 @@ function GameRow({
               ? 'Not played yet'
               : item.lastPlayed
                 ? `Last played ${formatLastPlayed(item.lastPlayed)}`
-                : 'Play time added by hand'}
+                : item.plays.some((p) => p.source === 'manual')
+                  ? 'Play time added by hand'
+                  : 'No last-played date'}
           </Text>
           {toBeat && (
             <Tooltip label="Typical time to beat the main story, from HowLongToBeat" withArrow>

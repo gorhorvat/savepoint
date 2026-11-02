@@ -1,6 +1,6 @@
 import { Group, Text, Tooltip } from '@mantine/core';
 import { IconBrandXbox, IconDeviceNintendo } from '@tabler/icons-react';
-import { siEpicgames, siGogdotcom, siPlaystation, siSteam } from 'simple-icons';
+import { siEpicgames, siGogdotcom, siPlaystation, siRetroachievements, siSteam } from 'simple-icons';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import type { PlatformId } from '../types';
 
@@ -10,6 +10,7 @@ const LOGOS: Partial<Record<PlatformId, { path: string }>> = {
   steam: siSteam,
   epic: siEpicgames,
   gog: siGogdotcom,
+  retro: siRetroachievements,
   playstation: siPlaystation,
 };
 

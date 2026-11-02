@@ -17,6 +17,7 @@
   --sp-switch: #e60012;
   --sp-epic: #121730;
   --sp-gog: #86328a;
+  --sp-retro: #a36b00;
 
   /* Categorical chart colors (validated: CVD-safe adjacent pairs). Light-mode
      slots 2-5 are under 3:1 contrast, so charts using them always show a
@@ -59,6 +60,7 @@ html:root[data-mantine-color-scheme='light'] {
   --sp-switch: #ff3b47;
   --sp-epic: #e8ecfa;
   --sp-gog: #c77fe0;
+  --sp-retro: #f0b429;
 
   --sp-c1: #3987e5;
   --sp-c2: #d95926;

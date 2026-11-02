@@ -84,7 +84,15 @@ export function useLibrary({ includeApps = false }: { includeApps?: boolean } = 
 }
 
 export function platformTotals(lib: LibraryGame[]): Record<PlatformId, number> {
-  const totals: Record<PlatformId, number> = { steam: 0, epic: 0, gog: 0, playstation: 0, xbox: 0, switch: 0 };
+  const totals: Record<PlatformId, number> = {
+    steam: 0,
+    epic: 0,
+    gog: 0,
+    playstation: 0,
+    xbox: 0,
+    switch: 0,
+    retro: 0,
+  };
   for (const g of lib) for (const p of g.plays) totals[p.platform] += p.minutes;
   return totals;
 }

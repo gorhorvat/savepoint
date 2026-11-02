@@ -83,7 +83,7 @@ async function remove(userId, platform) {
 // For other sign-ins kept the same way (Twitch: server/streaming.mjs).
 export { load as loadLogin, save as saveLogin, remove as removeLogin };
 
-/** { playstation, xbox, epic, gog: { account, expiresAt } | null } for the Platforms page. */
+/** { playstation, xbox, epic, gog, retro: { account, expiresAt } | null } for the Platforms page. */
 export async function platformLogins(userId) {
   const { rows } = await query(
     'SELECT "platform", "account_name", "expires_at" FROM platform_logins WHERE "user_id" = $1',
@@ -91,7 +91,13 @@ export async function platformLogins(userId) {
   );
   const by = Object.fromEntries(rows.map((r) => [r.platform, r]));
   const one = (p) => (by[p] ? { account: by[p].account_name, expiresAt: by[p].expires_at } : null);
-  return { playstation: one('playstation'), xbox: one('xbox'), epic: one('epic'), gog: one('gog') };
+  return {
+    playstation: one('playstation'),
+    xbox: one('xbox'),
+    epic: one('epic'),
+    gog: one('gog'),
+    retro: one('retro'),
+  };
 }
 
 /** Every account with a sign-in for `platform` (for the daily cron). */

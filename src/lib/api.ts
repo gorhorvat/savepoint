@@ -35,6 +35,11 @@ export interface ServerStatus {
   /** This account has connected its own GOG account (unofficially). */
   gog?: boolean;
   gogAccount?: string | null;
+  /** The server has a RetroAchievements key (RA_API_KEY). */
+  retroReady?: boolean;
+  /** This account has connected its RetroAchievements username. */
+  retro?: boolean;
+  retroAccount?: string | null;
   /** True for the super admin, who manages the invite code. */
   superAdmin?: boolean;
 }
@@ -127,6 +132,10 @@ export function importEpic() {
 
 export function importGog() {
   return getJson<{ games: ImportedGame[] }>('/api/gog/library');
+}
+
+export function importRetro() {
+  return getJson<{ games: ImportedGame[] }>('/api/retro/library');
 }
 
 // ---------------------------------------------------------------- genres
@@ -613,11 +622,17 @@ export async function connectGog(code: string): Promise<void> {
   await sendJson('/api/gog/connect', 'POST', { code });
 }
 
+/** Connects this account's RetroAchievements username. */
+export async function connectRetro(username: string): Promise<void> {
+  await sendJson('/api/retro/connect', 'POST', { username });
+}
+
 const CONNECT_URLS = {
   playstation: '/api/psn/connect',
   xbox: '/api/xbox/connect',
   epic: '/api/epic/connect',
   gog: '/api/gog/connect',
+  retro: '/api/retro/connect',
 } as const;
 
 /** Forgets one of this account's platform connections. */

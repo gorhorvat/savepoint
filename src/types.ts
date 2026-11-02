@@ -1,4 +1,4 @@
-export type PlatformId = 'steam' | 'epic' | 'gog' | 'playstation' | 'xbox' | 'switch';
+export type PlatformId = 'steam' | 'epic' | 'gog' | 'playstation' | 'xbox' | 'switch' | 'retro';
 
 export type StoreId =
   | 'steam'
@@ -50,7 +50,7 @@ export interface Game {
   comingSoon?: boolean;
 }
 
-export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'epic' | 'gog' | 'manual';
+export type EntrySource = 'demo' | 'steam' | 'psn' | 'xbox' | 'epic' | 'gog' | 'retro' | 'manual';
 
 /** Where a game stands for you. "completed" = everything done (100%). */
 export type PlayStatus = 'playing' | 'backlog' | 'finished' | 'completed' | 'dropped';

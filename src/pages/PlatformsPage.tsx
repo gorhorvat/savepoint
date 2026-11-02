@@ -31,12 +31,14 @@ import {
   connectEpic,
   connectGog,
   connectPsn,
+  connectRetro,
   connectXbox,
   disconnectPlatform,
   fetchAccount,
   importEpic,
   importGog,
   importPsn,
+  importRetro,
   importSteam,
   importXbox,
   steamProfileUrl,
@@ -858,7 +860,92 @@ function GogPanel({ status, refresh }: { status: ServerStatus | null; refresh: (
   );
 }
 
-/** Platforms: connect Steam, PlayStation, Xbox, Epic and GOG, and add Switch hours by hand. */
+function RetroPanel({ status, refresh }: { status: ServerStatus | null; refresh: () => void }) {
+  const conn = useStore((s) => s.connections.retro);
+  const importLibrary = useStore((s) => s.importLibrary);
+  const disconnect = useStore((s) => s.disconnect);
+  const [username, setUsername] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    const res = await importRetro();
+    const r = importLibrary('retro', 'retro', res.games);
+    applyImportedAchievements('retro', 'retro', res.games);
+    notifications.show({ title: 'RetroAchievements imported', message: `${r.added} games.` });
+  };
+
+  const connect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await connectRetro(username.trim());
+      setUsername('');
+      refresh();
+      await run();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <PlatformPanel platform="retro" method="RetroAchievements API">
+      {!status?.online ? (
+        <ServerHint status={status} />
+      ) : !status.retroReady ? (
+        <>
+          <Text size="sm" c="dimmed">
+            Retro games you play in emulators, with the play time and achievements RetroAchievements records.
+          </Text>
+          <ServerHint status={status} envVar="RA_API_KEY" />
+        </>
+      ) : status.retro ? (
+        <ConnectedControls
+          platformName="RetroAchievements"
+          account={status.retroAccount}
+          synced={!!conn}
+          importLabel="Import from RetroAchievements"
+          onImport={run}
+          onDisconnect={async () => {
+            await disconnectPlatform('retro');
+            disconnect('retro');
+            refresh();
+          }}
+        />
+      ) : (
+        <form onSubmit={connect}>
+          <Stack gap="sm">
+            <Text size="sm">
+              Retro games you play in emulators (RetroArch and others) with{' '}
+              {external('https://retroachievements.org', 'RetroAchievements')} turned on: their play time and
+              achievements, which count towards your XP.
+            </Text>
+            <TextInput
+              label="Your RetroAchievements username"
+              placeholder="e.g. MaxMilyin"
+              value={username}
+              onChange={(e) => setUsername(e.currentTarget.value)}
+              error={error}
+              autoComplete="off"
+              required
+            />
+            <Text size="xs" c="dimmed">
+              Only your public RetroAchievements profile is read; no password needed.
+            </Text>
+            <Button type="submit" loading={busy} w="fit-content">
+              Connect
+            </Button>
+          </Stack>
+        </form>
+      )}
+    </PlatformPanel>
+  );
+}
+
+/** Platforms: connect Steam, PlayStation, Xbox, Epic, GOG and RetroAchievements, and add Switch hours by hand. */
 export function PlatformsPage() {
   const [status, refreshStatus] = useServerStatus();
   const demoCount = useStore((s) => s.entries.filter((e) => e.source === 'demo').length);
@@ -898,6 +985,7 @@ export function PlatformsPage() {
         />
         <EpicPanel status={status} refresh={refreshStatus} />
         <GogPanel status={status} refresh={refreshStatus} />
+        <RetroPanel status={status} refresh={refreshStatus} />
       </SimpleGrid>
     </Stack>
   );

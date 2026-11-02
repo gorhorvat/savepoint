@@ -15,6 +15,7 @@ export const PLATFORMS: PlatformInfo[] = [
   { id: 'playstation', name: 'PlayStation', short: 'PS', colorVar: 'var(--sp-playstation)', importMethod: 'api' },
   { id: 'xbox', name: 'Xbox', short: 'Xbox', colorVar: 'var(--sp-xbox)', importMethod: 'api' },
   { id: 'switch', name: 'Nintendo Switch', short: 'Switch', colorVar: 'var(--sp-switch)', importMethod: 'manual' },
+  { id: 'retro', name: 'RetroAchievements', short: 'Retro', colorVar: 'var(--sp-retro)', importMethod: 'api' },
   { id: 'epic', name: 'Epic Games', short: 'Epic', colorVar: 'var(--sp-epic)', importMethod: 'api' },
   { id: 'gog', name: 'GOG', short: 'GOG', colorVar: 'var(--sp-gog)', importMethod: 'api' },
 ];

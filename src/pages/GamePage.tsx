@@ -52,6 +52,7 @@ const SOURCE_LABEL: Record<EntrySource, string> = {
   xbox: 'Imported from Xbox',
   epic: 'Imported from Epic Games',
   gog: 'Imported from GOG',
+  retro: 'Imported from RetroAchievements',
   manual: 'Added by you',
   demo: 'Sample data',
 };

@@ -71,6 +71,7 @@ import { steamGamesRouter } from './steamGames.mjs';
 import { wowRouter } from './wow.mjs';
 import { epicRouter, refreshEpicLogin } from './epic.mjs';
 import { gogRouter } from './gog.mjs';
+import { retroConfigured, retroRouter } from './retro.mjs';
 import { query } from './db.mjs';
 
 const PORT = Number(process.env.API_PORT) || 8787;
@@ -134,6 +135,7 @@ app.use(adminRouter); // /api/admin/users/*
 app.use(platformLoginRouter); // /api/psn/connect, /api/xbox/connect
 app.use(epicRouter); // /api/epic/*
 app.use(gogRouter); // /api/gog/*
+app.use(retroRouter); // /api/retro/*
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(messagesRouter); // /api/messages/*
 app.use(giftsRouter); // /api/gifts/*
@@ -174,10 +176,13 @@ app.get('/api/status', async (req, res) => {
         gog: !!l.gog,
         psnAccount: l.playstation?.account,
         xboxAccount: l.xbox?.account,
+        retro: !!l.retro,
         epicAccount: l.epic?.account,
         gogAccount: l.gog?.account,
+        retroAccount: l.retro?.account,
       }))
-      .catch(() => ({ psn: false, xbox: false, epic: false, gog: false }))),
+      .catch(() => ({ psn: false, xbox: false, epic: false, gog: false, retro: false }))),
+    retroReady: retroConfigured(),
     keyshops: has('GGDEALS_API_KEY'),
     prices: true,
     igdb: igdbConfigured(),

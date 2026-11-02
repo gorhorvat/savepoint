@@ -9,9 +9,11 @@ import { resolveGame, useStore } from './store';
 //   completing every achievement in a game earns a platinum-sized bonus.
 // - Xbox achievements are worth their gamerscore (a full game is 1,000 G,
 //   close to what a platinum PlayStation game earns).
-// - Epic and GOG achievements count like Steam's (no grades either).
+// - Epic, GOG and RetroAchievements achievements count like Steam's (a
+//   mastered RetroAchievements set earns the completion bonus).
 // - Play time counts only when a platform reported it (Steam, PlayStation,
-//   Xbox, Epic; GOG shares none); hours added by hand and non-game apps earn nothing.
+//   Xbox, Epic, RetroAchievements; GOG shares none); hours added by hand and
+//   non-game apps earn nothing.
 
 export const XP = {
   bronze: 15,
@@ -26,12 +28,13 @@ export const XP = {
   perHour: 10,
 } as const;
 
-const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox', 'epic', 'gog']);
+const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox', 'epic', 'gog', 'retro']);
 
 /** Platforms whose achievements have no grades, so they earn XP the way Steam's do. */
 export const LIKE_STEAM: { platform: PlatformId; label: string }[] = [
   { platform: 'epic', label: 'Epic' },
   { platform: 'gog', label: 'GOG' },
+  { platform: 'retro', label: 'RetroAchievements' },
 ];
 
 export interface AchievementXp {

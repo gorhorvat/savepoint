@@ -7,6 +7,7 @@ import {
   fetchSteamWishlist,
   importEpic,
   importGog,
+  importRetro,
   importPsn,
   importSteam,
   importXbox,
@@ -50,7 +51,8 @@ async function steamNeverImported(): Promise<boolean> {
 
 /**
  * When the app opens, re-syncs every connected source whose last sync is
- * more than 6 hours old: Steam, PlayStation, Xbox, Epic and GOG libraries, Steam wishlist.
+ * more than 6 hours old: Steam, PlayStation, Xbox, Epic, GOG and RetroAchievements
+ * libraries, Steam wishlist.
  * Runs once per page load, silently; the manual sync buttons still work.
  */
 export async function autoSync(): Promise<void> {
@@ -113,6 +115,16 @@ export async function autoSync(): Promise<void> {
         const res = await importGog();
         useStore.getState().importLibrary('gog', 'gog', res.games);
         applyImportedAchievements('gog', 'gog', res.games);
+      },
+    });
+  }
+  if (status.retro && connections.retro?.lastSync && stale(connections.retro.lastSync)) {
+    jobs.push({
+      name: 'RetroAchievements',
+      run: async () => {
+        const res = await importRetro();
+        useStore.getState().importLibrary('retro', 'retro', res.games);
+        applyImportedAchievements('retro', 'retro', res.games);
       },
     });
   }
