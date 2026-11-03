@@ -2,6 +2,7 @@ import { Anchor, Badge, Button, Group, Paper, SimpleGrid, Stack, Text, Title } f
 import { IconAdjustments, IconArrowRight, IconGift } from '@tabler/icons-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { PlayedOnLine } from '../components/PlayedOn';
 import { Cover } from '../components/Cover';
 import { StreamCard } from '../components/LiveStreams';
 import { FriendAvatar } from '../components/ProfileAvatar';
@@ -18,7 +19,13 @@ import {
   type FriendsList,
 } from '../lib/friends';
 import { HOME_WIDGETS, normalizeHomepage, type HomeWidgetId } from '../lib/homepage';
-import { useLibrary, useOwnedPlatforms, useUnlinkedPhysicalTitles, type LibraryGame } from '../lib/library';
+import {
+  useLibrary,
+  useOwnedPlatforms,
+  useUnlinkedPhysicalTitles,
+  type LibraryGame,
+  type PlatformPlay,
+} from '../lib/library';
 import { newestFirst, recommend } from '../lib/recommend';
 import { useGameResolver, useStore } from '../lib/store';
 import { fetchFollowedLive, watchedForTaste, type LiveStream } from '../lib/streaming';
@@ -86,18 +93,22 @@ const Quiet = ({ children }: { children: ReactNode }) => (
   </Text>
 );
 
-function GameShelf({ items }: { items: { game: Game; meta: string }[] }) {
+function GameShelf({ items }: { items: { game: Game; meta: string; plays?: PlatformPlay[] }[] }) {
   return (
     <div className="shelf">
-      {items.map(({ game, meta }) => (
+      {items.map(({ game, meta, plays }) => (
         <Link key={game.id} to={`/game/${game.id}`} className="shelf-tile">
           <Cover game={game} width="100%" radius={12} />
           <Text fw={700} mt={8} truncate>
             {game.title}
           </Text>
-          <Text size="sm" c="dimmed" truncate>
-            {meta}
-          </Text>
+          {plays ? (
+            <PlayedOnLine plays={plays}>{meta}</PlayedOnLine>
+          ) : (
+            <Text size="sm" c="dimmed" truncate>
+              {meta}
+            </Text>
+          )}
         </Link>
       ))}
     </div>
@@ -118,6 +129,7 @@ function ContinuePlaying({ lib }: { lib: LibraryGame[] }) {
           items={recent.map((g) => ({
             game: g.game,
             meta: `${formatPlaytime(g.totalMinutes)}, ${formatLastPlayed(g.lastPlayed)}`,
+            plays: g.plays,
           }))}
         />
       ) : (

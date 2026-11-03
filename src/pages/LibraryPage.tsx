@@ -18,6 +18,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { IconPlugConnected, IconSearch, IconStarFilled, IconTrophy } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { PlayedOnLine } from '../components/PlayedOn';
 import { Backdrop, Cover } from '../components/Cover';
 import { PhysicalCopyIcon } from '../components/PhysicalPlatformIcon';
 import { FranchiseBadge, GenreChips } from '../components/GenreChips';
@@ -113,7 +114,18 @@ function Totals({ lib }: { lib: LibraryGame[] }) {
 }
 
 /** A horizontally scrolling row of covers, like a console home screen. */
-function Shelf({ title, items, meta }: { title: string; items: LibraryGame[]; meta: (item: LibraryGame) => string }) {
+function Shelf({
+  title,
+  items,
+  meta,
+  showPlatforms = false,
+}: {
+  title: string;
+  items: LibraryGame[];
+  meta: (item: LibraryGame) => string;
+  /** Show the logos of the platforms each game was played on. */
+  showPlatforms?: boolean;
+}) {
   if (!items.length) return null;
   return (
     <section aria-label={title}>
@@ -127,9 +139,13 @@ function Shelf({ title, items, meta }: { title: string; items: LibraryGame[]; me
             <Text fw={700} mt={8} truncate>
               {item.game.title}
             </Text>
-            <Text size="sm" c="dimmed" truncate>
-              {meta(item)}
-            </Text>
+            {showPlatforms ? (
+              <PlayedOnLine plays={item.plays}>{meta(item)}</PlayedOnLine>
+            ) : (
+              <Text size="sm" c="dimmed" truncate>
+                {meta(item)}
+              </Text>
+            )}
           </Link>
         ))}
       </div>
@@ -401,6 +417,7 @@ export function LibraryPage() {
       <Shelf
         title={playing.length ? 'Playing' : 'Recently played'}
         items={playing.length ? playing : recent}
+        showPlatforms
         meta={(l) =>
           l.lastPlayed
             ? `${formatPlaytime(l.totalMinutes)}, ${formatLastPlayed(l.lastPlayed)}`
