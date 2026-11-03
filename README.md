@@ -1,18 +1,19 @@
 # Savepoint
 
-Every game you've played on Steam, Epic Games, PlayStation, Xbox and Nintendo Switch in one library, with play time added up across platforms.
+Every game you've played on Steam, PlayStation, Xbox, Epic Games, GOG, Nintendo Switch and RetroAchievements in one library, with play time added up across platforms.
 
 - **Library**: total hours per game, split by platform, with genres and sub-genres. Filter by platform, genre or status, and sort by hours, recency, title, your rating or how well a game fits your taste. The Backlog filter lists games you own but have played for under 2 hours (Steam imports include unplayed games).
 - **Play status and ratings**: mark a game Playing, Backlog, Finished, 100% or Dropped, rate it 1 to 5 stars and record when you finished it. Ratings and drops weigh into recommendations.
 - **Game pages**: critic score (OpenCritic), typical time to beat (HowLongToBeat, no key needed) and a screenshot gallery (IGDB). Library sorts by shortest to beat, and backlog rows show each game's length.
-- **Deals and alerts**: the wishlist shows the best PC deal across official stores and the all-time low (IsThereAnyDeal). Each account can turn on price alerts in Settings: it gets its own random ntfy topic to subscribe to in the free ntfy phone app, and the server checks its target prices (daily on Vercel, every six hours when run locally) and notifies only that account.
-- **Achievements**: Steam achievements, PlayStation trophies and Xbox achievements per game, fetched in the background after a sync (Steam is one request per game, so only games with new play time are re-checked).
-- **My Stats**: genres, platforms, play depth, eras and more. Savepoint records play time history from the change between syncs, starting the first time you import, so hours per month this year fill in from then on.
+- **Deals and alerts**: the wishlist shows the best PC deal across official stores and the all-time low (IsThereAnyDeal). Each account can turn on price alerts in Settings, Alerts: it gets its own random ntfy topic to subscribe to in the free ntfy phone app, and the server checks its target prices (daily on Vercel, every six hours when run locally) and notifies only that account.
+- **Achievements**: Steam, Epic, GOG and RetroAchievements achievements, PlayStation trophies and Xbox achievements, kept per platform. The Library shows a percentage for each platform you played a game on, and a game's page lists every achievement with its unlock date. Fetched in the background after a sync (Steam is one request per game, so only games with new play time are re-checked).
+- **My Stats**: genres, platforms, play depth, eras and more. Savepoint records play time history from the change between syncs, starting the first time you import, so hours per month this year fill in from then on. Game tabs go deeper for FINAL FANTASY XIV, Guild Wars 2, League of Legends, World of Warcraft, Counter-Strike 2 and Dota 2, and you can compare a game's stats with a friend or anyone by name.
 - **Genres** are looked up on Steam first, then IGDB (covers console exclusives), then Wikidata.
 - **Discover**: recommendations scored against your taste profile, which is built from the genres you spend the most hours in (weighted by your ratings and drops). Candidates are always live: well-reviewed Steam games and popular Nintendo eShop games in your favourite genres, never a fixed list. "More like this" on game pages and the assistant use the same pool.
-- **Assistant**: ask for suggestions in plain language, answered by a free local model through Ollama. Falls back to the built-in recommender when Ollama isn't running.
+- **Assistant**: ask for suggestions in plain language, answered by Gemini's free tier or a free local model through Ollama (see Assistant below). Falls back to the built-in recommender when neither is available.
 - **Wishlist**: best price across trusted stores, with a target price for each game.
-- **Stores**: official storefronts and authorized resellers only, with a price comparison.
+- **XP, levels and ranks**: earned only from what a platform confirms: achievements and trophies, and play time a platform reported. Hours added by hand earn nothing. Friends and everyone are ranked on the Leaderboard.
+- **Stores**: official storefronts and authorized resellers only, with a price comparison, on the Wishlist page.
 
 React 19, Vite, Mantine 9, and a small Express server for the APIs that need secrets or block browser requests.
 
@@ -30,15 +31,26 @@ The app works without any keys; live PC prices need none. Suggestions need `STEA
 
 ## Platforms
 
-| Platform        | How play time gets in                      | Needs                                    |
-| --------------- | ------------------------------------------ | ---------------------------------------- |
-| Steam           | Connect Steam (Steam's login), then import | `STEAM_API_KEY`, public "Game details"   |
-| PlayStation     | PSN import (unofficial API via `psn-api`)  | Each user's own NPSSO token, in Settings |
-| Xbox            | OpenXBL import (unofficial)                | Each user's own OpenXBL key, in Settings |
-| Nintendo Switch | Added by hand                              | Nothing (Nintendo has no public API)     |
-| Epic Games      | Added by hand                              | Nothing (Epic doesn't expose play time)  |
+| Platform          | How it connects                                                       | Play time                                | Achievements |
+| ----------------- | --------------------------------------------------------------------- | ---------------------------------------- | ------------ |
+| Steam             | Steam's own login; needs `STEAM_API_KEY` and public "Game details"    | Yes                                      | Yes          |
+| PlayStation       | Unofficial (`psn-api`), with the user's own NPSSO token               | Yes                                      | Trophies     |
+| Xbox              | Unofficial, through OpenXBL, with the user's own xbl.io key           | Yes                                      | Yes          |
+| Epic Games        | Unofficial, the way the Epic launcher signs in (paste Epic's code)    | Yes, Epic's own record                   | Yes          |
+| GOG               | Unofficial, the way GOG Galaxy signs in (paste the address GOG shows) | No, GOG doesn't share it                 | Yes          |
+| RetroAchievements | Official Web API, with the user's own username and Web API key        | Yes                                      | Yes          |
+| Nintendo Switch   | Unofficial, through the Parental Controls app's service               | Logged from the day you connect, per day | No           |
 
-Each account connects its own PlayStation and Xbox in Settings, Platforms, following the steps shown there: the NPSSO token from Sony's site, or an API key from xbl.io. Savepoint stores them encrypted (with a key derived from `SESSION_SECRET`, so changing that means connecting again), keeps only PlayStation's renewable token rather than the NPSSO itself, and never shows them again. Disconnect removes the connection and the games imported from it. The PlayStation Store part of game search uses the searching user's own PlayStation connection, and is left out for users without one.
+Each account connects its own platforms on the Platforms page (in the profile menu), following the steps shown there. Nothing is shared between accounts, and no platform needs a server-wide key except Steam. Savepoint stores each connection encrypted (AES-256-GCM, with a key derived from `SESSION_SECRET`, so changing that means connecting again), keeps renewable tokens rather than the codes you paste where it can, and never shows them again. Disconnect removes the connection and the games imported from it. The PlayStation Store part of game search uses the searching user's own PlayStation connection, and is left out for users without one.
+
+Notes on the unofficial connections:
+
+- **Epic** only records games started through its launcher. Its sign-in is renewed by the daily cron, so it stays connected without opening the app.
+- **GOG** games come in with no hours, since GOG doesn't share play time.
+- **Nintendo** keeps lifetime play time on the console only; Parental Controls reports minutes per game per day. So Savepoint logs Switch play time from the day you connect on (synced daily by the cron and when the app opens), and the console has to stay linked to Parental Controls. You can pick which players on the console count.
+- **RetroAchievements** games are matched to their game page by title and console, so remakes and ports with the same name don't get mixed up.
+
+Play time added by hand (on a game's page) still works for anything a platform doesn't report, but it doesn't earn XP.
 
 A game played on more than one platform is merged into one entry, matched by Steam app ID or normalized title.
 
@@ -61,17 +73,23 @@ Either way, each question includes your library, your taste profile, and about 3
 
 ## Keeping data fresh
 
-When the app opens, it re-syncs each connected source whose last sync is more than 6 hours old: your Steam library, your PlayStation library, and your Steam wishlist. The Sync buttons on the Platforms and Wishlist pages still work any time. Switch and Epic play time is entered by hand. Prices are fetched when a page opens and cached on the server for 30 minutes. Steam's full game list, used for search, is re-downloaded weekly.
+When the app opens, it re-syncs each connected source whose last sync is more than 6 hours old: Steam, PlayStation, Xbox, Epic, GOG, RetroAchievements, Nintendo, and your Steam wishlist. The Sync buttons on the Platforms and Wishlist pages still work any time. The daily cron also renews Epic sign-ins and syncs Nintendo play time for every connected account. Prices are fetched when a page opens and cached on the server for 30 minutes. Steam's full game list, used for search, is re-downloaded weekly.
 
 ## Friends
 
-Friends (the people icon in the header) add each other by username or a personal friend link (`/add/<code>`, replaceable at any time). Friends see each other's level and rank, picture, favourites, most-played games and hours, and wishlist; each account's app sends that summary whenever it changes. Whether a friend is online, on which platform, and what they're playing comes from the platforms they've connected: Steam (when their profile is public), and PlayStation and Xbox through their own connections, each looked up at most once a minute.
+Friends (the people icon in the header) add each other by username or a personal friend link (`/add/<code>`, replaceable at any time). Friends see each other's level and rank, picture, favourites, most-played games and hours, and wishlist; each account's app sends that summary whenever it changes. Whether a friend is online, on which platform, and what they're playing comes from the platforms they've connected: Steam (when their profile is public), and PlayStation and Xbox through their own connections, each looked up at most once a minute. Friends who are offline everywhere show when they were last seen.
+
+## Streaming
+
+The Streaming page (in the profile menu) brings in the streamers you watch: sign in with Twitch (channels you follow) or YouTube (channels you subscribe to), and add Kick channels by name, since Kick doesn't share who you follow. The games your streamers play count toward Play next and More like this, and the ones live now can go on your homepage. A game's page shows who's live playing it: the top 10 overall and up to 10 each from Twitch, YouTube and Kick.
+
+YouTube needs a Google Cloud OAuth client (`YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, scope `youtube.readonly`). To stay inside the free API quota, live channels are found through each channel's free RSS feed and checked in one batched request, and searches for a game's live streams are cached for 30 minutes and capped at 90 a day.
 
 ## Data
 
 Your library, wishlist, play history and the rest are saved in a Postgres database (Neon's free plan, `DATABASE_URL`), so every device sees the same data. The tables are created automatically on first use; `server/schema.mjs` lists them and how the app's data maps onto them. Disconnecting a platform removes the games imported from it.
 
-You log in with a Savepoint account, with a username and password or through Steam ("Sign in through Steam", Steam's own login page). A Steam account that isn't linked to Savepoint yet gets two choices: create a new account with the invite code (its Steam library is imported right away, and it can set a password in Profile later), or log in to an existing account once, which links Steam to it. Profile can unlink Steam from an account that has a password. People with the invite code can create an account from the login screen ("Create an account"); the super admin sees, changes or turns off that code in Profile, and without a code sign-up is closed. `npm run setup-account` creates accounts from the command line and sets a new password for an existing one (there's no reset email); the first account it creates is the super admin. Only the super admin can use their own PlayStation and Xbox imports and price alerts. Profile has a Change password form.
+You log in with a Savepoint account, with a username and password or through Steam ("Sign in through Steam", Steam's own login page). A Steam account that isn't linked to Savepoint yet gets two choices: create a new account with the invite code (its Steam library is imported right away, and it can set a password in Profile later), or log in to an existing account once, which links Steam to it. Profile can unlink Steam from an account that has a password. People with the invite code can create an account from the login screen ("Create an account"); the super admin sees, changes or turns off that code in Profile, and without a code sign-up is closed. `npm run setup-account` creates accounts from the command line and sets a new password for an existing one (there's no reset email); the first account it creates is the super admin. Profile has a Change password form.
 
 ## Deploy (Vercel)
 
