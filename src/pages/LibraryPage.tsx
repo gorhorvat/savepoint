@@ -24,7 +24,7 @@ import { PhysicalCopyIcon } from '../components/PhysicalPlatformIcon';
 import { FranchiseBadge, GenreChips } from '../components/GenreChips';
 import { PlatformIcon, PlatformLogo } from '../components/PlatformBadge';
 import { TimeStrip } from '../components/TimeStrip';
-import { PLATFORMS } from '../data/platforms';
+import { PLATFORM_BY_ID, PLATFORMS } from '../data/platforms';
 import { formatHoursNumber, formatLastPlayed, formatPlaytime } from '../lib/format';
 import { physicalPlatformId, platformTotals, useLibrary, type LibraryGame } from '../lib/library';
 import { normalizeTitle } from '../lib/match';
@@ -166,9 +166,11 @@ function GameRow({
   toBeat?: number;
 }) {
   const status = item.progress?.status;
-  const ach = Object.values(achievements ?? {}).filter((a) => a?.total) as AchievementProgress[];
-  const earned = ach.reduce((n, a) => n + a.earned, 0);
-  const total = ach.reduce((n, a) => n + a.total, 0);
+  // Each platform has its own list, so each gets its own percentage: they don't add up.
+  const ach = (Object.entries(achievements ?? {}) as [PlatformId, AchievementProgress | undefined][])
+    .filter((e): e is [PlatformId, AchievementProgress] => !!e[1]?.total)
+    .sort((a, b) => b[1].earned / b[1].total - a[1].earned / a[1].total);
+  const percent = (a: AchievementProgress) => Math.round((a.earned / a.total) * 100);
   return (
     <Link to={`/game/${item.game.id}`} className="game-row">
       <div className="gr-cover">
@@ -251,13 +253,26 @@ function GameRow({
               </Text>
             </Group>
           )}
-          {total > 0 && (
-            <Tooltip label={`${earned} of ${total} achievements and trophies`} withArrow>
-              <Group gap={3} wrap="nowrap" style={{ flexShrink: 0 }}>
+          {ach.length > 0 && (
+            <Tooltip
+              withArrow
+              multiline
+              label={ach.map(([platform, a]) => (
+                <div key={platform}>
+                  {PLATFORM_BY_ID[platform].name}: {a.earned} of {a.total} ({percent(a)}%)
+                </div>
+              ))}
+            >
+              <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
                 <IconTrophy size={12} color="var(--mantine-color-dimmed)" />
-                <Text size="xs" c="dimmed" className="num">
-                  {Math.round((earned / total) * 100)}%
-                </Text>
+                {ach.map(([platform, a]) => (
+                  <Group key={platform} gap={3} wrap="nowrap">
+                    {ach.length > 1 && <PlatformIcon platform={platform} size={11} label />}
+                    <Text size="xs" c="dimmed" className="num">
+                      {percent(a)}%
+                    </Text>
+                  </Group>
+                ))}
               </Group>
             </Tooltip>
           )}
