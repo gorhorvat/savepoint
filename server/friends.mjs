@@ -5,7 +5,7 @@
 //
 //   GET    /api/friends                    friends (with presence), incoming and outgoing requests
 //   GET    /api/friends/summary            { incoming, online } for the header badge and dot
-//   POST   /api/friends/requests           { username } or { code } -> sends (or accepts a crossing request)
+//   POST   /api/friends/requests           { username } -> sends (or accepts a crossing request); { code } -> friends at once
 //   POST   /api/friends/requests/:id/accept
 //   DELETE /api/friends/requests/:id       declines an incoming or cancels an outgoing request
 //   DELETE /api/friends/:id                removes a friend
@@ -126,6 +126,7 @@ friendsRouter.post('/api/friends/link', async (req, res) => {
 });
 
 // Body: { username } or { code } -> { status: 'sent' | 'accepted', friend: { id, username } }
+// A friend link counts as its owner's yes, so opening one makes you friends straight away.
 friendsRouter.post('/api/friends/requests', express.json({ limit: '10kb' }), async (req, res) => {
   const { username, code } = req.body ?? {};
   try {
@@ -146,14 +147,15 @@ friendsRouter.post('/api/friends/requests', express.json({ limit: '10kb' }), asy
     const existing = await between(req.userId, other.id);
     if (existing?.status === 'accepted')
       return res.status(409).json({ error: `You're already friends with ${other.username}.` });
-    if (existing && existing.requester_id === req.userId) {
+    const byLink = Boolean(code);
+    if (existing && existing.requester_id === req.userId && !byLink) {
       return res.status(409).json({ error: `You've already sent ${other.username} a request.` });
     }
     if (existing) {
-      // They asked first: this accepts their request.
+      // They asked first, or this is their link: either way the pending request becomes a friendship.
       await query(
         `UPDATE friendships SET "status" = 'accepted', "accepted_at" = now() WHERE "requester_id" = $1 AND "addressee_id" = $2`,
-        [other.id, req.userId],
+        [existing.requester_id, existing.addressee_id],
       );
       return res.json({ status: 'accepted', friend });
     }
@@ -162,6 +164,20 @@ friendsRouter.post('/api/friends/requests', express.json({ limit: '10kb' }), asy
       [req.userId],
     );
     if (count[0].n >= MAX_FRIENDS) return res.status(409).json({ error: 'You have too many friends and requests.' });
+    if (byLink) {
+      const { rows: theirs } = await query(
+        `SELECT count(*)::int AS n FROM friendships WHERE "requester_id" = $1 OR "addressee_id" = $1`,
+        [other.id],
+      );
+      if (theirs[0].n >= MAX_FRIENDS) {
+        return res.status(409).json({ error: `${other.username} has too many friends and requests.` });
+      }
+      await query(
+        `INSERT INTO friendships ("requester_id", "addressee_id", "status", "accepted_at") VALUES ($1, $2, 'accepted', now())`,
+        [other.id, req.userId],
+      );
+      return res.status(201).json({ status: 'accepted', friend });
+    }
     await query('INSERT INTO friendships ("requester_id", "addressee_id") VALUES ($1, $2)', [req.userId, other.id]);
     res.status(201).json({ status: 'sent', friend });
   } catch (err) {

@@ -107,7 +107,7 @@ function AddFriend({ onSent }: { onSent: () => void }) {
               Or share your friend link
             </Text>
             <Text size="xs" c="dimmed">
-              Anyone with a Savepoint account who opens it sends you a friend request.
+              Anyone with a Savepoint account who opens it becomes your friend right away.
             </Text>
             <Group gap="xs" wrap="nowrap">
               <Text size="sm" className="num" style={{ wordBreak: 'break-all' }}>

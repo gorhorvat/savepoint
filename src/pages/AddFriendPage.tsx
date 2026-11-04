@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { sendFriendRequest } from '../lib/friends';
 
-/** Opened from someone's friend link: sends them a friend request. */
+/** Opened from someone's friend link: makes you friends with them. */
 export function AddFriendPage() {
   const { code = '' } = useParams();
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -28,7 +28,7 @@ export function AddFriendPage() {
   return (
     <Stack gap="md" maw={520}>
       <Title order={1}>Friend link</Title>
-      <Text c={result && !result.ok ? 'red' : undefined}>{result?.text ?? 'Sending a friend request…'}</Text>
+      <Text c={result && !result.ok ? 'red' : undefined}>{result?.text ?? 'Adding your friend…'}</Text>
       <Button component={Link} to="/friends" w="fit-content">
         Go to Friends
       </Button>
