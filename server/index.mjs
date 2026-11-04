@@ -67,6 +67,7 @@ import { gameStatsRouter } from './ffxiv.mjs';
 import { gw2Router } from './gw2.mjs';
 import { lolRouter } from './lol.mjs';
 import { snapshotRouter } from './snapshots.mjs';
+import { questsRouter } from './quests.mjs';
 import { steamGamesRouter } from './steamGames.mjs';
 import { wowRouter } from './wow.mjs';
 import { epicRouter, refreshEpicLogin } from './epic.mjs';
@@ -159,6 +160,7 @@ app.use(lolRouter); // /api/games/lol/*
 app.use(steamGamesRouter); // /api/games/cs2/*, /api/games/dota2/*
 app.use(wowRouter); // /api/games/wow/*
 app.use(snapshotRouter); // /api/games/:game/history
+app.use(questsRouter); // /api/quests, /api/quests/check, /api/quests/reroll
 // Before the 1 MB body limit below: the saved state is larger than that.
 app.use(stateRouter);
 app.use(express.json({ limit: '1mb' }));

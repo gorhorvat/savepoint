@@ -474,6 +474,43 @@ CREATE TABLE IF NOT EXISTS lol_matches (
 );
 CREATE INDEX IF NOT EXISTS lol_matches_recent ON lol_matches ("user_id", "ended_at" DESC);
 
+-- Quests (server/quests.mjs). quest_totals is the last snapshot of an
+-- account's play totals the app sent; quest_baselines holds the totals each
+-- current day, week and month started from; quests holds the quests picked for
+-- each period and their progress (XP counts once completed_at is set);
+-- quest_shared is the monthly quest everyone shares, with its target.
+CREATE TABLE IF NOT EXISTS quest_totals (
+  "user_id" integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  "totals" jsonb NOT NULL,
+  "updated_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS quest_baselines (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "period" text NOT NULL,
+  "period_key" text NOT NULL,
+  "totals" jsonb NOT NULL,
+  PRIMARY KEY ("user_id", "period")
+);
+CREATE TABLE IF NOT EXISTS quests (
+  "user_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "period" text NOT NULL,
+  "period_key" text NOT NULL,
+  "slot" smallint NOT NULL,
+  "quest_key" text NOT NULL,
+  "target" integer NOT NULL,
+  "progress" integer NOT NULL DEFAULT 0,
+  "xp" integer NOT NULL,
+  "completed_at" timestamptz,
+  "rerolled" boolean NOT NULL DEFAULT false,
+  PRIMARY KEY ("user_id", "period", "period_key", "slot")
+);
+CREATE INDEX IF NOT EXISTS quests_by_period ON quests ("period", "period_key", "slot");
+CREATE TABLE IF NOT EXISTS quest_shared (
+  "period_key" text PRIMARY KEY,
+  "quest_key" text NOT NULL,
+  "target" integer NOT NULL
+);
+
 -- App-wide settings, such as the invite code for sign-up.
 CREATE TABLE IF NOT EXISTS app_settings (
   "key" text PRIMARY KEY,
