@@ -24,6 +24,7 @@ import { Backdrop, Cover } from '../components/Cover';
 import { PhysicalCopyIcon } from '../components/PhysicalPlatformIcon';
 import { GameCard } from '../components/GameCard';
 import { FranchiseBadge, GenreChips } from '../components/GenreChips';
+import { QuestBadges } from '../components/QuestCard';
 import { PlatformLabel, PlatformList } from '../components/PlatformBadge';
 import { PriceTable } from '../components/PriceTable';
 import { TimeStrip } from '../components/TimeStrip';
@@ -336,6 +337,7 @@ export function GamePage() {
                 <div>
                   <Title order={1}>{game.title}</Title>
                   <FranchiseBadge game={game} size="md" />
+                  <QuestBadges gameId={game.id} />
                   {(game.developer || game.year) && (
                     <Text c="dimmed" mt={6}>
                       {[game.developer, game.year].filter(Boolean).join(', ')}

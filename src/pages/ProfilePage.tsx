@@ -20,6 +20,7 @@ import { changePassword, fetchAccount, fetchTaxonomy, type Account, type Taxonom
 import { setShareStats } from '../lib/compare';
 import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } from '../lib/favorites';
 import { useLibrary } from '../lib/library';
+import { loadQuests, useQuests } from '../lib/quests';
 import { useStore } from '../lib/store';
 import { LIKE_STEAM, nextRank, useXp, XP } from '../lib/xp';
 
@@ -202,6 +203,10 @@ const listOf = (items: string[]) =>
 /** Level, rank and where your XP comes from. */
 function LevelSection() {
   const xp = useXp();
+  const streak = useQuests((s) => s.data?.streak ?? 0);
+  useEffect(() => {
+    if (!useQuests.getState().data) void loadQuests();
+  }, []);
   const t = xp.trophies;
   const graded = t.bronze + t.silver + t.gold;
   const rows: { label: string; detail: string; xp: number }[] = [
@@ -247,6 +252,13 @@ function LevelSection() {
       label: 'Play time',
       detail: `${fmt(xp.hours.confirmed)} hours your platforms confirmed`,
       xp: xp.hours.xp,
+    },
+    {
+      label: 'Quests',
+      detail:
+        `${fmt(xp.quests.done)} ${xp.quests.done === 1 ? 'quest' : 'quests'} done` +
+        (streak ? `, ${streak}-day streak` : ''),
+      xp: xp.quests.xp,
     },
   ];
 
@@ -297,7 +309,8 @@ function LevelSection() {
         XP only counts what your platforms confirm: trophies earn Sony&apos;s points (bronze {XP.bronze}, silver{' '}
         {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
         {XP.steamPerfect} for completing a game (achievements from {listOf(LIKE_STEAM.map((p) => p.label))} count the
-        same way), Xbox achievements their gamerscore, and {XP.perHour} per hour played.
+        same way), Xbox achievements their gamerscore, {XP.perHour} per hour played, and quests on Home their XP for the
+        same confirmed play.
         {xp.hours.unconfirmed >= 1 &&
           ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand don't count, and neither do apps.`}
       </Text>

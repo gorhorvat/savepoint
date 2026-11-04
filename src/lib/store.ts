@@ -108,6 +108,8 @@ interface State {
   homepage?: HomepageSettings;
   /** How new messages announce themselves; unset = in-app pop-up on, browser notifications off. */
   messageAlerts?: MessageAlerts;
+  /** XP from finished quests and how many (the server keeps the quests; lib/quests.ts). */
+  questXp?: { xp: number; done: number };
 
   importLibrary: (
     platform: PlatformId,
@@ -165,6 +167,7 @@ interface State {
   setMessageAlerts: (patch: Partial<MessageAlerts>) => void;
   /** Steam said the Game details are private (true), or shared achievements again (false). */
   setSteamAchievementsPrivate: (hidden: boolean) => void;
+  setQuestXp: (xp: number, done: number) => void;
 }
 
 function ensureGame(
@@ -574,6 +577,11 @@ export const useStore = create<State>()(
       setStreamTaste: (streamTaste) => set({ streamTaste }),
       setHomepage: (homepage) => set({ homepage }),
       setMessageAlerts: (patch) => set((s) => ({ messageAlerts: { ...messageAlerts(s.messageAlerts), ...patch } })),
+      setQuestXp: (xp, done) => {
+        const now = get().questXp;
+        if (now?.xp !== xp || now?.done !== done) set({ questXp: { xp, done } });
+      },
+
       setSteamAchievementsPrivate: (hidden) => {
         const steam = get().connections.steam;
         // Private again: the time is renewed, so the next try waits another 6 hours.

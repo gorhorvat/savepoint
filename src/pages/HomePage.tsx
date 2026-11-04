@@ -3,6 +3,7 @@ import { IconAdjustments, IconArrowRight, IconGift } from '@tabler/icons-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { PlayedOnLine } from '../components/PlayedOn';
+import { QuestsSection } from '../components/QuestCard';
 import { Cover } from '../components/Cover';
 import { StreamCard } from '../components/LiveStreams';
 import { FriendAvatar } from '../components/ProfileAvatar';
@@ -540,6 +541,8 @@ export function HomePage() {
     switch (id) {
       case 'continue':
         return <ContinuePlaying lib={lib} />;
+      case 'quests':
+        return <QuestsSection />;
       case 'picks':
         return <PlayNext lib={lib} />;
       case 'live':

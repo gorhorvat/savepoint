@@ -14,6 +14,8 @@ import { resolveGame, useStore } from './store';
 // - Play time counts only when a platform reported it (Steam, PlayStation,
 //   Xbox, Epic, RetroAchievements, Nintendo from the day it's connected; GOG
 //   shares none); hours added by hand and non-game apps earn nothing.
+// - Quests (lib/quests.ts) earn their XP for the same confirmed play and
+//   achievements; the server keeps the total.
 
 export const XP = {
   bronze: 15,
@@ -28,7 +30,15 @@ export const XP = {
   perHour: 10,
 } as const;
 
-const CONFIRMED_SOURCES = new Set<PlayEntry['source']>(['steam', 'psn', 'xbox', 'epic', 'gog', 'retro', 'nintendo']);
+export const CONFIRMED_SOURCES = new Set<PlayEntry['source']>([
+  'steam',
+  'psn',
+  'xbox',
+  'epic',
+  'gog',
+  'retro',
+  'nintendo',
+]);
 
 /** Platforms whose achievements have no grades, so they earn XP the way Steam's do. */
 export const LIKE_STEAM: { platform: PlatformId; label: string }[] = [
@@ -51,6 +61,7 @@ export interface XpBreakdown {
   more: Partial<Record<PlatformId, AchievementXp>>;
   xbox: { achievements: number; gamerscore: number; xp: number };
   hours: { confirmed: number; unconfirmed: number; xp: number };
+  quests: { done: number; xp: number };
 }
 
 export interface Level {
@@ -96,6 +107,7 @@ export function computeXp(
   entries: PlayEntry[],
   achievements: Record<string, Partial<Record<PlatformId, AchievementProgress>>>,
   gameOf: (id: string) => Game | undefined,
+  quests: { done: number; xp: number } = { done: 0, xp: 0 },
 ): XpBreakdown {
   const isGame = (id: string) => {
     const g = gameOf(id);
@@ -164,7 +176,15 @@ export function computeXp(
     xp: Math.floor(confirmed / 60) * XP.perHour,
   };
 
-  return { total: trophies.xp + steam.xp + moreXp + xbox.xp + hours.xp, trophies, steam, more, xbox, hours };
+  return {
+    total: trophies.xp + steam.xp + moreXp + xbox.xp + hours.xp + quests.xp,
+    trophies,
+    steam,
+    more,
+    xbox,
+    hours,
+    quests,
+  };
 }
 
 /** Your XP and level, from your own data. */
@@ -174,8 +194,9 @@ export function useXp(): XpBreakdown & Level {
   const customGames = useStore((s) => s.customGames);
   const overrides = useStore((s) => s.genreOverrides);
   const details = useStore((s) => s.details);
+  const quests = useStore((s) => s.questXp);
   return useMemo(() => {
-    const xp = computeXp(entries, achievements, (id) => resolveGame(id, customGames, overrides, details));
+    const xp = computeXp(entries, achievements, (id) => resolveGame(id, customGames, overrides, details), quests);
     return { ...xp, ...levelFor(xp.total) };
-  }, [entries, achievements, customGames, overrides, details]);
+  }, [entries, achievements, customGames, overrides, details, quests]);
 }

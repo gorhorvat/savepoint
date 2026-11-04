@@ -17,7 +17,9 @@ import {
 import { useStore } from './store';
 
 const MAX_AGE = 6 * 60 * 60 * 1000;
-const stale = (iso?: string) => !iso || Date.now() - Date.parse(iso) > MAX_AGE;
+/** "Check progress" on the quest card re-syncs anything older than this. */
+const CHECK_AGE = 10 * 60 * 1000;
+const olderThan = (age: number) => (iso?: string) => !iso || Date.now() - Date.parse(iso) > age;
 
 let started = false;
 let firstSteamImport: Promise<number> | null = null;
@@ -59,10 +61,38 @@ async function steamNeverImported(): Promise<boolean> {
 export async function autoSync(): Promise<void> {
   if (started) return;
   started = true;
+  const jobs = await syncJobs(MAX_AGE, true);
+  if (!jobs?.length) return;
+
+  const results = await Promise.allSettled(jobs.map((j) => j.run()));
+  // Only successes are announced: a failed source keeps its saved data and is
+  // retried quietly next time. The manual sync buttons still report failures.
+  const done = jobs.filter((_, i) => results[i].status === 'fulfilled').map((j) => j.name);
+  if (done.length) notifications.show({ message: `Synced ${done.join(', ')}.`, autoClose: 3000 });
+}
+
+/**
+ * Re-syncs every connected library not synced in the last few minutes, for
+ * "Check progress" on the quest card. Resolves to the names of the sources that
+ * failed (the rest are saved as usual).
+ */
+export async function syncNow(): Promise<string[]> {
+  const jobs = await syncJobs(CHECK_AGE, false);
+  if (!jobs) throw new Error("Can't reach the Savepoint server.");
+  const results = await Promise.allSettled(jobs.map((j) => j.run()));
+  return jobs.filter((_, i) => results[i].status === 'rejected').map((j) => j.name);
+}
+
+/** The syncs that are due: sources last synced more than `maxAge` ago. Null when offline. */
+async function syncJobs(
+  maxAge: number,
+  wishlist: boolean,
+): Promise<{ name: string; run: () => Promise<void> }[] | null> {
+  const stale = olderThan(maxAge);
   const { connections } = useStore.getState();
   const jobs: { name: string; run: () => Promise<void> }[] = [];
   const status = await fetchStatus();
-  if (!status.online) return;
+  if (!status.online) return null;
 
   if (status.steam && (await steamNeverImported())) {
     jobs.push({
@@ -138,7 +168,7 @@ export async function autoSync(): Promise<void> {
       },
     });
   }
-  if (status.steam && connections.steam?.wishlistSync && stale(connections.steam.wishlistSync)) {
+  if (wishlist && status.steam && connections.steam?.wishlistSync && stale(connections.steam.wishlistSync)) {
     jobs.push({
       name: 'Steam wishlist',
       run: async () => {
@@ -148,13 +178,7 @@ export async function autoSync(): Promise<void> {
       },
     });
   }
-  if (!jobs.length) return;
-
-  const results = await Promise.allSettled(jobs.map((j) => j.run()));
-  // Only successes are announced: a failed source keeps its saved data and is
-  // retried quietly next time. The manual sync buttons still report failures.
-  const done = jobs.filter((_, i) => results[i].status === 'fulfilled').map((j) => j.name);
-  if (done.length) notifications.show({ message: `Synced ${done.join(', ')}.`, autoClose: 3000 });
+  return jobs;
 }
 
 export function useAutoSync() {

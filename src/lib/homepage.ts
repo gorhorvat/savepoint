@@ -20,6 +20,7 @@ export const FREE_STORE_LABELS: Record<FreeStore, string> = {
 
 export type HomeWidgetId =
   | 'continue'
+  | 'quests'
   | 'picks'
   | 'live'
   | 'friends'
@@ -54,6 +55,7 @@ export const DEFAULT_HOME_FREE_GAMES: HomeFreeGames = { stores: [], dlc: false, 
 
 export const HOME_WIDGETS: Record<HomeWidgetId, { label: string; description: string }> = {
   continue: { label: 'Continue playing', description: 'What you played most recently.' },
+  quests: { label: 'Quests', description: 'Daily, weekly and monthly quests that earn XP.' },
   picks: { label: 'Play next', description: 'Your best suggestions right now.' },
   live: {
     label: 'Your streamers, live',
@@ -83,6 +85,7 @@ export const NEWS_SITES: { id: string; name: string }[] = [
 export const DEFAULT_HOMEPAGE: HomepageSettings = {
   widgets: [
     { id: 'continue', on: true },
+    { id: 'quests', on: true },
     { id: 'picks', on: true },
     { id: 'live', on: true },
     { id: 'friends', on: true },
@@ -101,6 +104,11 @@ export const DEFAULT_HOMEPAGE: HomepageSettings = {
 /** Saved settings with any section added since, appended (off) at the end. */
 export function normalizeHomepage(saved: Partial<HomepageSettings> | undefined): HomepageSettings {
   const known = (saved?.widgets ?? []).filter((w) => w && w.id in HOME_WIDGETS);
+  // Quests arrived after people had set up their homepage: shown under Continue playing, not off at the end.
+  if (known.length && !known.some((w) => w.id === 'quests')) {
+    const at = known.findIndex((w) => w.id === 'continue');
+    known.splice(at + 1, 0, { id: 'quests', on: true });
+  }
   const seen = new Set(known.map((w) => w.id));
   const added = DEFAULT_HOMEPAGE.widgets.filter((w) => !seen.has(w.id)).map((w) => ({ ...w, on: saved ? false : w.on }));
   return {
