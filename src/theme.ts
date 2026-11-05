@@ -10,6 +10,9 @@ import {
   type MantineColorsTuple,
 } from '@mantine/core';
 
+const touchScreen = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+const modalDefaults = touchScreen ? { lockScroll: false } : { removeScrollProps: { allowPinchZoom: true } };
+
 // Accent: trophy gold, the console's selection highlight. Used for what you can
 // act on and what's selected; colour otherwise comes from box art and platforms.
 const gold: MantineColorsTuple = [
@@ -67,10 +70,11 @@ export const theme = createTheme({
     ActionIcon: ActionIcon.extend({ defaultProps: { autoContrast: true } }),
     Badge: Badge.extend({ defaultProps: { autoContrast: true } }),
     Chip: Chip.extend({ defaultProps: { autoContrast: true } }),
-    // The scroll lock behind an open modal blocks touch gestures; let pinch zoom
-    // through, so a phone that zoomed in can always zoom back out.
-    Modal: Modal.extend({ defaultProps: { removeScrollProps: { allowPinchZoom: true } } }),
-    Drawer: Drawer.extend({ defaultProps: { removeScrollProps: { allowPinchZoom: true } } }),
+    // Mantine's scroll lock behind an open modal catches touch gestures, and on
+    // iOS that stops pinch zoom even when it's allowed. On touch screens the page
+    // is locked with CSS instead (styles.css), which leaves gestures alone.
+    Modal: Modal.extend({ defaultProps: modalDefaults }),
+    Drawer: Drawer.extend({ defaultProps: modalDefaults }),
     // Panels are only for forms and grouped controls: no outline, a quiet raised fill.
     Paper: Paper.extend({
       defaultProps: { withBorder: false, radius: 'lg' },

@@ -5,6 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="theme-color" content="#0e1328" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      // iPhone and iPad zoom in when a text field is tapped and don't zoom back out.
+      // maximum-scale=1 stops that zoom there, and iOS still lets people pinch to zoom.
+      // Left off elsewhere: Android would block pinch zoom with it.
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+        document.querySelector('meta[name=viewport]').content += ', maximum-scale=1';
+      }
+    </script>
     <meta name="description" content="Every game you've played on Steam, Epic, PlayStation and Switch, with total play time in one place." />
     <title>Savepoint</title>
   </head>

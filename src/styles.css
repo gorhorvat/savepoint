@@ -1041,6 +1041,15 @@ h3,
 /* Phones zoom in on any text field with text under 16px when it's tapped
    (iOS Safari), and stay zoomed in. On touch screens fields use 16px. */
 @media (pointer: coarse) {
+  /* The page behind an open modal or drawer doesn't scroll (theme.ts). */
+  html:has(.mantine-Modal-overlay),
+  html:has(.mantine-Drawer-overlay) {
+    overflow: hidden;
+  }
+  .mantine-Modal-content,
+  .mantine-Drawer-content {
+    overscroll-behavior: contain;
+  }
   input,
   textarea,
   select,
