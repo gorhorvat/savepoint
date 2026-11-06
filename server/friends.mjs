@@ -225,6 +225,46 @@ friendsRouter.delete('/api/friends/:id', async (req, res) => {
   }
 });
 
+// Apps that platforms report as played, by lowercase title (src/lib/apps.ts has the full list).
+const APP_TITLES = new Set([
+  'youtube',
+  'twitch',
+  'netflix',
+  'spotify',
+  'disney+',
+  'plex',
+  'prime video',
+  'crunchyroll',
+]);
+
+/**
+ * An account's most recently played games, from its saved library. Friend
+ * profiles get this from the owner's app (recentGames); this covers accounts
+ * whose app hasn't sent it yet.
+ */
+async function recentFromLibrary(userId) {
+  const { rows } = await query(
+    `SELECT e."game_id", max(e."last_played") AS last_played,
+            array_agg(DISTINCT e."platform") FILTER (WHERE e."minutes" > 0) AS platforms,
+            min(g."title") AS title, min(COALESCE(g."image_url", d."image_url")) AS image_url, min(g."kind") AS kind
+     FROM play_entries e
+     LEFT JOIN games g ON g."user_id" = e."user_id" AND g."id" = e."game_id"
+     LEFT JOIN game_details d ON d."user_id" = e."user_id" AND d."game_id" = e."game_id"
+     WHERE e."user_id" = $1 AND e."last_played" IS NOT NULL AND e."source" <> 'demo'
+     GROUP BY e."game_id" ORDER BY last_played DESC LIMIT 30`,
+    [userId],
+  );
+  return rows
+    .filter((r) => r.title && r.kind !== 'app' && !APP_TITLES.has(r.title.toLowerCase()))
+    .slice(0, 10)
+    .map((r) => ({
+      title: r.title,
+      imageUrl: r.image_url ?? undefined,
+      lastPlayed: new Date(r.last_played).toISOString(),
+      platforms: r.platforms ?? [],
+    }));
+}
+
 // Only friends see each other's profile.
 friendsRouter.get('/api/friends/:id', async (req, res) => {
   const id = userId(req);
@@ -243,7 +283,10 @@ friendsRouter.get('/api/friends/:id', async (req, res) => {
       id,
       username: rows[0].username,
       since: link.accepted_at,
-      profile: rows[0].data ?? null,
+      profile:
+        rows[0].data && !rows[0].data.recentGames
+          ? { ...rows[0].data, recentGames: await recentFromLibrary(id).catch(() => []) }
+          : (rows[0].data ?? null),
       updatedAt: rows[0].updated_at ?? null,
       presence: presence.get(id) ?? [],
       ...(await platformAccounts(req.userId, id)),
