@@ -6,6 +6,8 @@ import { resolveGame, useStore, type ImportedGame } from './store';
 
 const PSN_MAX_AGE = 6 * 60 * 60 * 1000;
 let running = false;
+/** A PlayStation refresh asked for while a sync was running: done when it ends. */
+let psnAgain = false;
 
 type Result = Omit<AchievementProgress, 'checkedAt'>;
 
@@ -93,8 +95,11 @@ function matchTrophies(
  * the last check are asked again; PlayStation is one request for everything.
  */
 export async function runAchievementsSync({ forcePsn = false } = {}): Promise<void> {
-  if (running) return;
-  const { entries, connections, achievements, achievementsSync } = useStore.getState();
+  if (running) {
+    if (forcePsn) psnAgain = true;
+    return;
+  }
+  const { entries, connections, achievements, achievementsSync, psnTrophiesVersion } = useStore.getState();
   // While Steam says the profile's Game details are private, ask again every 6 hours, not on every change.
   const steamPrivate =
     !!connections.steam?.achievementsPrivate &&
@@ -107,10 +112,13 @@ export async function runAchievementsSync({ forcePsn = false } = {}): Promise<vo
       e.minutes > 0 &&
       achievements[e.gameId]?.steam?.minutesAt !== e.minutes,
   );
-  // A manual PlayStation sync refreshes trophies right away; otherwise every 6 hours.
+  // A manual PlayStation sync refreshes trophies right away; otherwise every 6 hours,
+  // or now when they were last matched before trophy lists were matched by title id.
+  // (Once the PlayStation import has saved every version's title id: it triggers a refresh itself.)
+  const psnOld = (psnTrophiesVersion ?? 1) < 2 && (connections.playstation?.importVersion ?? 1) >= 2;
   const psnDue =
     !!connections.playstation?.lastSync &&
-    (forcePsn || !achievementsSync || Date.now() - Date.parse(achievementsSync) > PSN_MAX_AGE);
+    (forcePsn || psnOld || !achievementsSync || Date.now() - Date.parse(achievementsSync) > PSN_MAX_AGE);
   if ((!steamConnected || !steamTodo.length) && !psnDue) return;
 
   running = true;
@@ -156,6 +164,10 @@ export async function runAchievementsSync({ forcePsn = false } = {}): Promise<vo
     // Nice-to-have: the next change or app open tries again.
   } finally {
     running = false;
+    if (psnAgain) {
+      psnAgain = false;
+      void runAchievementsSync({ forcePsn: true });
+    }
   }
 }
 

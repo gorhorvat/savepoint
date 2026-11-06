@@ -14,7 +14,7 @@ import {
   importXbox,
   steamProfileUrl,
 } from './api';
-import { useStore } from './store';
+import { IMPORT_VERSION, useStore } from './store';
 
 const MAX_AGE = 6 * 60 * 60 * 1000;
 /** "Check progress" on the quest card re-syncs anything older than this. */
@@ -110,7 +110,9 @@ async function syncJobs(
       },
     });
   }
-  if (status.psn && connections.playstation?.lastSync && stale(connections.playstation.lastSync)) {
+  // Also redone once after an update that changes what imports save (see IMPORT_VERSION).
+  const psnOutdated = (connections.playstation?.importVersion ?? 1) < IMPORT_VERSION;
+  if (status.psn && connections.playstation?.lastSync && (stale(connections.playstation.lastSync) || psnOutdated)) {
     jobs.push({
       name: 'PlayStation library',
       run: async () => {

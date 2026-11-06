@@ -49,7 +49,12 @@ export interface Connection {
   account?: string;
   /** Steam: when Steam last refused achievements because the profile's Game details are private. */
   achievementsPrivate?: string;
+  /** What the last import saved (IMPORT_VERSION); older imports are redone at the next sync. */
+  importVersion?: number;
 }
+
+/** 2: imports keep every version's platform id (PlayEntry.refs), which PlayStation trophies are matched by. */
+export const IMPORT_VERSION = 2;
 
 export interface Profile {
   /** Small JPEG as a data URL (resized to 256 px before saving). */
@@ -90,6 +95,8 @@ interface State {
   /** Achievements and trophies per game and platform. */
   achievements: Record<string, Partial<Record<PlatformId, AchievementProgress>>>;
   achievementsSync?: string;
+  /** 2 once PlayStation trophies were matched by title id (see matchTrophies in achievements.ts). */
+  psnTrophiesVersion?: number;
   /** Typical hours to beat (HowLongToBeat); null = looked up, not found. */
   lengths: Record<string, { main?: number; extra?: number; complete?: number; url?: string; checkedAt: string } | null>;
   /** Your profile: picture, and the genres and franchises you love (they boost suggestions). */
@@ -342,6 +349,7 @@ export const useStore = create<State>()(
               lastSync: new Date().toISOString(),
               count: merged.size,
               account,
+              importVersion: IMPORT_VERSION,
             },
           },
         });
@@ -515,7 +523,11 @@ export const useStore = create<State>()(
         for (const [gameId, r] of Object.entries(results)) {
           achievements[gameId] = { ...achievements[gameId], [platform]: { ...r, checkedAt } };
         }
-        set({ achievements, ...(finished && { achievementsSync: checkedAt }) });
+        set({
+          achievements,
+          ...(finished && { achievementsSync: checkedAt }),
+          ...(finished && platform === 'playstation' && { psnTrophiesVersion: 2 }),
+        });
       },
 
       setSuggested: (key, found) => {
