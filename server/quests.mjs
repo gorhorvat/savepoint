@@ -163,15 +163,24 @@ export const QUESTS = {
     title: 'Play 3 different games',
     of: (c) => c.gamesPlayed,
   },
-  'w.plats2': {
+  'w.dailies3': {
     period: 'week',
     tier: 'easy',
     xp: 30,
-    target: 2,
+    target: 3,
     unit: 'count',
-    title: 'Play on 2 different platforms',
-    needs: 'platforms',
-    of: (c) => c.platformsPlayed,
+    title: 'Finish daily quests on 3 days',
+    // Counted from the quests table, not from play totals (see dailyDays()).
+    of: (c) => c.dailyDays,
+  },
+  'w.oneGame180': {
+    period: 'week',
+    tier: 'easy',
+    xp: 30,
+    target: 180,
+    unit: 'minutes',
+    title: 'Play one game for 3 hours',
+    of: (c) => c.mostMinutesInOneGame,
   },
   'w.play360': {
     period: 'week',
@@ -192,16 +201,35 @@ export const QUESTS = {
     needs: 'achievements',
     of: (c) => c.achievements,
   },
-  'w.nearly': {
+  'w.backlog120': {
+    period: 'week',
+    tier: 'medium',
+    xp: 60,
+    target: 120,
+    unit: 'minutes',
+    title: 'Play Backlog games for 2 hours',
+    needs: 'backlog',
+    games: 'backlog',
+    of: (c) => c.backlogMinutes,
+  },
+  'w.ach5one': {
     period: 'week',
     tier: 'hard',
     xp: 100,
-    target: 3,
+    target: 5,
     unit: 'count',
-    title: "Unlock 3 achievements in a game that's 75% done",
-    needs: 'nearly',
-    games: 'nearly',
-    of: (c) => c.mostInNearlyDone,
+    title: 'Unlock 5 achievements in one game',
+    needs: 'achievements',
+    of: (c) => c.mostInOneGame,
+  },
+  'w.games4h': {
+    period: 'week',
+    tier: 'hard',
+    xp: 100,
+    target: 4,
+    unit: 'count',
+    title: 'Play 4 different games for an hour each',
+    of: (c) => c.gamesPlayedHour,
   },
   'w.ach20': {
     period: 'week',
@@ -295,7 +323,22 @@ const SLOTS = {
 };
 const SHARED_SLOT = 2;
 
-export const questInfo = (key) => QUESTS[key] ?? SHARED[key];
+/**
+ * Quests that are no longer handed out. An unfinished one is swapped for a new
+ * quest at the next check (see ensureQuests()); a finished one keeps its title.
+ */
+const RETIRED = {
+  'w.plats2': { period: 'week', tier: 'easy', unit: 'count', title: 'Play on 2 different platforms', of: () => 0 },
+  'w.nearly': {
+    period: 'week',
+    tier: 'hard',
+    unit: 'count',
+    title: "Unlock 3 achievements in a game that's 75% done",
+    of: () => 0,
+  },
+};
+
+export const questInfo = (key) => QUESTS[key] ?? SHARED[key] ?? RETIRED[key];
 
 // ---------------------------------------------------------------- snapshots
 //
@@ -350,17 +393,18 @@ export function measure(base, now, start, length) {
     minutes: 0,
     achievements: 0,
     gamesPlayed: 0,
-    platformsPlayed: 0,
+    gamesPlayedHour: 0,
+    mostMinutesInOneGame: 0,
     mostInOneGame: 0,
     backlogMinutes: 0,
     dustyPlayed: 0,
-    mostInNearlyDone: 0,
     completed: 0,
     bestBacklogShare: 0,
+    // Days this period with a daily quest done. Not from play totals: evaluate() fills it in.
+    dailyDays: 0,
   };
   if (!base) return c;
   const dusty = start - 30 * DAY_MS;
-  const perPlatform = {};
   for (const [id, g] of Object.entries(now.games)) {
     const before = base.games[id];
     let gameMinutes = 0;
@@ -382,13 +426,13 @@ export function measure(base, now, start, length) {
       }
       gameMinutes += dm;
       c.achievements += de;
-      perPlatform[platform] = (perPlatform[platform] ?? 0) + dm;
       if (de > c.mostInOneGame) c.mostInOneGame = de;
-      if (was?.t && !was.d && was.e / was.t >= 0.75 && de > c.mostInNearlyDone) c.mostInNearlyDone = de;
       if (v.d && was && !was.d) c.completed++;
     }
     c.minutes += gameMinutes;
     if (gameMinutes >= SESSION) c.gamesPlayed++;
+    if (gameMinutes >= 60) c.gamesPlayedHour++;
+    if (gameMinutes > c.mostMinutesInOneGame) c.mostMinutesInOneGame = gameMinutes;
     if (!before) continue;
     if (before.b) {
       c.backlogMinutes += gameMinutes;
@@ -397,7 +441,6 @@ export function measure(base, now, start, length) {
     }
     if (gameMinutes >= SESSION && (!before.l || Date.parse(before.l) < dusty)) c.dustyPlayed++;
   }
-  c.platformsPlayed = Object.values(perPlatform).filter((m) => m >= SESSION).length;
   return c;
 }
 
@@ -408,22 +451,14 @@ function abilities(snap, start) {
     backlog: false,
     backlogLength: false,
     dusty: false,
-    nearly: false,
-    platforms: false,
   };
   const dusty = start - 30 * DAY_MS;
-  const played = new Set();
   for (const g of Object.values(snap.games)) {
     if (g.b) a.backlog = true;
     if (g.b && g.h) a.backlogLength = true;
     if (!g.l || Date.parse(g.l) < dusty) a.dusty = true;
-    for (const [platform, v] of Object.entries(g.p)) {
-      if (v.m > 0) played.add(platform);
-      if (v.t) a.achievements = true;
-      if (v.t && !v.d && v.e / v.t >= 0.75) a.nearly = true;
-    }
+    if (Object.values(g.p).some((v) => v.t)) a.achievements = true;
   }
-  a.platforms = played.size >= 2;
   return a;
 }
 
@@ -438,9 +473,7 @@ function questGames(kind, snap, start) {
         ? g.b
         : kind === 'backlogLength'
           ? g.b && g.h
-          : kind === 'dusty'
-            ? !g.l || Date.parse(g.l) < dusty
-            : Object.values(g.p).some((v) => v.t && !v.d && v.e / v.t >= 0.75);
+          : kind === 'dusty' && (!g.l || Date.parse(g.l) < dusty);
     if (yes) out.push(id);
     if (out.length >= 2000) break;
   }
@@ -534,11 +567,15 @@ async function sharedQuest(monthKey) {
 
 /** Makes this period's quests if they don't exist yet. */
 async function ensureQuests(userId, periods, snap) {
-  const { rows } = await query(
-    `SELECT "period", "slot" FROM quests WHERE "user_id" = $1 AND
-       (("period" = 'day' AND "period_key" = $2) OR ("period" = 'week' AND "period_key" = $3) OR ("period" = 'month' AND "period_key" = $4))`,
-    [userId, periods.day.key, periods.week.key, periods.month.key],
-  );
+  const current = `"user_id" = $1 AND
+       (("period" = 'day' AND "period_key" = $2) OR ("period" = 'week' AND "period_key" = $3) OR ("period" = 'month' AND "period_key" = $4))`;
+  const keys = [userId, periods.day.key, periods.week.key, periods.month.key];
+  // Unfinished quests that are no longer handed out make room for new ones.
+  await query(`DELETE FROM quests WHERE ${current} AND "completed_at" IS NULL AND "quest_key" = ANY($5)`, [
+    ...keys,
+    Object.keys(RETIRED),
+  ]);
+  const { rows } = await query(`SELECT "period", "slot", "quest_key" FROM quests WHERE ${current}`, keys);
   const have = new Set(rows.map((r) => `${r.period}:${r.slot}`));
   for (const [period, tiers] of Object.entries(SLOTS)) {
     const p = periods[period];
@@ -547,7 +584,8 @@ async function ensureQuests(userId, periods, snap) {
     if (!missing.length && !needsShared) continue;
     const can = abilities(snap, p.start);
     const random = seededRandom(`${userId}:${period}:${p.key}`);
-    const taken = new Set();
+    // Quests already in this period's other slots aren't picked again.
+    const taken = new Set(rows.filter((r) => r.period === period).map((r) => r.quest_key));
     // Pick every slot in order so the same seed gives the same quests.
     const picks = tiers.map((tier) => {
       const key = pickQuest(period, tier, can, taken, random);
@@ -605,6 +643,17 @@ async function dailyStreak(userId, todayKey) {
   return n;
 }
 
+/** Days from `fromKey` to `toKey` (both included) with at least one daily quest done. */
+async function dailyDays(userId, fromKey, toKey) {
+  const { rows } = await query(
+    `SELECT count(DISTINCT "period_key")::int AS n FROM quests
+     WHERE "user_id" = $1 AND "period" = 'day' AND "completed_at" IS NOT NULL
+       AND "period_key" >= $2 AND "period_key" <= $3`,
+    [userId, fromKey, toKey],
+  );
+  return rows[0].n;
+}
+
 // ---------------------------------------------------------------- checking
 
 /**
@@ -634,20 +683,38 @@ async function evaluate(userId, now, { fresh }) {
   const numbers = Object.fromEntries(
     Object.entries(periods).map(([period, p]) => [period, measure(base[period], now, p.start, lengthOf(p))]),
   );
+  // Week keys are "W" + Monday's date; day keys are dates, so they sort as text.
+  const weekDays = () => dailyDays(userId, periods.week.key.slice(1), periods.day.key);
+  const countsDailies = rows.some((r) => r.quest_key === 'w.dailies3' && !r.completed_at);
+  if (countsDailies) numbers.week.dailyDays = await weekDays();
 
+  const setProgress = async (r, value) => {
+    const progress = Math.min(value, 1e9);
+    if (progress === r.progress) return;
+    await query(
+      `UPDATE quests SET "progress" = $5 WHERE "user_id" = $1 AND "period" = $2 AND "period_key" = $3 AND "slot" = $4`,
+      [userId, r.period, r.period_key, r.slot, progress],
+    );
+    r.progress = progress;
+  };
   const finished = [];
+  const markDone = async (r) => {
+    const { rows: hit } = await query(
+      `UPDATE quests SET "completed_at" = now()
+       WHERE "user_id" = $1 AND "period" = $2 AND "period_key" = $3 AND "slot" = $4 AND "completed_at" IS NULL
+       RETURNING "completed_at"`,
+      [userId, r.period, r.period_key, r.slot],
+    );
+    if (!hit[0]) return;
+    r.completed_at = hit[0].completed_at;
+    finished.push({ title: titleOf(r), xp: r.xp });
+  };
+
   for (const r of rows) {
     const q = questInfo(r.quest_key);
     // A finished quest keeps its progress (totals can drop when a game or platform is removed).
     if (!q || r.completed_at) continue;
-    const progress = Math.min(q.of(numbers[r.period]), 1e9);
-    if (progress !== r.progress) {
-      await query(
-        `UPDATE quests SET "progress" = $5 WHERE "user_id" = $1 AND "period" = $2 AND "period_key" = $3 AND "slot" = $4`,
-        [userId, r.period, r.period_key, r.slot, progress],
-      );
-      r.progress = progress;
-    }
+    await setProgress(r, q.of(numbers[r.period]));
   }
 
   // The shared quest: everyone's progress added up.
@@ -667,17 +734,14 @@ async function evaluate(userId, now, { fresh }) {
     if (r.completed_at) continue;
     const isShared = !!SHARED[r.quest_key];
     const complete = isShared ? sharedTotal >= r.target && r.progress > 0 : r.progress >= r.target;
-    if (!complete) continue;
-    const { rows: hit } = await query(
-      `UPDATE quests SET "completed_at" = now()
-       WHERE "user_id" = $1 AND "period" = $2 AND "period_key" = $3 AND "slot" = $4 AND "completed_at" IS NULL
-       RETURNING "completed_at"`,
-      [userId, r.period, r.period_key, r.slot],
-    );
-    if (hit[0]) {
-      r.completed_at = hit[0].completed_at;
-      finished.push({ title: titleOf(r), xp: r.xp });
-    }
+    if (complete) await markDone(r);
+  }
+
+  // A daily quest finished just now counts for "Finish daily quests on 3 days" straight away.
+  const dailies = rows.find((r) => r.quest_key === 'w.dailies3' && !r.completed_at);
+  if (dailies && finished.length) {
+    await setProgress(dailies, await weekDays());
+    if (dailies.progress >= dailies.target) await markDone(dailies);
   }
 
   const rerollUsed = rows.some((r) => r.period === 'day' && r.rerolled);
