@@ -10,7 +10,7 @@ let lastSent = '';
 
 /**
  * Keeps what friends see of you up to date: level and rank, picture,
- * favourites, top games and hours, and wishlist. Sent a few seconds after it
+ * favourites, top games and hours, recently played games, and wishlist. Sent a few seconds after it
  * changes, and only when it did.
  */
 export function usePublicProfileSync() {
@@ -49,6 +49,16 @@ export function usePublicProfileSync() {
           title: g.game.title,
           imageUrl: g.game.imageUrl,
           hours: hours(g.totalMinutes),
+          platforms: [...new Set(g.plays.filter((p) => p.minutes > 0).map((p) => p.platform))],
+        })),
+      recentGames: played
+        .filter((g) => g.lastPlayed && !g.isApp)
+        .sort((a, b) => (b.lastPlayed ?? '').localeCompare(a.lastPlayed ?? ''))
+        .slice(0, 10)
+        .map((g) => ({
+          title: g.game.title,
+          imageUrl: g.game.imageUrl,
+          lastPlayed: g.lastPlayed ?? undefined,
           platforms: [...new Set(g.plays.filter((p) => p.minutes > 0).map((p) => p.platform))],
         })),
       wishlist: wishlist

@@ -18,6 +18,7 @@ import {
   type ProfileGame,
   type ProfileWant,
 } from '../lib/friends';
+import { formatLastPlayed } from '../lib/format';
 import { useTick } from '../lib/pulse';
 import type { Game, PlatformId } from '../types';
 
@@ -47,6 +48,12 @@ function GiftButton({ onClick, title }: { onClick: () => void; title: string }) 
       Gift
     </Button>
   );
+}
+
+/** "Today", "Yesterday", "3 days ago", "21 Oct" */
+function lastPlayedLabel(iso?: string) {
+  const text = formatLastPlayed(iso ?? null);
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function Shelf({
@@ -286,6 +293,7 @@ export function FriendProfilePage() {
         </Stack>
       )}
 
+      <Shelf title="Recently played" games={p.recentGames ?? []} meta={(g) => lastPlayedLabel(g.lastPlayed)} />
       <Shelf title="Most played" games={p.topGames ?? []} meta={(g) => `${fmt(g.hours ?? 0)} h`} />
       <Shelf
         title="Wishlist"

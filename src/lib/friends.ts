@@ -46,6 +46,8 @@ export interface ProfileGame {
   imageUrl?: string;
   hours?: number;
   platforms?: string[];
+  /** When they last played it (Recently played). */
+  lastPlayed?: string;
   /** The owner's game id (wishlist), so a gift can take it off their list. */
   gameId?: string;
   steamAppId?: number;
@@ -74,6 +76,8 @@ export interface PublicProfile {
   gameCount: number;
   hoursByPlatform: Record<string, number>;
   topGames: ProfileGame[];
+  /** Games with a last-played date from a platform, most recent first. */
+  recentGames?: ProfileGame[];
   wishlist: ProfileGame[];
   physicalWants?: ProfileWant[];
 }
