@@ -414,6 +414,21 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS messages_pair ON messages
   (LEAST("sender_id", "recipient_id"), GREATEST("sender_id", "recipient_id"), "id" DESC);
 CREATE INDEX IF NOT EXISTS messages_unread ON messages ("recipient_id") WHERE "read_at" IS NULL;
+-- A picture in a message: { id, width, height } of its message_images row.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS "image" jsonb;
+-- Pictures sent in messages (server/messageImages.mjs). The file is in Vercel
+-- Blob; message_id is set once it's sent (until then only its owner sees it).
+CREATE TABLE IF NOT EXISTS message_images (
+  "id" text PRIMARY KEY,
+  "owner_id" integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "message_id" bigint REFERENCES messages(id) ON DELETE SET NULL,
+  "content_type" text NOT NULL,
+  "bytes" integer NOT NULL,
+  "width" integer NOT NULL,
+  "height" integer NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS message_images_owner ON message_images ("owner_id", "created_at");
 
 -- What friends see of an account: level, rank, picture, favourites, top games,
 -- hours and wishlist, as the app worked them out (sent whenever they change).

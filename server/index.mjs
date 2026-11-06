@@ -56,6 +56,7 @@ import {
 import { accountRouter, authRouter, requireLogin } from './auth.mjs';
 import { steamLoginRouter } from './steamLogin.mjs';
 import { friendsRouter } from './friends.mjs';
+import { messageImagesRouter, removeUnsentImages } from './messageImages.mjs';
 import { messagesRouter } from './messages.mjs';
 import { adminRouter, resetRouter } from './admin.mjs';
 import { giftsRouter } from './gifts.mjs';
@@ -128,7 +129,8 @@ app.get('/api/cron/alerts', async (req, res) => {
     const prices = await checkAlerts();
     const deals = await checkDealAlerts().catch((err) => ({ error: err.message }));
     const logins = await keepLoginsAlive().catch((err) => ({ error: err.message }));
-    res.json({ ...prices, deals, logins });
+    const images = await removeUnsentImages().catch((err) => ({ error: err.message }));
+    res.json({ ...prices, deals, logins, images });
   } catch (err) {
     logCrash('cron/alerts', err);
     res.status(502).json({ error: err.message });
@@ -150,6 +152,7 @@ app.use(nintendoRouter); // /api/nintendo/*
 app.use(achievementListRouter); // /api/steam/achievements/list, /api/psn/trophies/list, /api/xbox/achievements/list
 app.use(friendsRouter); // /api/friends/*, /api/profile/public
 app.use(messagesRouter); // /api/messages/*
+app.use(messageImagesRouter); // /api/message-images/*
 app.use(giftsRouter); // /api/gifts/*
 app.use(pulseRouter); // /api/me/pulse (header badges)
 app.use(streamingRouter); // /api/streams, /api/streaming/*, /api/auth/twitch/*
@@ -1178,6 +1181,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       await checkAlerts();
       await checkDealAlerts();
       await keepLoginsAlive();
+      await removeUnsentImages();
     });
     console.log(
       assistantProvider() === 'gemini'

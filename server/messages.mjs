@@ -1,5 +1,5 @@
-// Messages between friends: one to one, text and game cards, with "Seen"
-// receipts. Only accepted friends can write to each other; history is kept.
+// Messages between friends: one to one, text, game cards and pictures, with
+// "Seen" receipts. Only accepted friends can write to each other; history is kept.
 // The app polls (Vercel can't hold connections open): every few seconds while
 // a chat is open, and with the header's friends check otherwise. Messages are
 // private: no admin route reads them. Mounted after requireLogin.
@@ -7,9 +7,11 @@
 //   GET  /api/messages                       conversations, newest first, with unread counts
 //   GET  /api/messages/unread                { unread, latest } for the header badge and pop-ups
 //   GET  /api/messages/:friendId?after=&before=   the chat (50 at a time); marks theirs as read
-//   POST /api/messages/:friendId             { body, game? } -> the new message
+//   POST /api/messages/:friendId             { body, game?, image? } -> the new message
+//     (image: the id of a picture uploaded first, see server/messageImages.mjs)
 import express from 'express';
 import { query } from './db.mjs';
+import { attachImage, canAttach } from './messageImages.mjs';
 
 const MAX_BODY = 2000;
 const PAGE = 50;
@@ -60,6 +62,7 @@ const message = (r, me) => ({
   mine: r.sender_id === me,
   body: r.body,
   game: r.game ?? null,
+  image: r.image ? { url: `/api/message-images/${r.image.id}`, width: r.image.width, height: r.image.height } : null,
   at: r.created_at,
   readAt: r.read_at ?? null,
 });
@@ -119,7 +122,7 @@ messagesRouter.get('/api/messages/unread', async (req, res) => {
     if (rows[0].n) {
       // The newest unread one, so the app can say who wrote and what.
       const { rows: last } = await query(
-        `SELECT m."id", m."body", m."game"->>'title' AS game, u."id" AS uid, u."username", p."data"->>'avatar' AS avatar
+        `SELECT m."id", m."body", m."game"->>'title' AS game, m."image" IS NOT NULL AS image, u."id" AS uid, u."username", p."data"->>'avatar' AS avatar
          FROM messages m JOIN users u ON u."id" = m."sender_id"
          LEFT JOIN public_profiles p ON p."user_id" = m."sender_id"
          WHERE m."recipient_id" = $1 AND m."read_at" IS NULL ORDER BY m."id" DESC LIMIT 1`,
@@ -131,7 +134,15 @@ messagesRouter.get('/api/messages/unread', async (req, res) => {
         latest = {
           id: Number(r.id),
           from: { id: r.uid, username: r.username, avatar: r.avatar ?? null },
-          preview: text ? (text.length > 120 ? `${text.slice(0, 117)}…` : text) : r.game ? `Sent you ${r.game}` : '',
+          preview: text
+            ? text.length > 120
+              ? `${text.slice(0, 117)}…`
+              : text
+            : r.game
+              ? `Sent you ${r.game}`
+              : r.image
+                ? 'Sent you a picture'
+                : '',
         };
       }
     }
@@ -200,18 +211,35 @@ messagesRouter.post('/api/messages/:friendId', express.json({ limit: '16kb' }), 
   if (!Number.isInteger(other) || other === req.userId) return res.status(404).json({ error: 'No such chat.' });
   const body = typeof req.body?.body === 'string' ? req.body.body.trim() : '';
   const game = cleanGame(req.body?.game);
-  if (!body && !game) return res.status(400).json({ error: 'Write something first.' });
+  const imageId = req.body?.image;
+  if (!body && !game && !imageId) return res.status(400).json({ error: 'Write something first.' });
   if (body.length > MAX_BODY) return res.status(400).json({ error: `Keep it under ${MAX_BODY} characters.` });
   if (tooFast(req.userId)) return res.status(429).json({ error: 'That’s a lot of messages. Wait a moment.' });
   try {
     if (!(await areFriends(req.userId, other))) {
       return res.status(403).json({ error: 'You can only message friends.' });
     }
+    if (imageId != null && !(await canAttach(req.userId, imageId))) {
+      return res.status(400).json({ error: 'That picture is gone. Attach it again.' });
+    }
     const { rows } = await query(
       `INSERT INTO messages ("sender_id", "recipient_id", "body", "game") VALUES ($1, $2, $3, $4) RETURNING *`,
       [req.userId, other, body, game ? JSON.stringify(game) : null],
     );
-    res.status(201).json(message(rows[0], req.userId));
+    let row = rows[0];
+    if (imageId != null) {
+      const image = await attachImage(req.userId, imageId, row.id);
+      if (!image) {
+        await query(`DELETE FROM messages WHERE "id" = $1`, [row.id]);
+        return res.status(400).json({ error: 'That picture is gone. Attach it again.' });
+      }
+      const { rows: updated } = await query(`UPDATE messages SET "image" = $2 WHERE "id" = $1 RETURNING *`, [
+        row.id,
+        JSON.stringify(image),
+      ]);
+      row = updated[0];
+    }
+    res.status(201).json(message(row, req.userId));
   } catch (err) {
     failed(res, err);
   }

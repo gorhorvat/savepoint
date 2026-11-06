@@ -1,5 +1,5 @@
-// Messages between friends (server/messages.mjs): one to one, text and game
-// cards, "Seen" receipts. The app polls for new messages.
+// Messages between friends (server/messages.mjs): one to one, text, game cards
+// and pictures, "Seen" receipts. The app polls for new messages.
 import type { Game } from '../types';
 
 /** Fired when messages are read or sent, so the header badge updates at once. */
@@ -22,12 +22,27 @@ export interface SharedGame {
   fit?: number;
 }
 
+/** A picture in a message: where to load it from, and its size (to keep its space while it loads). */
+export interface MessageImage {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** A picture uploaded for a message that hasn't been sent yet. */
+export interface UploadedImage {
+  id: string;
+  width: number;
+  height: number;
+}
+
 export interface Message {
   id: number;
   /** Sent by you. */
   mine: boolean;
   body: string;
   game: SharedGame | null;
+  image?: MessageImage | null;
   at: string;
   readAt: string | null;
 }
@@ -100,8 +115,13 @@ export function fetchChat(friendId: number, opts: { after?: number; before?: num
   return call(`/api/messages/${friendId}${qs.size ? `?${qs}` : ''}`);
 }
 
-export async function sendMessage(friendId: number, body: string, game?: SharedGame): Promise<Message> {
-  const m = await call<Message>(`/api/messages/${friendId}`, 'POST', { body, game });
+export async function sendMessage(
+  friendId: number,
+  body: string,
+  game?: SharedGame,
+  image?: UploadedImage,
+): Promise<Message> {
+  const m = await call<Message>(`/api/messages/${friendId}`, 'POST', { body, game, image: image?.id });
   window.dispatchEvent(new Event(MESSAGES_CHANGED));
   return m;
 }
@@ -122,4 +142,52 @@ export function shareable(game: Game, fit?: number): SharedGame {
     releaseDate: game.releaseDate,
     fit,
   };
+}
+
+const LONGEST_SIDE = 1600;
+
+/**
+ * A picture made ready to send: turned the right way up, at most 1600 px on
+ * its longest side, as WebP (or JPEG where the browser can't make WebP).
+ */
+export async function shrinkImage(file: Blob): Promise<{ blob: Blob; width: number; height: number }> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    throw new Error("That file isn't a picture Savepoint can open.");
+  }
+  const scale = Math.min(1, LONGEST_SIDE / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  const encode = (type: string, quality: number) =>
+    new Promise<Blob | null>((done) => canvas.toBlob(done, type, quality));
+  // Browsers that can't make WebP quietly give back a PNG instead.
+  let blob = await encode('image/webp', 0.82);
+  if (!blob || blob.type !== 'image/webp') blob = await encode('image/jpeg', 0.85);
+  if (!blob) throw new Error("Couldn't prepare the picture. Try another one.");
+  return { blob, width, height };
+}
+
+/** Shrinks a picture and uploads it, ready to be sent with a message. */
+export async function uploadImage(file: Blob): Promise<UploadedImage> {
+  const { blob, width, height } = await shrinkImage(file);
+  let r: Response;
+  try {
+    r = await fetch(`/api/message-images?w=${width}&h=${height}`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type },
+      body: blob,
+    });
+  } catch {
+    throw new Error("Can't reach the Savepoint server.");
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((data as { error?: string }).error ?? `Upload failed (${r.status}).`);
+  return (data as { image: UploadedImage }).image;
 }

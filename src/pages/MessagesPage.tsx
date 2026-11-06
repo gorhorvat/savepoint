@@ -1,21 +1,25 @@
 import {
+  ActionIcon,
   Avatar,
   Badge,
   Button,
+  CloseButton,
   Grid,
   Group,
   Loader,
+  Modal,
   Paper,
   Select,
   Stack,
   Text,
   Textarea,
   Title,
+  Tooltip,
   UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconHeart, IconSend } from '@tabler/icons-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { IconArrowLeft, IconHeart, IconPhoto, IconSend } from '@tabler/icons-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { fetchFriends, type FriendCard } from '../lib/friends';
 import { useLibrary } from '../lib/library';
@@ -25,10 +29,13 @@ import {
   fetchConversations,
   MESSAGES_CHANGED,
   sendMessage,
+  uploadImage,
   type ChatPerson,
   type Conversation,
   type Message,
+  type MessageImage,
   type SharedGame,
+  type UploadedImage,
 } from '../lib/messages';
 import { useTick } from '../lib/pulse';
 import { useStore } from '../lib/store';
@@ -130,10 +137,40 @@ function GameCardMessage({ game, mine }: { game: SharedGame; mine: boolean }) {
   );
 }
 
+/** A picture in a chat: as big as fits, keeping its shape; tap to see it whole. */
+function PictureMessage({ image }: { image: MessageImage }) {
+  const [open, setOpen] = useState(false);
+  const scale = Math.min(1, 280 / image.width, 320 / image.height);
+  return (
+    <>
+      <UnstyledButton onClick={() => setOpen(true)} aria-label="Open picture" maw="100%">
+        <img
+          src={image.url}
+          alt="Picture"
+          width={Math.round(image.width * scale)}
+          height={Math.round(image.height * scale)}
+          loading="lazy"
+          className="chat-picture"
+        />
+      </UnstyledButton>
+      <Modal opened={open} onClose={() => setOpen(false)} size="auto" centered padding="xs" title="Picture">
+        <img
+          src={image.url}
+          alt="Picture"
+          width={image.width}
+          height={image.height}
+          style={{ display: 'block', maxWidth: '100%', maxHeight: '80vh', width: 'auto', height: 'auto' }}
+        />
+      </Modal>
+    </>
+  );
+}
+
 function Bubble({ m, mine, seen }: { m: Message; mine: boolean; seen: boolean }) {
   return (
     <Stack gap={4} align={mine ? 'flex-end' : 'flex-start'}>
       {m.game && <GameCardMessage game={m.game} mine={mine} />}
+      {m.image && <PictureMessage image={m.image} />}
       {m.body && (
         <div className={`chat-bubble${mine ? ' chat-bubble--mine' : ''}`}>
           <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
@@ -158,6 +195,9 @@ function ChatView({ friendId, onSent }: { friendId: number; onSent: () => void }
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // A picture picked for the next message: its preview, and the upload once done.
+  const [picture, setPicture] = useState<{ preview: string; uploaded?: UploadedImage } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
@@ -217,15 +257,45 @@ function ChatView({ friendId, onSent }: { friendId: number; onSent: () => void }
     }
   };
 
+  // Free the preview once it's replaced or sent.
+  const preview = picture?.preview;
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
+
+  const attach = async (file: File) => {
+    const preview = URL.createObjectURL(file);
+    setPicture({ preview });
+    try {
+      const uploaded = await uploadImage(file);
+      setPicture((p) => (p?.preview === preview ? { preview, uploaded } : p));
+    } catch (e) {
+      setPicture((p) => (p?.preview === preview ? null : p));
+      notifications.show({ message: (e as Error).message, color: 'red' });
+    }
+  };
+
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = [...e.clipboardData.files].find((f) => f.type.startsWith('image/'));
+    if (!file) return;
+    e.preventDefault();
+    void attach(file);
+  };
+
+  const uploading = !!picture && !picture.uploaded;
   const send = async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if ((!body && !picture?.uploaded) || uploading || sending) return;
     setSending(true);
     try {
-      const m = await sendMessage(friendId, body);
+      const m = await sendMessage(friendId, body, undefined, picture?.uploaded);
       stick.current = true;
       setMessages((list) => [...(list ?? []), m]);
       setDraft('');
+      setPicture(null);
       onSent();
     } catch (e) {
       notifications.show({ message: (e as Error).message, color: 'red' });
@@ -265,7 +335,7 @@ function ChatView({ friendId, onSent }: { friendId: number; onSent: () => void }
           )}
           {!messages.length && (
             <Text c="dimmed" ta="center" size="sm" py="xl">
-              No messages yet. Say hi, or share a game from its page.
+              No messages yet. Say hi, send a picture, or share a game from its page.
             </Text>
           )}
           {messages.map((m, i) => {
@@ -291,28 +361,63 @@ function ChatView({ friendId, onSent }: { friendId: number; onSent: () => void }
         </Stack>
       </div>
       {canWrite ? (
-        <Group gap="xs" align="flex-end" wrap="nowrap">
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.currentTarget.value)}
-            onKeyDown={onKey}
-            placeholder={`Message ${friend.username}`}
-            aria-label={`Message ${friend.username}`}
-            autosize
-            minRows={1}
-            maxRows={6}
-            maxLength={2000}
-            style={{ flex: 1 }}
-          />
-          <Button
-            onClick={() => void send()}
-            loading={sending}
-            disabled={!draft.trim()}
-            leftSection={<IconSend size={16} />}
-          >
-            Send
-          </Button>
-        </Group>
+        <Stack gap="xs">
+          {picture && (
+            <Group gap="xs" align="flex-start">
+              <div className="chat-attachment">
+                <img src={picture.preview} alt="Picture to send" />
+                {uploading && <Loader size="sm" className="chat-attachment-loader" aria-label="Uploading" />}
+              </div>
+              <CloseButton size="sm" onClick={() => setPicture(null)} aria-label="Remove picture" />
+            </Group>
+          )}
+          <Group gap="xs" align="flex-end" wrap="nowrap">
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.currentTarget.files?.[0];
+                e.currentTarget.value = '';
+                if (file) void attach(file);
+              }}
+            />
+            <Tooltip label="Add a picture">
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size={36}
+                onClick={() => fileInput.current?.click()}
+                disabled={sending}
+                aria-label="Add a picture"
+              >
+                <IconPhoto size={20} />
+              </ActionIcon>
+            </Tooltip>
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.currentTarget.value)}
+              onKeyDown={onKey}
+              onPaste={onPaste}
+              placeholder={`Message ${friend.username}`}
+              aria-label={`Message ${friend.username}`}
+              autosize
+              minRows={1}
+              maxRows={6}
+              maxLength={2000}
+              style={{ flex: 1 }}
+            />
+            <Button
+              onClick={() => void send()}
+              loading={sending}
+              disabled={(!draft.trim() && !picture?.uploaded) || uploading}
+              leftSection={<IconSend size={16} />}
+            >
+              Send
+            </Button>
+          </Group>
+        </Stack>
       ) : (
         <Text size="sm" c="dimmed">
           You&apos;re no longer friends, so you can read this chat but not reply.
@@ -356,7 +461,7 @@ function ConversationList({
         <Stack gap={2}>
           {list.map((c) => {
             const last = c.last;
-            const preview = last.body || (last.game ? `Shared ${last.game.title}` : '');
+            const preview = last.body || (last.game ? `Shared ${last.game.title}` : last.image ? 'Sent a picture' : '');
             return (
               <UnstyledButton
                 key={c.friend.id}
