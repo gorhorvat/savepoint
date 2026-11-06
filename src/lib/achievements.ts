@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import type { AchievementProgress, EntrySource, PlatformId } from '../types';
-import { fetchPsnTrophies, fetchStatus, fetchSteamAchievements } from './api';
+import type { AchievementProgress, EntrySource, PlatformId, PlayEntry, PsnListSet, TrophyGrades } from '../types';
+import { fetchPsnTrophies, fetchStatus, fetchSteamAchievements, type PsnTrophyTitle } from './api';
 import { normalizeTitle } from './match';
 import { resolveGame, useStore, type ImportedGame } from './store';
 
@@ -8,6 +8,84 @@ const PSN_MAX_AGE = 6 * 60 * 60 * 1000;
 let running = false;
 
 type Result = Omit<AchievementProgress, 'checkedAt'>;
+
+/** "PS4,PSVITA" -> "PS4/Vita" */
+const consoleLabel = (platform: string) =>
+  platform
+    .split(',')
+    .filter(Boolean)
+    .map((p) => (p === 'PSVITA' ? 'Vita' : p))
+    .join('/') || 'PlayStation';
+
+/** Several trophy lists of one version of a game, counted together. */
+function combine(lists: PsnTrophyTitle[]): PsnListSet & { platinum: boolean; grades?: TrophyGrades } {
+  const graded = lists.filter((t) => t.grades);
+  return {
+    label: [...new Set(lists.map((t) => consoleLabel(t.platform)))].join(' + '),
+    ids: lists.map((t) => t.id),
+    earned: lists.reduce((n, t) => n + t.earned, 0),
+    total: lists.reduce((n, t) => n + t.total, 0),
+    platinum: lists.some((t) => t.platinum),
+    grades: graded.length
+      ? {
+          bronze: graded.reduce((n, t) => n + (t.grades?.bronze ?? 0), 0),
+          silver: graded.reduce((n, t) => n + (t.grades?.silver ?? 0), 0),
+          gold: graded.reduce((n, t) => n + (t.grades?.gold ?? 0), 0),
+          platinum: graded.reduce((n, t) => n + (t.grades?.platinum ?? 0), 0),
+        }
+      : undefined,
+  };
+}
+
+/**
+ * Each game's trophy lists, found by the PlayStation title id of each version
+ * played (a version can have several lists, like the three games of the Crash
+ * N. Sane Trilogy), or by name when that finds nothing. When the PS4 and PS5
+ * versions each have a list, the counts come from the one with more trophies
+ * earned; the game page can show the other.
+ */
+function matchTrophies(
+  entries: PlayEntry[],
+  titles: PsnTrophyTitle[],
+  lists: Record<string, string[]>,
+  titleOf: (gameId: string) => string | undefined,
+): Record<string, Result> {
+  const byId = new Map(titles.map((t) => [t.id, t]));
+  const byName = new Map<string, PsnTrophyTitle>();
+  for (const t of titles) {
+    const key = normalizeTitle(t.name);
+    const had = byName.get(key);
+    if (!had || t.earned > had.earned) byName.set(key, t);
+  }
+  const byGame = new Map<string, PlayEntry[]>();
+  for (const e of entries) byGame.set(e.gameId, [...(byGame.get(e.gameId) ?? []), e]);
+
+  const out: Record<string, Result> = {};
+  for (const [gameId, es] of byGame) {
+    const sets: ReturnType<typeof combine>[] = [];
+    for (const ref of es.flatMap((e) => e.refs ?? [e.ref])) {
+      const found = (ref ? (lists[ref] ?? []) : []).map((id) => byId.get(id)).filter((t) => !!t);
+      if (found.length && !sets.some((s) => s.ids.join() === found.map((t) => t.id).join())) sets.push(combine(found));
+    }
+    if (!sets.length) {
+      const title = titleOf(gameId);
+      const t = title && byName.get(normalizeTitle(title));
+      if (t) sets.push(combine([t]));
+    }
+    if (!sets.length) continue;
+    sets.sort((a, b) => b.earned - a.earned);
+    const best = sets[0];
+    out[gameId] = {
+      earned: best.earned,
+      total: best.total,
+      platinum: best.platinum,
+      grades: best.grades,
+      minutesAt: es.reduce((n, e) => n + e.minutes, 0),
+      psnLists: sets.map(({ label, ids, earned, total }) => ({ label, ids, earned, total })),
+    };
+  }
+  return out;
+}
 
 /**
  * Fills in achievements (Steam) and trophies (PlayStation) in the background.
@@ -62,23 +140,16 @@ export async function runAchievementsSync({ forcePsn = false } = {}): Promise<vo
     }
 
     if (status.psn && psnDue) {
-      const { titles } = await fetchPsnTrophies();
-      const byTitle = new Map(titles.map((t) => [normalizeTitle(t.name), t]));
-      const { entries: now, customGames, genreOverrides, details } = useStore.getState();
-      const out: Record<string, Result> = {};
-      for (const e of now.filter((x) => x.platform === 'playstation' && x.source === 'psn')) {
-        const title = resolveGame(e.gameId, customGames, genreOverrides, details)?.title;
-        const t = title && byTitle.get(normalizeTitle(title));
-        if (t) {
-          out[e.gameId] = {
-            earned: t.earned,
-            total: t.total,
-            platinum: t.platinum,
-            grades: t.grades,
-            minutesAt: e.minutes,
-          };
-        }
-      }
+      const psnEntries = useStore.getState().entries.filter((x) => x.platform === 'playstation' && x.source === 'psn');
+      const titleIds = [...new Set(psnEntries.flatMap((e) => e.refs ?? [e.ref]).filter((r) => !!r))] as string[];
+      const { titles, lists = {} } = await fetchPsnTrophies(titleIds.slice(0, 600));
+      const { customGames, genreOverrides, details } = useStore.getState();
+      const out = matchTrophies(
+        psnEntries,
+        titles,
+        lists,
+        (id) => resolveGame(id, customGames, genreOverrides, details)?.title,
+      );
       useStore.getState().applyAchievements('playstation', out, true);
     }
   } catch {

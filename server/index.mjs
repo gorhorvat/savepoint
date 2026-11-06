@@ -73,7 +73,7 @@ import { wowRouter } from './wow.mjs';
 import { epicRouter, refreshEpicLogin } from './epic.mjs';
 import { gogRouter } from './gog.mjs';
 import { retroRouter } from './retro.mjs';
-import { achievementListRouter } from './achievementLists.mjs';
+import { achievementListRouter, psnListsForTitleIds } from './achievementLists.mjs';
 import { nintendoRouter, syncNintendo } from './nintendo.mjs';
 import { query } from './db.mjs';
 
@@ -362,7 +362,8 @@ function platformError(res, err, what) {
   res.status(502).json({ error: `${what}: ${err.message}` });
 }
 
-// -> { titles: [{ name, earned, total, platinum }] } for every game with trophies.
+// -> { titles: [{ id, name, platform, earned, total, platinum, grades }] } for every trophy list,
+//    and with ?ids=<title ids> (CUSA…, PPSA…), { lists: { [title id]: [trophy list id] } }.
 app.get('/api/psn/trophies', async (req, res) => {
   try {
     const auth = await psnAuthFor(req.userId);
@@ -374,8 +375,16 @@ app.get('/api/psn/trophies', async (req, res) => {
       offset = r.nextOffset;
     }
     const sum = (t) => (t ? t.bronze + t.silver + t.gold + t.platinum : 0);
+    const titleIds = String(req.query.ids ?? '')
+      .split(',')
+      .filter(Boolean)
+      .slice(0, 1000);
+    const lists = titleIds.length ? await psnListsForTitleIds(auth, titleIds) : {};
     res.json({
+      lists,
       titles: all.map((t) => ({
+        id: t.npCommunicationId,
+        platform: t.trophyTitlePlatform ?? '',
         name: t.trophyTitleName,
         earned: sum(t.earnedTrophies),
         total: sum(t.definedTrophies),

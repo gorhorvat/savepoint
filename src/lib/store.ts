@@ -312,11 +312,13 @@ export const useStore = create<State>()(
             const old = before.get(gameId);
             lastPlayed = old && g.minutes > old.minutes ? new Date().toISOString() : (old?.lastPlayed ?? null);
           }
+          const refs = [...new Set([...(prev?.refs ?? [prev?.ref]), g.externalId].filter((r) => !!r))] as string[];
           merged.set(gameId, {
             gameId,
             platform,
             source,
             ref: prev?.ref ?? g.externalId,
+            ...(refs.length > 1 && { refs }),
             minutes: (prev?.minutes ?? 0) + g.minutes,
             lastPlayed: [prev?.lastPlayed, lastPlayed].filter(Boolean).sort().pop() ?? null,
           });

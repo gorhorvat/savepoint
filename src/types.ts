@@ -81,6 +81,14 @@ export interface TrophyGrades {
 }
 
 /** Achievement or trophy progress for one game on one platform. */
+export interface PsnListSet {
+  /** Which console the lists are for: "PS5", "PS4", "PS4/Vita"… */
+  label: string;
+  ids: string[];
+  earned: number;
+  total: number;
+}
+
 export interface AchievementProgress {
   earned: number;
   total: number;
@@ -88,6 +96,11 @@ export interface AchievementProgress {
   platinum?: boolean;
   /** PlayStation only: earned trophies by grade (for XP). */
   grades?: TrophyGrades;
+  /**
+   * PlayStation only: the trophy lists of each version of the game (PS4, PS5),
+   * the one these counts come from first. A version can have several lists.
+   */
+  psnLists?: PsnListSet[];
   /** Xbox only: gamerscore earned and available. */
   gamerscore?: number;
   totalGamerscore?: number;
@@ -104,6 +117,8 @@ export interface PlayEntry {
   source: EntrySource;
   /** The platform's own id for the game (Epic namespace, Xbox title id…), for its achievement list. */
   ref?: string;
+  /** Every platform id merged into this entry, when there's more than one (a game's PS4 and PS5 versions). */
+  refs?: string[];
 }
 
 export interface WishlistItem {

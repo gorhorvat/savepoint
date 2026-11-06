@@ -1,6 +1,6 @@
 import { notifications } from '@mantine/notifications';
 import { useEffect } from 'react';
-import { applyImportedAchievements, applyXboxAchievements } from './achievements';
+import { applyImportedAchievements, applyXboxAchievements, runAchievementsSync } from './achievements';
 import {
   fetchAccount,
   fetchStatus,
@@ -116,6 +116,8 @@ async function syncJobs(
       run: async () => {
         const res = await importPsn();
         useStore.getState().importLibrary('playstation', 'psn', res.games);
+        // Trophies are matched by each game's title ids, which the import just refreshed.
+        void runAchievementsSync({ forcePsn: true });
       },
     });
   }

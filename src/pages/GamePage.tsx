@@ -244,6 +244,16 @@ export function GamePage() {
     for (const e of entries.filter((x) => x.gameId === id)) {
       if (!achievements?.[e.platform]?.total || out.some((s) => s.platform === e.platform)) continue;
       const ref = e.ref ? encodeURIComponent(e.ref) : null;
+      // PlayStation: the lists of each version (PS4, PS5) the counts were matched to.
+      const sets = e.source === 'psn' ? (achievements[e.platform]?.psnLists ?? []) : [];
+      if (sets.length) {
+        const versions = sets.map((s) => ({
+          label: s.label,
+          url: `/api/psn/trophies/list?ids=${s.ids.map(encodeURIComponent).join(',')}`,
+        }));
+        out.push({ platform: e.platform, url: versions[0].url, ...(versions.length > 1 && { versions }) });
+        continue;
+      }
       const url =
         e.source === 'steam' && game.steamAppId
           ? `/api/steam/achievements/list?appid=${game.steamAppId}`

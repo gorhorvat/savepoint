@@ -5,11 +5,17 @@
 //     hidden, rarity: % of players | null, points?, grade? }
 //
 //   GET /api/steam/achievements/list?appid=
-//   GET /api/psn/trophies/list?title=
+//   GET /api/psn/trophies/list?ids=<trophy list ids>   (or ?title= when the ids aren't known)
 //   GET /api/xbox/achievements/list?ref=<title id>
 import express from 'express';
-import { getTitleTrophies, getUserTitles, getUserTrophiesEarnedForTitle } from 'psn-api';
+import {
+  getTitleTrophies,
+  getUserTitles,
+  getUserTrophiesEarnedForTitle,
+  getUserTrophiesForSpecificTitle,
+} from 'psn-api';
 import { query } from './db.mjs';
+import { diskCache } from './diskCache.mjs';
 import { NotConnected, psnAuthFor, resetPsnSession, xboxKeyFor } from './platformLogins.mjs';
 import { xboxTitleAchievements } from './xbox.mjs';
 
@@ -74,12 +80,52 @@ async function psnTitles(userId, auth) {
   return titles;
 }
 
-async function psnList(userId, title) {
-  const auth = await psnAuthFor(userId);
-  const want = norm(title);
-  const t = (await psnTitles(userId, auth)).find((x) => norm(x.trophyTitleName) === want);
-  if (!t) return [];
-  const npServiceName = /PS5/.test(t.trophyTitlePlatform ?? '') ? 'trophy2' : 'trophy';
+/** PS5 trophy lists live on a different service from PS4, PS3 and Vita ones. */
+export const psnService = (t) => (/PS5/.test(t.trophyTitlePlatform ?? '') ? 'trophy2' : 'trophy');
+
+// PlayStation title id (CUSA…, PPSA…) -> its trophy list ids (NPWR…). A game
+// can have several lists under one title id (Crash Bandicoot N. Sane Trilogy
+// has one per game), and its PS4 and PS5 versions have a title id each.
+const titleListCache = diskCache('psn-title-lists', 0); // title id -> { at, ids }
+const TITLE_ID = /^[A-Z]{4}\d{5}_\d{2}$|^[A-Z]{4}\d{5}$/;
+const LIST_ID = /^NPWR\d{5}_\d{2}$/;
+
+/**
+ * The trophy list ids of each title id, for this account. Kept for good once
+ * found; a title id without lists (not played yet, or an app) is asked again
+ * after a day.
+ */
+export async function psnListsForTitleIds(auth, titleIds) {
+  const out = {};
+  const todo = [];
+  for (const id of new Set(titleIds.filter((x) => TITLE_ID.test(x)))) {
+    const hit = await titleListCache.get(id);
+    if (hit && (hit.ids.length || Date.now() - hit.at < 24 * 60 * 60_000)) out[id] = hit.ids;
+    else todo.push(id);
+  }
+  // Five title ids per request is PlayStation's limit.
+  const batches = [];
+  for (let i = 0; i < todo.length; i += 5) batches.push(todo.slice(i, i + 5));
+  for (let i = 0; i < batches.length; i += 4) {
+    await Promise.all(
+      batches.slice(i, i + 4).map(async (batch) => {
+        const r = await getUserTrophiesForSpecificTitle(auth, 'me', { npTitleIds: batch.join(',') }).catch(() => null);
+        if (!r?.titles) return;
+        for (const id of batch) {
+          const found = r.titles.find((t) => t.npTitleId === id);
+          const ids = (found?.trophyTitles ?? []).map((t) => t.npCommunicationId).filter(Boolean);
+          out[id] = ids;
+          await titleListCache.set(id, { at: Date.now(), ids });
+        }
+      }),
+    );
+  }
+  return out;
+}
+
+/** Every trophy of one list, with whether (and when) this account earned it. */
+async function psnTrophies(auth, t, group) {
+  const npServiceName = psnService(t);
   const [defs, mine] = await Promise.all([
     getTitleTrophies(auth, t.npCommunicationId, 'all', { npServiceName }),
     getUserTrophiesEarnedForTitle(auth, 'me', t.npCommunicationId, 'all', { npServiceName }),
@@ -95,8 +141,29 @@ async function psnList(userId, title) {
       hidden: !!d.trophyHidden,
       rarity: e?.trophyEarnedRate != null ? Number(e.trophyEarnedRate) : null,
       grade: d.trophyType,
+      ...(group && { group }),
     };
   });
+}
+
+/**
+ * A game's trophies: from the given list ids when the app knows them (several
+ * lists are shown one after the other, each under its name), else from the
+ * list whose name matches the title.
+ */
+async function psnList(userId, title, ids) {
+  const auth = await psnAuthFor(userId);
+  const titles = await psnTitles(userId, auth);
+  if (ids.length) {
+    const lists = ids.map((id) => titles.find((x) => x.npCommunicationId === id)).filter(Boolean);
+    const parts = await Promise.all(
+      lists.map((t) => psnTrophies(auth, t, lists.length > 1 ? t.trophyTitleName : undefined)),
+    );
+    return parts.flat();
+  }
+  const want = norm(title);
+  const t = titles.find((x) => norm(x.trophyTitleName) === want);
+  return t ? psnTrophies(auth, t) : [];
 }
 
 export const achievementListRouter = express.Router();
@@ -118,9 +185,13 @@ achievementListRouter.get('/api/steam/achievements/list', (req, res) => {
 
 achievementListRouter.get('/api/psn/trophies/list', (req, res) => {
   const title = String(req.query.title ?? '').slice(0, 200);
-  if (!title.trim()) return res.status(400).json({ error: 'Which game?' });
+  const ids = String(req.query.ids ?? '')
+    .split(',')
+    .filter((x) => LIST_ID.test(x))
+    .slice(0, 8);
+  if (!title.trim() && !ids.length) return res.status(400).json({ error: 'Which game?' });
   void send(res, () =>
-    psnList(req.userId, title).catch((err) => {
+    psnList(req.userId, title, ids).catch((err) => {
       resetPsnSession(req.userId);
       throw err;
     }),

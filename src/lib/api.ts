@@ -113,10 +113,22 @@ export function fetchSteamAchievements(appids: number[]) {
   );
 }
 
-export function fetchPsnTrophies() {
-  return getJson<{
-    titles: { name: string; earned: number; total: number; platinum: boolean; grades?: TrophyGrades }[];
-  }>('/api/psn/trophies');
+export interface PsnTrophyTitle {
+  /** The trophy list's id (NPWR…). */
+  id: string;
+  name: string;
+  /** "PS5", "PS4", "PS3,PSVITA"… */
+  platform: string;
+  earned: number;
+  total: number;
+  platinum: boolean;
+  grades?: TrophyGrades;
+}
+
+/** Every trophy list of the account, and with `titleIds` (CUSA…, PPSA…) which lists belong to each. */
+export function fetchPsnTrophies(titleIds: string[] = []) {
+  const ids = titleIds.length ? `?ids=${titleIds.map(encodeURIComponent).join(',')}` : '';
+  return getJson<{ titles: PsnTrophyTitle[]; lists?: Record<string, string[]> }>(`/api/psn/trophies${ids}`);
 }
 
 export function importPsn() {
@@ -132,6 +144,8 @@ export interface AchievementItem {
   name: string;
   description: string;
   icon: string | null;
+  /** The trophy list it's from, when a game has several (each game of a collection). */
+  group?: string;
   /** When it was earned; '' when earned without a date; null while locked. */
   earnedAt: string | null;
   hidden: boolean;

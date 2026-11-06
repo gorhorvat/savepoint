@@ -22,6 +22,8 @@ export interface AchievementSource {
   platform: PlatformId;
   /** The server address of this platform's list for the game. */
   url: string;
+  /** Versions with lists of their own (PS4 and PS5), the one counted first. */
+  versions?: { label: string; url: string }[];
 }
 
 const SHOWN = 24;
@@ -36,9 +38,13 @@ const GRADE_COLOR: Record<string, string> = {
 const dateOf = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** Earned first (newest first), then locked ones, most commonly earned first. */
+/** By list (in the order they came), then earned first (newest first), then locked ones, most commonly earned first. */
 function sorted(items: AchievementItem[]) {
+  const groups = [...new Set(items.map((a) => a.group ?? ''))];
   return [...items].sort((a, b) => {
+    const ga = groups.indexOf(a.group ?? '');
+    const gb = groups.indexOf(b.group ?? '');
+    if (ga !== gb) return ga - gb;
     const ea = a.earnedAt !== null;
     const eb = b.earnedAt !== null;
     if (ea !== eb) return ea ? -1 : 1;
@@ -98,19 +104,22 @@ export function AchievementList({ sources }: { sources: AchievementSource[] }) {
   const [platform, setPlatform] = useState<PlatformId | null>(sources[0]?.platform ?? null);
   const [lists, setLists] = useState<Record<string, AchievementItem[] | { error: string }>>({});
   const [all, setAll] = useState(false);
+  const [version, setVersion] = useState(0);
   const current = sources.find((s) => s.platform === platform) ?? sources[0];
-  const list = current ? lists[current.url] : undefined;
+  const versions = current?.versions ?? [];
+  const url = versions[version]?.url ?? current?.url;
+  const list = url ? lists[url] : undefined;
 
   useEffect(() => {
-    if (!current || lists[current.url]) return;
+    if (!url || lists[url]) return;
     let live = true;
-    fetchAchievementList(current.url)
-      .then((items) => live && setLists((l) => ({ ...l, [current.url]: items })))
-      .catch((e: Error) => live && setLists((l) => ({ ...l, [current.url]: { error: e.message } })));
+    fetchAchievementList(url)
+      .then((items) => live && setLists((l) => ({ ...l, [url]: items })))
+      .catch((e: Error) => live && setLists((l) => ({ ...l, [url]: { error: e.message } })));
     return () => {
       live = false;
     };
-  }, [current, lists]);
+  }, [url, lists]);
 
   const items = useMemo(() => (Array.isArray(list) ? sorted(list) : []), [list]);
   if (!current) return null;
@@ -126,6 +135,7 @@ export function AchievementList({ sources }: { sources: AchievementSource[] }) {
             value={current.platform}
             onChange={(v) => {
               setPlatform(v as PlatformId);
+              setVersion(0);
               setAll(false);
             }}
             data={sources.map((s) => ({
@@ -140,6 +150,22 @@ export function AchievementList({ sources }: { sources: AchievementSource[] }) {
           />
         )}
       </Group>
+      {versions.length > 1 && (
+        <Group gap="xs" mt="sm" wrap="wrap">
+          <Text size="sm" c="dimmed">
+            Trophy list:
+          </Text>
+          <SegmentedControl
+            size="xs"
+            value={String(version)}
+            onChange={(v) => {
+              setVersion(Number(v));
+              setAll(false);
+            }}
+            data={versions.map((v, i) => ({ value: String(i), label: v.label }))}
+          />
+        </Group>
+      )}
       {!list ? (
         <Loader size="sm" mt="lg" />
       ) : !Array.isArray(list) ? (
@@ -161,8 +187,15 @@ export function AchievementList({ sources }: { sources: AchievementSource[] }) {
             </Text>
           </Group>
           <Progress value={(earned / items.length) * 100} size="sm" radius="xl" mb="sm" aria-hidden />
-          {(all ? items : items.slice(0, SHOWN)).map((a, i) => (
-            <Row key={`${a.name}-${i}`} a={a} />
+          {(all ? items : items.slice(0, SHOWN)).map((a, i, shown) => (
+            <div key={`${a.group ?? ''}-${a.name}-${i}`}>
+              {a.group && a.group !== shown[i - 1]?.group && (
+                <Text size="sm" fw={600} mt={i ? 'md' : 0} mb={4}>
+                  {a.group}
+                </Text>
+              )}
+              <Row a={a} />
+            </div>
           ))}
           {items.length > SHOWN && (
             <Button variant="subtle" size="xs" mt="xs" w="fit-content" onClick={() => setAll((x) => !x)}>
