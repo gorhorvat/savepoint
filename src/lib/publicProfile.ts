@@ -50,6 +50,7 @@ export function usePublicProfileSync() {
           imageUrl: g.game.imageUrl,
           hours: hours(g.totalMinutes),
           platforms: [...new Set(g.plays.filter((p) => p.minutes > 0).map((p) => p.platform))],
+          steamAppId: g.game.steamAppId,
         })),
       recentGames: played
         .filter((g) => g.lastPlayed && !g.isApp)
@@ -60,6 +61,7 @@ export function usePublicProfileSync() {
           imageUrl: g.game.imageUrl,
           lastPlayed: g.lastPlayed ?? undefined,
           platforms: [...new Set(g.plays.filter((p) => p.minutes > 0).map((p) => p.platform))],
+          steamAppId: g.game.steamAppId,
         })),
       wishlist: wishlist
         .map((w) => resolveGame(w.gameId, customGames, overrides, details))

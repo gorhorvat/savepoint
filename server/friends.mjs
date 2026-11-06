@@ -246,7 +246,8 @@ async function recentFromLibrary(userId) {
   const { rows } = await query(
     `SELECT e."game_id", max(e."last_played") AS last_played,
             array_agg(DISTINCT e."platform") FILTER (WHERE e."minutes" > 0) AS platforms,
-            min(g."title") AS title, min(COALESCE(g."image_url", d."image_url")) AS image_url, min(g."kind") AS kind
+            min(g."title") AS title, min(COALESCE(g."image_url", d."image_url")) AS image_url, min(g."kind") AS kind,
+            min(g."steam_app_id") AS steam_app_id
      FROM play_entries e
      LEFT JOIN games g ON g."user_id" = e."user_id" AND g."id" = e."game_id"
      LEFT JOIN game_details d ON d."user_id" = e."user_id" AND d."game_id" = e."game_id"
@@ -262,6 +263,7 @@ async function recentFromLibrary(userId) {
       imageUrl: r.image_url ?? undefined,
       lastPlayed: new Date(r.last_played).toISOString(),
       platforms: r.platforms ?? [],
+      steamAppId: r.steam_app_id ?? undefined,
     }));
 }
 

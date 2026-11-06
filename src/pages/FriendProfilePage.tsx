@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconArrowLeft, IconGift, IconHeartFilled, IconMessage, IconUserMinus } from '@tabler/icons-react';
 import { useCallback, useState } from 'react';
@@ -20,6 +20,7 @@ import {
 } from '../lib/friends';
 import { formatLastPlayed } from '../lib/format';
 import { useTick } from '../lib/pulse';
+import { useStore } from '../lib/store';
 import type { Game, PlatformId } from '../types';
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -56,16 +57,41 @@ function lastPlayedLabel(iso?: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/**
+ * Opens a friend's game on its game page: your own copy of it when you have
+ * one, otherwise it's saved the way a search result is (not added to your
+ * library) so its page can show.
+ */
+function useOpenFriendGame() {
+  const saveFound = useStore((s) => s.saveFound);
+  const navigate = useNavigate();
+  return (g: ProfileGame) => {
+    const id = saveFound({
+      title: g.title,
+      imageUrl: g.imageUrl,
+      steamAppId: g.steamAppId,
+      availableOn: (g.platforms ?? []).filter((p): p is PlatformId => p in PLATFORM_BY_ID),
+      genres: [],
+      subgenres: [],
+      tags: [],
+    });
+    navigate(`/game/${id}`);
+  };
+}
+
 function Shelf({
   title,
   games,
   meta,
   onGift,
+  onOpen,
 }: {
   title: string;
   games: ProfileGame[];
   meta: (g: ProfileGame) => string;
   onGift?: (g: ProfileGame) => void;
+  /** Makes each game a link to its game page. */
+  onOpen?: (g: ProfileGame) => void;
 }) {
   if (!games.length) return null;
   return (
@@ -76,10 +102,21 @@ function Shelf({
       <div className="shelf">
         {games.map((g, i) => (
           <div key={`${g.title}-${i}`} className="shelf-tile">
-            <Cover game={asGame(g, i)} width="100%" radius={12} />
-            <Text fw={700} mt={8} truncate>
-              {g.title}
-            </Text>
+            {onOpen ? (
+              <UnstyledButton onClick={() => onOpen(g)} aria-label={`Open ${g.title}`} display="block" w="100%">
+                <Cover game={asGame(g, i)} width="100%" radius={12} />
+                <Text fw={700} mt={8} truncate>
+                  {g.title}
+                </Text>
+              </UnstyledButton>
+            ) : (
+              <>
+                <Cover game={asGame(g, i)} width="100%" radius={12} />
+                <Text fw={700} mt={8} truncate>
+                  {g.title}
+                </Text>
+              </>
+            )}
             <Text size="sm" c="dimmed" truncate>
               {meta(g)}
             </Text>
@@ -131,6 +168,7 @@ function WantsShelf({ wants, onGift }: { wants: ProfileWant[]; onGift: (w: Profi
 export function FriendProfilePage() {
   const id = Number(useParams().id);
   const navigate = useNavigate();
+  const openGame = useOpenFriendGame();
   const [friend, setFriend] = useState<FriendProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -293,8 +331,13 @@ export function FriendProfilePage() {
         </Stack>
       )}
 
-      <Shelf title="Recently played" games={p.recentGames ?? []} meta={(g) => lastPlayedLabel(g.lastPlayed)} />
-      <Shelf title="Most played" games={p.topGames ?? []} meta={(g) => `${fmt(g.hours ?? 0)} h`} />
+      <Shelf
+        title="Recently played"
+        games={p.recentGames ?? []}
+        meta={(g) => lastPlayedLabel(g.lastPlayed)}
+        onOpen={openGame}
+      />
+      <Shelf title="Most played" games={p.topGames ?? []} meta={(g) => `${fmt(g.hours ?? 0)} h`} onOpen={openGame} />
       <Shelf
         title="Wishlist"
         games={p.wishlist ?? []}
