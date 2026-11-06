@@ -68,6 +68,11 @@ function QuestRow({ q }: { q: Quest }) {
             <Text fw={600} lh={1.3}>
               {q.title}
             </Text>
+            {q.note && (
+              <Text size="xs" c="dimmed" mt={2}>
+                {q.note}
+              </Text>
+            )}
             <Text size="xs" c="dimmed" className="num" mt={2}>
               {q.done ? 'Done' : TIER[q.tier]} · {detail}
             </Text>

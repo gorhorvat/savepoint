@@ -301,7 +301,8 @@ export const SHARED = {
     xp: 150,
     perPerson: 25 * 60,
     unit: 'minutes',
-    title: (t) => `Play ${hours(t)} hours together`,
+    title: (t) => `Everyone's goal: ${hours(t)} hours this month`,
+    note: "Any game on any platform. Everyone's hours count toward one total.",
     of: (c) => c.minutes,
   },
   's.ach': {
@@ -310,7 +311,10 @@ export const SHARED = {
     xp: 150,
     perPerson: 60,
     unit: 'count',
-    title: (t) => `Unlock ${t} achievements together`,
+    title: (t) => `Everyone's goal: ${t} achievements this month`,
+    note: "Any achievement in any game. Everyone's unlocks count toward one total.",
+    // Only people who can earn achievements set the target.
+    needs: 'achievements',
     of: (c) => c.achievements,
   },
 };
@@ -550,11 +554,13 @@ async function sharedQuest(monthKey) {
   if (rows[0]) return rows[0];
   const keys = Object.keys(SHARED);
   const key = keys[Math.floor(seededRandom(`shared:${monthKey}`)() * keys.length)];
-  // People who checked their quests in the last 30 days, counting at least two.
+  // People who checked their quests in the last 30 days and can do this quest, counting at least two.
   const { rows: active } = await query(
-    `SELECT count(*)::int AS n FROM quest_totals WHERE "updated_at" > now() - interval '30 days'`,
+    `SELECT "totals" FROM quest_totals WHERE "updated_at" > now() - interval '30 days'`,
   );
-  const target = SHARED[key].perPerson * Math.max(2, active[0]?.n ?? 0);
+  const need = SHARED[key].needs;
+  const people = active.filter((r) => !need || abilities(r.totals, Date.now())[need]).length;
+  const target = SHARED[key].perPerson * Math.max(2, people);
   await query(
     `INSERT INTO quest_shared ("period_key", "quest_key", "target") VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
     [monthKey, key, target],
@@ -754,6 +760,7 @@ async function evaluate(userId, now, { fresh }) {
       key: r.quest_key,
       title: titleOf(r),
       tier: q.tier,
+      ...(q.note && { note: q.note }),
       xp: r.xp,
       unit: q.unit,
       target: r.target,

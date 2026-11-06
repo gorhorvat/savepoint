@@ -30,6 +30,8 @@ export interface Quest {
   progress: number;
   done: boolean;
   canReroll: boolean;
+  /** A line explaining the quest, for the shared one. */
+  note?: string;
   /** Everyone's progress on the shared monthly quest, and how many have helped. */
   shared?: { total: number; people: number };
   /** For quests that only count some games: which ones. */
