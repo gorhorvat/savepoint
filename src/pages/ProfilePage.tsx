@@ -296,8 +296,8 @@ function LevelSection() {
           </Group>
           <Progress value={(xp.into / xp.needed) * 100} size="md" radius="xl" aria-label="Progress to the next level" />
           <Text size="sm" c="dimmed" className="num">
-            {fmt(xp.needed - xp.into)} XP to level {xp.level + 1}
-            {nextRank(xp.level) && `, ${nextRank(xp.level)!.name} at level ${nextRank(xp.level)!.level}`}
+            {xp.max ? 'Top level reached.' : `${fmt(xp.needed - xp.into)} XP to level ${xp.level + 1}`}
+            {nextRank(xp.level) && `, ${nextRank(xp.level)!.name} at level ${fmt(nextRank(xp.level)!.level)}`}
           </Text>
         </Stack>
       </Group>

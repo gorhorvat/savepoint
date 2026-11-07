@@ -57,7 +57,11 @@ export function LevelAvatar({ size = 32 }: { size?: number }) {
   const xp = useXp();
   return (
     <Tooltip
-      label={`Level ${xp.level}, ${xp.rank}: ${(xp.needed - xp.into).toLocaleString()} XP to level ${xp.level + 1}`}
+      label={
+        xp.max
+          ? `Level ${xp.level}, ${xp.rank}: top level`
+          : `Level ${xp.level}, ${xp.rank}: ${(xp.needed - xp.into).toLocaleString()} XP to level ${xp.level + 1}`
+      }
       withArrow
     >
       <span>
