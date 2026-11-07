@@ -1,6 +1,6 @@
 import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconGift, IconHeartFilled, IconMessage, IconUserMinus } from '@tabler/icons-react';
+import { IconArrowLeft, IconDisc, IconGift, IconHeartFilled, IconMessage, IconUserMinus } from '@tabler/icons-react';
 import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AddOnPlatforms } from '../components/AddOnPlatforms';
@@ -19,6 +19,7 @@ import {
   type ProfileWant,
 } from '../lib/friends';
 import { formatLastPlayed } from '../lib/format';
+import { normalizeTitle } from '../lib/match';
 import { useTick } from '../lib/pulse';
 import { useStore } from '../lib/store';
 import type { Game, PlatformId } from '../types';
@@ -26,7 +27,7 @@ import type { Game, PlatformId } from '../types';
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
 /** A friend's game as something the cover component can show. */
-const asGame = (g: ProfileGame, i: number): Game => ({
+const asGame = (g: Pick<ProfileGame, 'title' | 'imageUrl' | 'platforms'>, i: number): Game => ({
   id: `friend-game-${i}-${g.title}`,
   title: g.title,
   imageUrl: g.imageUrl,
@@ -36,7 +37,7 @@ const asGame = (g: ProfileGame, i: number): Game => ({
   availableOn: (g.platforms ?? []).filter((p): p is PlatformId => p in PLATFORM_BY_ID),
 });
 
-function GiftButton({ onClick, title }: { onClick: () => void; title: string }) {
+function GiftButton({ onClick, title, label = 'Gift' }: { onClick: () => void; title: string; label?: string }) {
   return (
     <Button
       size="compact-xs"
@@ -46,7 +47,7 @@ function GiftButton({ onClick, title }: { onClick: () => void; title: string }) 
       aria-label={`Gift ${title}`}
       mt={6}
     >
-      Gift
+      {label}
     </Button>
   );
 }
@@ -128,38 +129,102 @@ function Shelf({
   );
 }
 
-function WantsShelf({ wants, onGift }: { wants: ProfileWant[]; onGift: (w: ProfileWant) => void }) {
-  if (!wants.length) return null;
+/** A friend's wishlist: one tile per game, physical copies they want marked on it. */
+function WishlistShelf({
+  wishlist,
+  wants,
+  onGift,
+  onGiftWant,
+  onOpen,
+}: {
+  wishlist: ProfileGame[];
+  wants: ProfileWant[];
+  onGift: (g: ProfileGame) => void;
+  onGiftWant: (w: ProfileWant) => void;
+  onOpen: (g: ProfileGame) => void;
+}) {
+  const tiles: { title: string; imageUrl?: string; digital?: ProfileGame; wants: ProfileWant[] }[] = [];
+  const byTitle = new Map<string, (typeof tiles)[number]>();
+  for (const g of wishlist) {
+    const tile = { title: g.title, imageUrl: g.imageUrl, digital: g, wants: [] };
+    tiles.push(tile);
+    byTitle.set(normalizeTitle(g.title), tile);
+  }
+  for (const w of wants) {
+    const key = normalizeTitle(w.title);
+    const tile = byTitle.get(key) ?? { title: w.title, imageUrl: w.imageUrl, wants: [] };
+    if (!byTitle.has(key)) {
+      tiles.push(tile);
+      byTitle.set(key, tile);
+    }
+    tile.wants.push(w);
+  }
+  if (!tiles.length) return null;
   return (
-    <section aria-label="Physical wants">
+    <section aria-label="Wishlist">
       <Title order={2} mb="sm">
-        Physical wants
+        Wishlist
       </Title>
       <div className="shelf">
-        {wants.map((w, i) => (
-          <div key={`${w.title}-${w.platform}-${i}`} className="shelf-tile">
-            <Cover
-              game={{
-                id: `want-${i}-${w.title}`,
-                title: w.title,
-                imageUrl: w.imageUrl,
-                genres: [],
-                subgenres: [],
-                tags: [],
-                availableOn: [],
-              }}
-              width="100%"
-              radius={12}
-            />
-            <Text fw={700} mt={8} truncate>
-              {w.title}
-            </Text>
-            <Text size="sm" c="dimmed" truncate>
-              {[w.platform, w.edition].filter(Boolean).join(', ')}
-            </Text>
-            <GiftButton title={w.title} onClick={() => onGift(w)} />
-          </div>
-        ))}
+        {tiles.map((t, i) => {
+          const digitalOn = (t.digital?.platforms ?? [])
+            .filter((x): x is PlatformId => x in PLATFORM_BY_ID)
+            .map((x) => PLATFORM_BY_ID[x].short)
+            .join(', ');
+          const cover = (
+            <>
+              <Cover game={asGame(t.digital ?? { title: t.title, imageUrl: t.imageUrl }, i)} width="100%" radius={12} />
+              <Text fw={700} mt={8} truncate>
+                {t.title}
+              </Text>
+            </>
+          );
+          return (
+            <div key={`${t.title}-${i}`} className="shelf-tile">
+              {t.digital ? (
+                <UnstyledButton
+                  onClick={() => onOpen(t.digital!)}
+                  aria-label={`Open ${t.title}`}
+                  display="block"
+                  w="100%"
+                >
+                  {cover}
+                </UnstyledButton>
+              ) : (
+                cover
+              )}
+              {digitalOn && (
+                <Text size="sm" c="dimmed" truncate>
+                  {digitalOn}
+                </Text>
+              )}
+              {t.wants.length > 0 && (
+                <Badge
+                  size="sm"
+                  variant="light"
+                  radius="xs"
+                  tt="none"
+                  mt={4}
+                  maw="100%"
+                  leftSection={<IconDisc size={12} />}
+                >
+                  Physical: {t.wants.map((w) => [w.platform, w.edition].filter(Boolean).join(' ')).join(', ')}
+                </Badge>
+              )}
+              <Group gap={6} wrap="wrap">
+                {t.digital && <GiftButton title={t.title} onClick={() => onGift(t.digital!)} />}
+                {t.wants.map((w) => (
+                  <GiftButton
+                    key={`${w.platform}-${w.edition ?? ''}`}
+                    title={`${t.title} (${w.platform})`}
+                    label={t.digital || t.wants.length > 1 ? `Gift ${w.platform}` : 'Gift'}
+                    onClick={() => onGiftWant(w)}
+                  />
+                ))}
+              </Group>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -338,18 +403,13 @@ export function FriendProfilePage() {
         onOpen={openGame}
       />
       <Shelf title="Most played" games={p.topGames ?? []} meta={(g) => `${fmt(g.hours ?? 0)} h`} onOpen={openGame} />
-      <Shelf
-        title="Wishlist"
-        games={p.wishlist ?? []}
-        meta={(g) =>
-          (g.platforms ?? [])
-            .filter((x): x is PlatformId => x in PLATFORM_BY_ID)
-            .map((x) => PLATFORM_BY_ID[x].short)
-            .join(', ')
-        }
+      <WishlistShelf
+        wishlist={p.wishlist ?? []}
+        wants={p.physicalWants ?? []}
         onGift={setGiftWish}
+        onGiftWant={setGiftWant}
+        onOpen={openGame}
       />
-      <WantsShelf wants={p.physicalWants ?? []} onGift={setGiftWant} />
       <GiftWishModal friend={{ id, username: friend.username }} game={giftWish} onClose={() => setGiftWish(null)} />
       <GiftWantModal want={giftWant} onClose={() => setGiftWant(null)} />
 
