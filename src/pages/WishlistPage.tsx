@@ -8,6 +8,7 @@ import {
   Group,
   NumberInput,
   Paper,
+  SegmentedControl,
   Stack,
   Text,
   Title,
@@ -15,10 +16,11 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconChevronDown, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconDisc, IconPencil, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Cover } from '../components/Cover';
+import { PhysicalEditorModal, PlatformTag, ShopLinks } from '../components/PhysicalEditor';
 import { GenreChips } from '../components/GenreChips';
 import { GameSearch } from '../components/GameSearch';
 import { PlatformIcon, PlatformList } from '../components/PlatformBadge';
@@ -39,13 +41,26 @@ import {
 } from '../lib/api';
 import { formatLastPlayed, formatPrice, upcomingLabel } from '../lib/format';
 import { normalizeTitle } from '../lib/match';
+import { gotIt, useCoverGame, wantOf, type Editing } from '../lib/physicalWants';
 import { useGameResolver, useStore } from '../lib/store';
-import type { Game, WishlistItem } from '../types';
+import type { Game, PhysicalWant, WishlistItem } from '../types';
 
-function WishRow({ item, game }: { item: WishlistItem; game: Game }) {
+type Show = 'all' | 'digital' | 'physical';
+
+/** One game on the wishlist: wanted digitally (with prices), as physical copies, or both. */
+interface WishCard {
+  game: Game;
+  /** Whether `game` is a real game record (it isn't for an old want typed in by title). */
+  linked: boolean;
+  digital?: WishlistItem;
+  wants: PhysicalWant[];
+  addedAt: string;
+}
+
+/** Digital prices, target price and the store table. */
+function DigitalPart({ item, game }: { item: WishlistItem; game: Game }) {
   const { prices, loading, keyshops, itad } = usePrices(game);
   const update = useStore((s) => s.updateWishlist);
-  const toggle = useStore((s) => s.toggleWishlist);
   const [open, { toggle: toggleOpen }] = useDisclosure(false);
   const best = prices[0];
   const hit = best && item.targetPrice !== undefined && best.price <= item.targetPrice;
@@ -54,60 +69,7 @@ function WishRow({ item, game }: { item: WishlistItem; game: Game }) {
   const dealHit = deal && item.targetPrice !== undefined && deal.price <= item.targetPrice;
 
   return (
-    <div className="list-row">
-      <Group gap="md" wrap="nowrap" align="flex-start">
-        <Link to={`/game/${game.id}`} aria-hidden tabIndex={-1} style={{ flexShrink: 0 }}>
-          <Cover game={game} width={120} radius={8} />
-        </Link>
-        <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
-          <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
-            <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-              <Text component={Link} to={`/game/${game.id}`} fw={600} c="inherit" style={{ textDecoration: 'none' }}>
-                {game.title}
-              </Text>
-              {item.source === 'steam' ? (
-                <Tooltip label="On your Steam wishlist">
-                  <Badge size="xs" variant="outline" color="gray" radius="xs" tt="none" style={{ flexShrink: 0 }}>
-                    Steam wishlist
-                  </Badge>
-                </Tooltip>
-              ) : (
-                game.steamAppId && (
-                  <Tooltip label="Steam doesn't let other apps change your wishlist. This opens the store page, where you can add it.">
-                    <Anchor
-                      href={`https://store.steampowered.com/app/${game.steamAppId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      size="xs"
-                      style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                    >
-                      Add on Steam
-                    </Anchor>
-                  </Tooltip>
-                )
-              )}
-            </Group>
-            <Tooltip label="Remove from wishlist">
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={() => toggle(game.id)}
-                aria-label={`Remove ${game.title} from wishlist`}
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-          <GenreChips game={game} limit={3} size="xs" />
-          <PlatformList platforms={game.availableOn} switchVersions={game.switchVersions} />
-          {upcomingLabel(game) && (
-            <Text size="sm" fw={600} c="var(--mantine-primary-color-filled)">
-              {upcomingLabel(game)}
-            </Text>
-          )}
-        </Stack>
-      </Group>
-
+    <>
       <Group justify="space-between" align="flex-end" mt="md" wrap="wrap" gap="sm">
         <div>
           <Text size="xs" c="dimmed">
@@ -215,6 +177,218 @@ function WishRow({ item, game }: { item: WishlistItem; game: Game }) {
           <PriceTable game={game} compact />
         </div>
       </Collapse>
+    </>
+  );
+}
+
+/** A physical copy you want: console, edition, most you'd pay, and where to look. */
+function WantLine({ want, onEdit, onGotIt }: { want: PhysicalWant; onEdit: () => void; onGotIt: () => void }) {
+  const removeWant = useStore((s) => s.removeWant);
+  return (
+    <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs" className="wish-want">
+      <Stack gap={4} style={{ minWidth: 0 }}>
+        <Group gap="sm" wrap="wrap">
+          <PlatformTag platform={want.platform} />
+          {want.edition && (
+            <Text size="sm" c="dimmed">
+              {want.edition}
+            </Text>
+          )}
+          {want.maxPrice !== undefined && (
+            <Text size="sm" c="dimmed" className="num">
+              Up to {formatPrice(want.maxPrice)}
+            </Text>
+          )}
+        </Group>
+        <ShopLinks want={want} />
+        {want.notes && (
+          <Text size="xs" c="dimmed" style={{ whiteSpace: 'pre-wrap' }}>
+            {want.notes}
+          </Text>
+        )}
+      </Stack>
+      <Group gap={0} wrap="nowrap">
+        <Tooltip label="Got it: add to your shelf">
+          <ActionIcon
+            variant="light"
+            color="green"
+            onClick={onGotIt}
+            aria-label={`Got ${want.title} on ${want.platform}`}
+          >
+            <IconCheck size={16} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Edit">
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            onClick={onEdit}
+            aria-label={`Edit ${want.title} on ${want.platform}`}
+          >
+            <IconPencil size={16} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Don't want this copy">
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            onClick={() => removeWant(want.id)}
+            aria-label={`Remove ${want.title} on ${want.platform} from wishlist`}
+          >
+            <IconX size={16} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    </Group>
+  );
+}
+
+function WishCardView({ card, show, open }: { card: WishCard; show: Show; open: (e: Editing) => void }) {
+  const { game, linked, digital, wants } = card;
+  const toggle = useStore((s) => s.toggleWishlist);
+  const removeWant = useStore((s) => s.removeWant);
+  const showDigital = !!digital && show !== 'physical';
+  const showPhysical = wants.length > 0 && show !== 'digital';
+  const both = showDigital && showPhysical;
+
+  const removeAll = () => {
+    if (digital) toggle(game.id);
+    for (const w of wants) removeWant(w.id);
+  };
+  const title = linked ? (
+    <Text component={Link} to={`/game/${game.id}`} fw={600} c="inherit" style={{ textDecoration: 'none' }}>
+      {game.title}
+    </Text>
+  ) : (
+    <Text fw={600}>{game.title}</Text>
+  );
+
+  return (
+    <div className="list-row">
+      <Group gap="md" wrap="nowrap" align="flex-start">
+        {linked ? (
+          <Link to={`/game/${game.id}`} aria-hidden tabIndex={-1} style={{ flexShrink: 0 }}>
+            <Cover game={game} width={120} radius={8} />
+          </Link>
+        ) : (
+          <div style={{ flexShrink: 0 }}>
+            <Cover game={game} width={120} radius={8} />
+          </div>
+        )}
+        <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
+          <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs">
+            <Group gap={8} wrap="wrap" style={{ minWidth: 0 }}>
+              {title}
+              {showPhysical && (
+                <Badge
+                  size="xs"
+                  variant="light"
+                  radius="xs"
+                  tt="none"
+                  leftSection={<IconDisc size={11} />}
+                  style={{ flexShrink: 0 }}
+                >
+                  {wants.length > 1 ? `${wants.length} physical copies` : 'Physical copy'}
+                </Badge>
+              )}
+              {showDigital && digital?.source === 'steam' && (
+                <Tooltip label="On your Steam wishlist">
+                  <Badge size="xs" variant="outline" color="gray" radius="xs" tt="none" style={{ flexShrink: 0 }}>
+                    Steam wishlist
+                  </Badge>
+                </Tooltip>
+              )}
+              {showDigital && digital?.source !== 'steam' && game.steamAppId && (
+                <Tooltip label="Steam doesn't let other apps change your wishlist. This opens the store page, where you can add it.">
+                  <Anchor
+                    href={`https://store.steampowered.com/app/${game.steamAppId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="xs"
+                    style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                  >
+                    Add on Steam
+                  </Anchor>
+                </Tooltip>
+              )}
+            </Group>
+            <Tooltip label="Remove from wishlist">
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                onClick={removeAll}
+                aria-label={`Remove ${game.title} from wishlist`}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+          {linked && <GenreChips game={game} limit={3} size="xs" />}
+          {showDigital && <PlatformList platforms={game.availableOn} switchVersions={game.switchVersions} />}
+          {linked && upcomingLabel(game) && (
+            <Text size="sm" fw={600} c="var(--mantine-primary-color-filled)">
+              {upcomingLabel(game)}
+            </Text>
+          )}
+        </Stack>
+      </Group>
+
+      {showDigital && digital && (
+        <div className={both ? 'wish-part' : undefined}>
+          {both && (
+            <Group justify="space-between" gap="xs" mt="md">
+              <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+                Digital
+              </Text>
+              <Anchor component="button" size="xs" c="dimmed" onClick={() => toggle(game.id)}>
+                Don't want it digitally
+              </Anchor>
+            </Group>
+          )}
+          <DigitalPart item={digital} game={game} />
+        </div>
+      )}
+
+      {showPhysical && (
+        <div className="wish-part">
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed" mt="md" mb={6}>
+            {wants.length > 1 ? 'Physical copies' : 'Physical copy'}
+          </Text>
+          <Stack gap="sm">
+            {wants.map((w) => (
+              <WantLine
+                key={w.id}
+                want={w}
+                onEdit={() => open({ kind: 'edit-want', id: w.id })}
+                onGotIt={() => open(gotIt(w))}
+              />
+            ))}
+          </Stack>
+        </div>
+      )}
+
+      {show === 'all' && linked && (
+        <Group gap="xs" mt="sm">
+          {!digital && game.availableOn.length > 0 && (
+            <Button
+              variant="subtle"
+              size="compact-sm"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => toggle(game.id)}
+            >
+              Want it digitally too
+            </Button>
+          )}
+          <Button
+            variant="subtle"
+            size="compact-sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => open({ kind: 'new-want', initial: wantOf(game) })}
+          >
+            {wants.length ? 'Another physical copy' : 'Want a physical copy'}
+          </Button>
+        </Group>
+      )}
     </div>
   );
 }
@@ -321,34 +495,95 @@ function PriceAlerts() {
   );
 }
 
+const SHOW_LABEL: Record<Show, string> = { all: 'All', digital: 'Digital', physical: 'Physical' };
+
 export function WishlistPage() {
   const wishlist = useStore((s) => s.wishlist);
+  const wants = useStore((s) => s.physicalWants);
   const addFound = useStore((s) => s.addFoundToWishlist);
   const resolve = useGameResolver();
+  const coverGame = useCoverGame();
+  const [editing, setEditing] = useState<Editing>(null);
+  const [params, setParams] = useSearchParams();
+  const showParam = params.get('show');
+  const show: Show = showParam === 'digital' || showParam === 'physical' ? showParam : 'all';
 
-  const rows = wishlist
-    .map((item) => ({ item, game: resolve(item.gameId) }))
-    .filter((r): r is { item: WishlistItem; game: Game } => !!r.game)
-    .sort((a, b) => b.item.addedAt.localeCompare(a.item.addedAt));
+  // One card per game: its digital wishlist entry and the physical copies wanted.
+  const cards = useMemo(() => {
+    const byId = new Map<string, WishCard>();
+    const byTitle = new Map<string, WishCard>();
+    const add = (card: WishCard) => {
+      byId.set(card.game.id, card);
+      byTitle.set(normalizeTitle(card.game.title), card);
+      return card;
+    };
+    for (const item of wishlist) {
+      const game = resolve(item.gameId);
+      if (game) add({ game, linked: true, digital: item, wants: [], addedAt: item.addedAt });
+    }
+    for (const w of wants) {
+      const game = w.gameId ? resolve(w.gameId) : undefined;
+      const card =
+        (game && byId.get(game.id)) ??
+        byTitle.get(normalizeTitle(game?.title ?? w.title)) ??
+        add({ game: game ?? coverGame(undefined, w.title), linked: !!game, wants: [], addedAt: w.addedAt });
+      card.wants.push(w);
+      if (w.addedAt > card.addedAt) card.addedAt = w.addedAt;
+    }
+    return [...byId.values()].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+  }, [wishlist, wants, resolve, coverGame]);
 
-  const onWishlist = useMemo(() => new Set(rows.map((r) => normalizeTitle(r.game.title))), [rows]);
+  const counts: Record<Show, number> = {
+    all: cards.length,
+    digital: cards.filter((c) => c.digital).length,
+    physical: cards.filter((c) => c.wants.length).length,
+  };
+  const shown = cards.filter((c) => (show === 'digital' ? c.digital : show === 'physical' ? c.wants.length : true));
+
+  const onWishlist = useMemo(
+    () => new Set(cards.filter((c) => c.digital).map((c) => normalizeTitle(c.game.title))),
+    [cards],
+  );
+  const lines = shown.flatMap(({ game, digital, wants: copies }) => [
+    ...(digital && show !== 'physical' ? [{ game, digital, want: undefined }] : []),
+    ...(show !== 'digital' ? copies.map((want) => ({ game, digital: undefined, want })) : []),
+  ]);
   const exported: ListExport = {
     title: 'My Savepoint wishlist',
     filename: 'savepoint-wishlist',
-    lines: rows.map(({ item, game }) => {
+    lines: lines.map(({ game, digital, want }) => {
+      if (want) {
+        const max = want.maxPrice !== undefined ? `, up to ${formatPrice(want.maxPrice)}` : '';
+        return `${want.title} (physical, ${want.platform}${want.edition ? `, ${want.edition}` : ''})${max}`;
+      }
       const on = game.availableOn.map((p) => PLATFORM_BY_ID[p].short).join(', ');
-      const target = item.targetPrice !== undefined ? `, target ${formatPrice(item.targetPrice)}` : '';
+      const target = digital?.targetPrice !== undefined ? `, target ${formatPrice(digital.targetPrice)}` : '';
       return `${game.title}${on ? ` (${on})` : ''}${target}`;
     }),
-    columns: ['Title', 'Platforms', 'Target price (USD)', 'Note', 'Added', 'From'],
-    rows: rows.map(({ item, game }) => [
-      game.title,
-      game.availableOn.map((p) => PLATFORM_BY_ID[p].name).join(', '),
-      item.targetPrice,
-      item.note,
-      item.addedAt.slice(0, 10),
-      item.source === 'steam' ? 'Steam wishlist' : 'Savepoint',
-    ]),
+    columns: ['Title', 'Copy', 'Platforms', "Target or most you'd pay (USD)", 'Edition', 'Note', 'Added', 'From'],
+    rows: lines.map(({ game, digital, want }) =>
+      want
+        ? [
+            want.title,
+            'Physical',
+            want.platform,
+            want.maxPrice,
+            want.edition,
+            want.notes,
+            want.addedAt.slice(0, 10),
+            'Savepoint',
+          ]
+        : [
+            game.title,
+            'Digital',
+            game.availableOn.map((p) => PLATFORM_BY_ID[p].name).join(', '),
+            digital?.targetPrice,
+            undefined,
+            digital?.note,
+            digital?.addedAt.slice(0, 10),
+            digital?.source === 'steam' ? 'Steam wishlist' : 'Savepoint',
+          ],
+    ),
   };
 
   return (
@@ -356,8 +591,8 @@ export function WishlistPage() {
       <div>
         <Title order={1}>My Wishlist</Title>
         <Text c="dimmed" mt={6} size="lg">
-          Set a target price and Savepoint flags the game once a store sells it for that or less, and can notify your
-          phone.
+          Every game you want, digital or on a shelf. Set a target price and Savepoint flags the game once a store sells
+          it for that or less, and can notify your phone.
         </Text>
       </div>
 
@@ -373,9 +608,19 @@ export function WishlistPage() {
             notifications.show({ message: `Added ${f.title} to your wishlist`, autoClose: 2200 });
           }}
         />
-        <Text size="xs" c="dimmed" mt="xs">
-          Nintendo doesn't let other apps read your eShop wishlist, so add Switch games here with search.
-        </Text>
+        <Group gap="xs" mt="xs" justify="space-between" wrap="wrap">
+          <Text size="xs" c="dimmed">
+            Nintendo doesn't let other apps read your eShop wishlist, so add Switch games here with search.
+          </Text>
+          <Button
+            variant="light"
+            size="xs"
+            leftSection={<IconDisc size={14} />}
+            onClick={() => setEditing({ kind: 'new-want' })}
+          >
+            Want a physical copy
+          </Button>
+        </Group>
         <Title order={2} fz="lg" mt="xl" mb="sm">
           Steam wishlist
         </Title>
@@ -386,23 +631,45 @@ export function WishlistPage() {
         <PriceAlerts />
       </Paper>
 
-      {rows.length ? (
+      {cards.length ? (
         <Stack gap="md">
-          <Group justify="space-between" gap="sm">
-            <Text size="sm" c="dimmed">
-              {rows.length} {rows.length === 1 ? 'game' : 'games'}
-            </Text>
+          <Group justify="space-between" gap="sm" wrap="wrap">
+            <SegmentedControl
+              size="xs"
+              value={show}
+              onChange={(v) => {
+                const next = new URLSearchParams(params);
+                if (v === 'all') next.delete('show');
+                else next.set('show', v);
+                setParams(next, { replace: true });
+              }}
+              data={(['all', 'digital', 'physical'] as const).map((v) => ({
+                value: v,
+                label: `${SHOW_LABEL[v]} (${counts[v]})`,
+              }))}
+              aria-label="Show"
+            />
             <ShareExport list={exported} />
           </Group>
-          {rows.map(({ item, game }) => (
-            <WishRow key={game.id} item={item} game={game} />
+          {shown.map((card) => (
+            <WishCardView key={card.game.id} card={card} show={show} open={setEditing} />
           ))}
+          {!shown.length && (
+            <Text c="dimmed">
+              {show === 'physical'
+                ? 'No physical copies on your wishlist. Use “Want a physical copy” on a game, or the button above.'
+                : 'No games to buy digitally on your wishlist.'}
+            </Text>
+          )}
         </Stack>
       ) : (
-        <Text c="dimmed">Your wishlist is empty. Search for a game above or sync your Steam wishlist.</Text>
+        <Text c="dimmed">
+          Your wishlist is empty. Search for a game above, sync your Steam wishlist, or add a physical copy you want.
+        </Text>
       )}
 
       <StoreDirectory />
+      <PhysicalEditorModal editing={editing} onClose={() => setEditing(null)} />
     </Stack>
   );
 }

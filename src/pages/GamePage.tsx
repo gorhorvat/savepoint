@@ -28,6 +28,7 @@ import { QuestBadges } from '../components/QuestCard';
 import { PlatformLabel, PlatformList } from '../components/PlatformBadge';
 import { PriceTable } from '../components/PriceTable';
 import { TimeStrip } from '../components/TimeStrip';
+import { PhysicalWantButton } from '../components/PhysicalEditor';
 import { WishlistButton } from '../components/WishlistButton';
 import { ProgressPanel } from '../components/ProgressPanel';
 import { GameFacts, Screenshots } from '../components/GameInfo';
@@ -419,7 +420,7 @@ export function GamePage() {
                         .join('; ')}
                       .{' '}
                       <Anchor component={Link} to="/physical" size="sm">
-                        See your collection
+                        See your shelf
                       </Anchor>
                     </Text>
                   </Group>
@@ -428,6 +429,7 @@ export function GamePage() {
                 {!app && (
                   <Group>
                     <WishlistButton game={game} />
+                    <PhysicalWantButton game={game} />
                     <ShareGameButton game={game} />
                   </Group>
                 )}

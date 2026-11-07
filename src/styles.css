@@ -583,6 +583,12 @@ h3,
   background: var(--sp-surface);
 }
 
+/* Wishlist card: the digital and physical parts of one game. */
+.wish-part {
+  border-top: 1px solid var(--sp-line);
+  margin-top: 12px;
+}
+
 .tile {
   border-radius: var(--mantine-radius-md);
 }

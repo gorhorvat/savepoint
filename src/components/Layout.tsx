@@ -282,7 +282,10 @@ function ProfileMenu({ size }: { size: number }) {
 export function Layout({ children }: { children: ReactNode }) {
   // Below this width the tabs move to the bottom of the screen.
   const mobile = useMediaQuery('(max-width: 62em)', false, { getInitialValueInEffect: false });
-  const wishCount = useStore((s) => s.wishlist.length);
+  // Games on the wishlist, digital or physical (one per game, like the Wishlist page's cards).
+  const wishCount = useStore(
+    (s) => new Set([...s.wishlist.map((w) => w.gameId), ...s.physicalWants.map((w) => w.gameId ?? w.title)]).size,
+  );
   useAutoSync();
   useGenreBackfill();
   useDetailsBackfill();

@@ -4,270 +4,31 @@ import {
   Badge,
   Button,
   Group,
-  Modal,
-  NumberInput,
   Select,
   Stack,
-  Tabs,
   Text,
-  Textarea,
   TextInput,
   Title,
   Tooltip,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Cover } from '../components/Cover';
 import { FranchiseBadge } from '../components/GenreChips';
-import { ShareExport, type ListExport } from '../components/ShareExport';
-import { GameSearch } from '../components/GameSearch';
 import { PhysicalPlatformIcon } from '../components/PhysicalPlatformIcon';
-import { CONDITIONS, DIGITAL, PHYSICAL_PLATFORM_GROUPS, PHYSICAL_PLATFORMS } from '../data/physical';
-import type { FoundGame } from '../lib/api';
+import { PhysicalEditorModal, PlatformTag } from '../components/PhysicalEditor';
+import { CONDITIONS, PHYSICAL_PLATFORM_GROUPS, PHYSICAL_PLATFORMS } from '../data/physical';
 import { formatPrice } from '../lib/format';
-import { vendorSearchUrl } from '../lib/vendors';
-import { useGameResolver, useStore } from '../lib/store';
-import type { Condition, Game, PhysicalItem, PhysicalPlatform, PhysicalWant } from '../types';
-
-/** Search links for a want in the shops picked in Settings. */
-function ShopLinks({ want }: { want: PhysicalWant }) {
-  const vendors = useStore((s) => s.vendors);
-  if (!vendors.length) {
-    return (
-      <Anchor component={Link} to="/settings" size="sm" c="dimmed">
-        Pick shops to search in Settings
-      </Anchor>
-    );
-  }
-  const query = `${want.title} ${want.platform}`;
-  return (
-    <Group gap={4} wrap="wrap" align="baseline">
-      <Text span size="sm" c="dimmed">
-        Find on
-      </Text>
-      {vendors.map((v, i) => (
-        <Text span size="sm" key={v}>
-          <Anchor href={vendorSearchUrl(v, query)} target="_blank" rel="noopener noreferrer" inherit>
-            {v}
-          </Anchor>
-          {i < vendors.length - 1 && <Text span c="dimmed">{' · '}</Text>}
-        </Text>
-      ))}
-    </Group>
-  );
-}
-
-function PlatformTag({ platform }: { platform: PhysicalPlatform }) {
-  return (
-    <Group gap={6} wrap="nowrap" component="span" style={{ display: 'inline-flex' }}>
-      <PhysicalPlatformIcon platform={platform} />
-      <Text span size="sm" fw={500}>
-        {platform}
-      </Text>
-    </Group>
-  );
-}
-
-/** Best guess at the physical platform: the only console it came out on, else from where it's sold. */
-function defaultPlatform(f: FoundGame): PhysicalPlatform | null {
-  const consoles = (f.physicalPlatforms ?? []).filter((p) => p !== 'PC');
-  if (consoles.length === 1) return consoles[0];
-  if (f.availableOn.includes('switch')) return f.switchVersions?.includes('Switch') ? 'Switch' : 'Switch 2';
-  if (f.availableOn.includes('playstation')) return 'PS5';
-  return null;
-}
-
-type FormValues = {
-  gameId?: string;
-  title: string;
-  platform: PhysicalPlatform | null;
-  condition?: Condition | null;
-  edition?: string;
-  price?: number | string;
-  acquiredAt?: string;
-  notes?: string;
-};
-
-/** Add or edit form for both collection items and wants. */
-function PhysicalForm({
-  mode,
-  initial,
-  onSave,
-  onCancel,
-}: {
-  mode: 'item' | 'want';
-  initial?: FormValues;
-  onSave: (v: FormValues) => void;
-  onCancel: () => void;
-}) {
-  const saveFound = useStore((s) => s.saveFound);
-  const [v, setV] = useState<FormValues>(initial ?? { title: '', platform: null });
-  const set = (patch: Partial<FormValues>) => setV((prev) => ({ ...prev, ...patch }));
-  const [searching, setSearching] = useState(!initial?.title);
-  const [releasedOn, setReleasedOn] = useState<PhysicalPlatform[]>([]);
-
-  const pick = (f: FoundGame) => {
-    set({ gameId: saveFound(f), title: f.title, platform: v.platform ?? defaultPlatform(f) });
-    setReleasedOn(f.physicalPlatforms ?? []);
-    setSearching(false);
-  };
-
-  return (
-    <Stack gap="sm">
-      {searching ? (
-        <>
-          <GameSearch
-            actionLabel="Select"
-            onPick={pick}
-            placeholder="Search any game, older consoles included"
-            autoFocus
-            allPlatforms
-          />
-          <Anchor component="button" size="sm" onClick={() => setSearching(false)} w="fit-content">
-            Not listed? Type the title instead
-          </Anchor>
-        </>
-      ) : (
-        <Group gap="xs" align="flex-end" wrap="nowrap">
-          <TextInput
-            label="Title"
-            value={v.title}
-            onChange={(e) => {
-              set({ title: e.currentTarget.value, gameId: undefined });
-              setReleasedOn([]);
-            }}
-            style={{ flex: 1 }}
-            required
-          />
-          <Button variant="subtle" color="gray" onClick={() => setSearching(true)}>
-            Search instead
-          </Button>
-        </Group>
-      )}
-      <Group grow align="flex-start">
-        <Select
-          label="Platform"
-          data={PHYSICAL_PLATFORM_GROUPS}
-          value={v.platform}
-          onChange={(p) => set({ platform: p as PhysicalPlatform | null })}
-          allowDeselect={false}
-          searchable
-          required
-        />
-        {mode === 'item' ? (
-          <Select
-            label="Condition"
-            data={CONDITIONS}
-            value={v.condition ?? null}
-            onChange={(c) => set({ condition: c as Condition | null })}
-            clearable
-            placeholder="Optional"
-          />
-        ) : (
-          <NumberInput
-            label="Most you'd pay"
-            prefix="$"
-            min={0}
-            decimalScale={2}
-            value={v.price ?? ''}
-            onChange={(p) => set({ price: p })}
-            placeholder="Optional"
-          />
-        )}
-      </Group>
-      {!searching && releasedOn.length > 1 && (
-        <Group gap={6} wrap="wrap" mt={-4}>
-          <Text size="xs" c="dimmed">
-            Released on
-          </Text>
-          {releasedOn.map((p) => (
-            <Badge
-              key={p}
-              component="button"
-              type="button"
-              size="sm"
-              radius="xs"
-              tt="none"
-              variant={v.platform === p ? 'filled' : 'outline'}
-              color={v.platform === p ? undefined : 'gray'}
-              style={{ cursor: 'pointer' }}
-              onClick={() => set({ platform: p })}
-            >
-              {p}
-            </Badge>
-          ))}
-        </Group>
-      )}
-      <TextInput
-        label="Edition"
-        placeholder="e.g. Collector's Edition, Steelbook"
-        value={v.edition ?? ''}
-        onChange={(e) => set({ edition: e.currentTarget.value })}
-      />
-      {mode === 'item' && (
-        <Group grow>
-          <NumberInput
-            label="Price paid"
-            prefix="$"
-            min={0}
-            decimalScale={2}
-            value={v.price ?? ''}
-            onChange={(p) => set({ price: p })}
-            placeholder="Optional"
-          />
-          <TextInput
-            label="Got it on"
-            type="date"
-            value={v.acquiredAt ?? ''}
-            onChange={(e) => set({ acquiredAt: e.currentTarget.value })}
-          />
-        </Group>
-      )}
-      <Textarea
-        label="Notes"
-        autosize
-        minRows={2}
-        value={v.notes ?? ''}
-        onChange={(e) => set({ notes: e.currentTarget.value })}
-      />
-      <Group justify="flex-end" mt="xs">
-        <Button variant="subtle" color="gray" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button disabled={!v.title.trim() || !v.platform} onClick={() => onSave(v)}>
-          {mode === 'item' ? 'Save to collection' : 'Save to wants'}
-        </Button>
-      </Group>
-    </Stack>
-  );
-}
+import { useCoverGame, type Editing } from '../lib/physicalWants';
+import { useStore } from '../lib/store';
+import type { Game, PhysicalItem, PhysicalPlatform } from '../types';
 
 function matchesFilter(x: { title: string; platform: PhysicalPlatform }, platform: string | null, query: string) {
   return (!platform || x.platform === platform) && x.title.toLowerCase().includes(query.trim().toLowerCase());
 }
 
-const toNumber = (n?: number | string) => (n === '' || n === undefined ? undefined : Number(n));
-
-/** A game record to show the cover from: the linked game, or a title-only stand-in. */
-function useCoverGame() {
-  const resolve = useGameResolver();
-  return (gameId: string | undefined, title: string): Game =>
-    (gameId && resolve(gameId)) || { id: title, title, genres: [], subgenres: [], tags: [], availableOn: [] };
-}
-
-function ItemCard({
-  item,
-  game,
-  footer,
-  actions,
-}: {
-  item: { title: string; platform: PhysicalPlatform; edition?: string; notes?: string; gameId?: string };
-  game: Game;
-  footer: React.ReactNode;
-  actions: React.ReactNode;
-}) {
+function ItemCard({ item, game, actions }: { item: PhysicalItem; game: Game; actions: React.ReactNode }) {
   return (
     <div className="tile">
       <Stack gap={8}>
@@ -296,7 +57,16 @@ function ItemCard({
         <FranchiseBadge game={game} size="xs" />
         <Group gap="sm" wrap="wrap">
           <PlatformTag platform={item.platform} />
-          {footer}
+          {item.condition && (
+            <Badge size="sm" variant="outline" color="gray" radius="xs" tt="none">
+              {CONDITIONS.find((c) => c.value === item.condition)?.label}
+            </Badge>
+          )}
+          {item.pricePaid !== undefined && (
+            <Text size="sm" c="dimmed" className="num">
+              {formatPrice(item.pricePaid)}
+            </Text>
+          )}
         </Group>
         {item.notes && (
           <Text size="xs" c="dimmed" style={{ whiteSpace: 'pre-wrap' }}>
@@ -308,135 +78,50 @@ function ItemCard({
   );
 }
 
-type Editing =
-  | { kind: 'new-item'; initial?: FormValues; fromWant?: string }
-  | { kind: 'edit-item'; id: string }
-  | { kind: 'new-want' }
-  | { kind: 'edit-want'; id: string }
-  | null;
-
+/** Physical games you own. Copies you want are on the Wishlist. */
 export function PhysicalPage() {
   const physical = useStore((s) => s.physical);
-  const wants = useStore((s) => s.physicalWants);
-  const { addPhysical, updatePhysical, removePhysical, addWant, updateWant, removeWant } = useStore.getState();
+  const wantCount = useStore((s) => s.physicalWants.length);
+  const removePhysical = useStore((s) => s.removePhysical);
   const coverGame = useCoverGame();
-  const [tab, setTab] = useState<string | null>('collection');
+  const [editing, setEditing] = useState<Editing>(null);
   const [platform, setPlatform] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [editing, setEditing] = useState<Editing>(null);
 
   const items = useMemo(
     () => physical.filter((x) => matchesFilter(x, platform, query)).sort((a, b) => a.title.localeCompare(b.title)),
     [physical, platform, query],
   );
-  const wanted = useMemo(
-    () => wants.filter((x) => matchesFilter(x, platform, query)).sort((a, b) => b.addedAt.localeCompare(a.addedAt)),
-    [wants, platform, query],
-  );
   const spent = physical.reduce((n, p) => n + (p.pricePaid ?? 0), 0);
-  const platformCounts = PHYSICAL_PLATFORMS.map((p) => [p, physical.filter((x) => x.platform === p).length] as const).filter(
-    ([, n]) => n > 0,
-  );
-
-  // Typed-in titles still get a game record, so a cover can be looked up by title.
-  const linkGame = (v: FormValues) => {
-    if (v.gameId) return v.gameId;
-    const digital = v.platform ? DIGITAL[v.platform] : undefined;
-    return useStore.getState().saveFound({
-      title: v.title.trim(),
-      availableOn: digital ? [digital] : [],
-      genres: [],
-      subgenres: [],
-      tags: [],
-    });
-  };
-
-  const saveItem = (v: FormValues) => {
-    const data = {
-      gameId: linkGame(v),
-      title: v.title.trim(),
-      platform: v.platform!,
-      condition: v.condition ?? undefined,
-      edition: v.edition?.trim() || undefined,
-      pricePaid: toNumber(v.price),
-      acquiredAt: v.acquiredAt || undefined,
-      notes: v.notes?.trim() || undefined,
-    };
-    if (editing?.kind === 'edit-item') updatePhysical(editing.id, data);
-    else {
-      addPhysical(data);
-      if (editing?.kind === 'new-item' && editing.fromWant) removeWant(editing.fromWant);
-      notifications.show({ message: `Added ${data.title} to your collection`, autoClose: 2200 });
-    }
-    setEditing(null);
-  };
-
-  const saveWant = (v: FormValues) => {
-    const data = {
-      gameId: linkGame(v),
-      title: v.title.trim(),
-      platform: v.platform!,
-      maxPrice: toNumber(v.price),
-      edition: v.edition?.trim() || undefined,
-      notes: v.notes?.trim() || undefined,
-    };
-    if (editing?.kind === 'edit-want') updateWant(editing.id, data);
-    else {
-      addWant(data);
-      notifications.show({ message: `Added ${data.title} to your wants`, autoClose: 2200 });
-    }
-    setEditing(null);
-  };
-
-  const editingItem = editing?.kind === 'edit-item' ? physical.find((p) => p.id === editing.id) : undefined;
-  const editingWant = editing?.kind === 'edit-want' ? wants.find((w) => w.id === editing.id) : undefined;
-  const itemInitial = (p: PhysicalItem): FormValues => ({
-    gameId: p.gameId,
-    title: p.title,
-    platform: p.platform,
-    condition: p.condition,
-    edition: p.edition,
-    price: p.pricePaid,
-    acquiredAt: p.acquiredAt,
-    notes: p.notes,
-  });
-  const wantInitial = (w: PhysicalWant): FormValues => ({
-    gameId: w.gameId,
-    title: w.title,
-    platform: w.platform,
-    edition: w.edition,
-    price: w.maxPrice,
-    notes: w.notes,
-  });
-  const exported: ListExport = {
-    title: 'Physical games I’m looking for',
-    filename: 'savepoint-physical-wants',
-    lines: wanted.map((w) =>
-      [`${w.title} (${w.platform}${w.edition ? `, ${w.edition}` : ''})`, w.maxPrice !== undefined && `up to ${formatPrice(w.maxPrice)}`]
-        .filter(Boolean)
-        .join(', '),
-    ),
-    columns: ['Title', 'Platform', 'Edition', 'Max price (USD)', 'Notes', 'Added'],
-    rows: wanted.map((w) => [w.title, w.platform, w.edition, w.maxPrice, w.notes, w.addedAt.slice(0, 10)]),
-  };
-
-  const isItemForm = editing?.kind === 'new-item' || editing?.kind === 'edit-item';
+  const platformCounts = PHYSICAL_PLATFORMS.map(
+    (p) => [p, physical.filter((x) => x.platform === p).length] as const,
+  ).filter(([, n]) => n > 0);
 
   return (
     <Stack gap="xl">
       <div>
         <Title order={1}>My Shelf</Title>
         <Text c="dimmed" mt={6} size="lg">
-          Your shelf, and the copies you’re still hunting for.
+          The physical games you own.{' '}
+          {wantCount > 0 ? (
+            <>
+              Copies you’re looking for are on your{' '}
+              <Anchor component={Link} to="/wishlist?show=physical" inherit>
+                wishlist
+              </Anchor>
+              .
+            </>
+          ) : (
+            <>
+              To keep track of copies you’re looking for, add them to your{' '}
+              <Anchor component={Link} to="/wishlist?show=physical" inherit>
+                wishlist
+              </Anchor>
+              .
+            </>
+          )}
         </Text>
       </div>
-
-      <Tabs value={tab} onChange={setTab}>
-        <Tabs.List>
-          <Tabs.Tab value="collection">Collection ({physical.length})</Tabs.Tab>
-          <Tabs.Tab value="wants">Wants ({wants.length})</Tabs.Tab>
-        </Tabs.List>
-      </Tabs>
 
       <Group gap="sm" wrap="wrap" align="flex-end">
         <TextInput
@@ -451,7 +136,7 @@ export function PhysicalPage() {
           placeholder="All platforms"
           data={PHYSICAL_PLATFORM_GROUPS.map((g) => ({
             group: g.group,
-            items: g.items.filter((p) => [...physical, ...wants].some((x) => x.platform === p)),
+            items: g.items.filter((p) => physical.some((x) => x.platform === p)),
           })).filter((g) => g.items.length)}
           searchable
           value={platform}
@@ -459,175 +144,68 @@ export function PhysicalPage() {
           clearable
           style={{ flex: '0 1 200px' }}
         />
-        <Button
-          leftSection={<IconPlus size={18} />}
-          onClick={() => setEditing(tab === 'wants' ? { kind: 'new-want' } : { kind: 'new-item' })}
-        >
-          {tab === 'wants' ? 'Add a want' : 'Add a game'}
+        <Button leftSection={<IconPlus size={18} />} onClick={() => setEditing({ kind: 'new-item' })}>
+          Add a game
         </Button>
       </Group>
 
-      {tab === 'collection' ? (
-        <Stack gap="md">
-          {physical.length > 0 && (
-            <Group gap="lg" wrap="wrap">
-              <Text size="sm" c="dimmed">
-                {physical.length} {physical.length === 1 ? 'game' : 'games'}
-                {spent > 0 && `, ${formatPrice(spent)} spent`}
-              </Text>
-              {platformCounts.map(([p, n]) => (
-                <Group key={p} gap={6} wrap="nowrap">
-                  <PhysicalPlatformIcon platform={p} size={14} />
-                  <Text size="sm" c="dimmed" className="num">
-                    {n}
-                  </Text>
-                </Group>
-              ))}
-            </Group>
-          )}
-          <div className="card-grid card-grid--physical">
-            {items.map((p) => (
-              <ItemCard
-                key={p.id}
-                item={p}
-                game={coverGame(p.gameId, p.title)}
-                footer={
-                  <>
-                    {p.condition && (
-                      <Badge size="sm" variant="outline" color="gray" radius="xs" tt="none">
-                        {CONDITIONS.find((c) => c.value === p.condition)?.label}
-                      </Badge>
-                    )}
-                    {p.pricePaid !== undefined && (
-                      <Text size="sm" c="dimmed" className="num">
-                        {formatPrice(p.pricePaid)}
-                      </Text>
-                    )}
-                  </>
-                }
-                actions={
-                  <>
-                    <Tooltip label="Edit">
-                      <ActionIcon variant="subtle" color="gray" onClick={() => setEditing({ kind: 'edit-item', id: p.id })} aria-label={`Edit ${p.title}`}>
-                        <IconPencil size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Remove from collection">
-                      <ActionIcon variant="subtle" color="gray" onClick={() => removePhysical(p.id)} aria-label={`Remove ${p.title}`}>
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </>
-                }
-              />
+      <Stack gap="md">
+        {physical.length > 0 && (
+          <Group gap="lg" wrap="wrap">
+            <Text size="sm" c="dimmed">
+              {physical.length} {physical.length === 1 ? 'game' : 'games'}
+              {spent > 0 && `, ${formatPrice(spent)} spent`}
+            </Text>
+            {platformCounts.map(([p, n]) => (
+              <Group key={p} gap={6} wrap="nowrap">
+                <PhysicalPlatformIcon platform={p} size={14} />
+                <Text size="sm" c="dimmed" className="num">
+                  {n}
+                </Text>
+              </Group>
             ))}
-          </div>
-          {!physical.length && (
-            <Text c="dimmed">No physical games yet. Add the ones on your shelf to keep track of them.</Text>
-          )}
-          {physical.length > 0 && !items.length && <Text c="dimmed">No games match these filters.</Text>}
-        </Stack>
-      ) : (
-        <Stack gap="md">
-          {wanted.length > 0 && (
-            <Group justify="space-between" gap="sm">
-              <Text size="sm" c="dimmed">
-                {wanted.length} {wanted.length === 1 ? 'game' : 'games'}
-              </Text>
-              <ShareExport list={exported} />
-            </Group>
-          )}
-          <div className="card-grid card-grid--physical">
-            {wanted.map((w) => (
-              <ItemCard
-                key={w.id}
-                item={w}
-                game={coverGame(w.gameId, w.title)}
-                footer={
-                  <>
-                    {w.maxPrice !== undefined && (
-                      <Text size="sm" c="dimmed" className="num">
-                        Up to {formatPrice(w.maxPrice)}
-                      </Text>
-                    )}
-                    <ShopLinks want={w} />
-                  </>
-                }
-                actions={
-                  <>
-                    <Tooltip label="Got it: move to collection">
-                      <ActionIcon
-                        variant="light"
-                        color="green"
-                        aria-label={`Move ${w.title} to collection`}
-                        onClick={() =>
-                          setEditing({
-                            kind: 'new-item',
-                            fromWant: w.id,
-                            initial: { gameId: w.gameId, title: w.title, platform: w.platform, edition: w.edition },
-                          })
-                        }
-                      >
-                        <IconCheck size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Edit">
-                      <ActionIcon variant="subtle" color="gray" onClick={() => setEditing({ kind: 'edit-want', id: w.id })} aria-label={`Edit ${w.title}`}>
-                        <IconPencil size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                    <Tooltip label="Remove from wants">
-                      <ActionIcon variant="subtle" color="gray" onClick={() => removeWant(w.id)} aria-label={`Remove ${w.title}`}>
-                        <IconX size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </>
-                }
-              />
-            ))}
-          </div>
-          {!wants.length && (
-            <Text c="dimmed">Nothing on your wants list. Add physical copies you’re looking for.</Text>
-          )}
-          {wants.length > 0 && !wanted.length && <Text c="dimmed">No wants match these filters.</Text>}
-        </Stack>
-      )}
-
-      <Modal
-        opened={!!editing}
-        onClose={() => setEditing(null)}
-        title={
-          editing?.kind === 'edit-item'
-            ? 'Edit physical game'
-            : editing?.kind === 'edit-want'
-              ? 'Edit want'
-              : editing?.kind === 'new-want'
-                ? 'Add a want'
-                : editing?.kind === 'new-item' && editing.fromWant
-                  ? 'Move to collection'
-                  : 'Add a physical game'
-        }
-        size="lg"
-        fullScreen={typeof window !== 'undefined' && window.innerWidth < 576}
-      >
-        {editing && (
-          <PhysicalForm
-            key={JSON.stringify(editing)}
-            mode={isItemForm ? 'item' : 'want'}
-            initial={
-              editingItem
-                ? itemInitial(editingItem)
-                : editingWant
-                  ? wantInitial(editingWant)
-                  : editing.kind === 'new-item'
-                    ? editing.initial
-                    : undefined
-            }
-            onSave={isItemForm ? saveItem : saveWant}
-            onCancel={() => setEditing(null)}
-          />
+          </Group>
         )}
-      </Modal>
+        <div className="card-grid card-grid--physical">
+          {items.map((p) => (
+            <ItemCard
+              key={p.id}
+              item={p}
+              game={coverGame(p.gameId, p.title)}
+              actions={
+                <>
+                  <Tooltip label="Edit">
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      onClick={() => setEditing({ kind: 'edit-item', id: p.id })}
+                      aria-label={`Edit ${p.title}`}
+                    >
+                      <IconPencil size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Remove from your shelf">
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      onClick={() => removePhysical(p.id)}
+                      aria-label={`Remove ${p.title}`}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                </>
+              }
+            />
+          ))}
+        </div>
+        {!physical.length && (
+          <Text c="dimmed">No physical games yet. Add the ones on your shelf to keep track of them.</Text>
+        )}
+        {physical.length > 0 && !items.length && <Text c="dimmed">No games match these filters.</Text>}
+      </Stack>
+
+      <PhysicalEditorModal editing={editing} onClose={() => setEditing(null)} />
     </Stack>
   );
 }
