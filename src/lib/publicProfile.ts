@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { savePublicProfile, type PublicProfile } from './friends';
 import { platformTotals, useLibrary } from './library';
 import { resolveGame, useStore } from './store';
+import { useRarestUnlocks } from './rarity';
 import { useXp } from './xp';
 
 const hours = (minutes: number) => Math.round(minutes / 6) / 10;
@@ -10,7 +11,7 @@ let lastSent = '';
 
 /**
  * Keeps what friends see of you up to date: level and rank, picture,
- * favourites, top games and hours, recently played games, and wishlist. Sent a few seconds after it
+ * favourites, top games and hours, recently played games, rarest unlocks and wishlist. Sent a few seconds after it
  * changes, and only when it did.
  */
 export function usePublicProfileSync() {
@@ -22,6 +23,7 @@ export function usePublicProfileSync() {
   const overrides = useStore((s) => s.genreOverrides);
   const details = useStore((s) => s.details);
   const wants = useStore((s) => s.physicalWants);
+  const rarest = useRarestUnlocks(5);
 
   const snapshot = useMemo<PublicProfile>(() => {
     const totals = platformTotals(lib);
@@ -63,6 +65,16 @@ export function usePublicProfileSync() {
           platforms: [...new Set(g.plays.filter((p) => p.minutes > 0).map((p) => p.platform))],
           steamAppId: g.game.steamAppId,
         })),
+      rarest: rarest.map((r) => ({
+        name: r.name,
+        icon: r.icon,
+        rarity: r.rarity,
+        earnedAt: r.earnedAt,
+        title: r.title,
+        imageUrl: r.imageUrl,
+        steamAppId: r.steamAppId,
+        platform: r.platform,
+      })),
       wishlist: wishlist
         .map((w) => resolveGame(w.gameId, customGames, overrides, details))
         .filter((g) => !!g)
@@ -80,7 +92,7 @@ export function usePublicProfileSync() {
         return { title: w.title, platform: w.platform, edition: w.edition, imageUrl: g?.imageUrl };
       }),
     };
-  }, [xp, lib, profile, wishlist, customGames, overrides, details, wants]);
+  }, [xp, lib, profile, wishlist, customGames, overrides, details, wants, rarest]);
 
   useEffect(() => {
     const json = JSON.stringify(snapshot);

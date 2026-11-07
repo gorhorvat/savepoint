@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { AchievementProgress, Game, PlatformId, PlayEntry } from '../types';
 import { isApp } from './apps';
+import { RARITY_XP } from './rarity';
 import { resolveGame, useStore } from './store';
 
 // Savepoint XP: earned only from things a platform confirms through its API.
@@ -16,6 +17,8 @@ import { resolveGame, useStore } from './store';
 //   shares none); hours added by hand and non-game apps earn nothing.
 // - Quests (lib/quests.ts) earn their XP for the same confirmed play and
 //   achievements; the server keeps the total.
+// - Rare achievements earn a bonus on top, on every platform alike: under 5%
+//   of players, 5–10% and 10–20% (lib/rarity.ts has the bands).
 
 export const XP = {
   bronze: 15,
@@ -62,6 +65,8 @@ export interface XpBreakdown {
   xbox: { achievements: number; gamerscore: number; xp: number };
   hours: { confirmed: number; unconfirmed: number; xp: number };
   quests: { done: number; xp: number };
+  /** The bonus for rare earned achievements, by band. */
+  rarity: { ultra: number; very: number; rare: number; xp: number };
 }
 
 export interface Level {
@@ -118,8 +123,15 @@ export function computeXp(
   const steam = { achievements: 0, perfectGames: 0, xp: 0 };
   const xbox = { achievements: 0, gamerscore: 0, xp: 0 };
   const more: Partial<Record<PlatformId, AchievementXp>> = {};
+  const rarity = { ultra: 0, very: 0, rare: 0, xp: 0 };
   for (const [id, per] of Object.entries(achievements)) {
     if (!isGame(id)) continue;
+    for (const a of Object.values(per)) {
+      if (!a?.rarity) continue;
+      rarity.ultra += a.rarity.ultra;
+      rarity.very += a.rarity.very;
+      rarity.rare += a.rarity.rare;
+    }
     const ps = per.playstation;
     if (ps?.grades) {
       trophies.bronze += ps.grades.bronze;
@@ -157,6 +169,7 @@ export function computeXp(
     trophies.ungraded * XP.ungradedTrophy;
   steam.xp = steam.achievements * XP.steamAchievement + steam.perfectGames * XP.steamPerfect;
   xbox.xp = xbox.gamerscore * XP.perGamerscore;
+  rarity.xp = rarity.ultra * RARITY_XP.ultra + rarity.very * RARITY_XP.very + rarity.rare * RARITY_XP.rare;
   let moreXp = 0;
   for (const m of Object.values(more)) {
     m.xp = m.achievements * XP.steamAchievement + m.perfectGames * XP.steamPerfect;
@@ -177,13 +190,14 @@ export function computeXp(
   };
 
   return {
-    total: trophies.xp + steam.xp + moreXp + xbox.xp + hours.xp + quests.xp,
+    total: trophies.xp + steam.xp + moreXp + xbox.xp + rarity.xp + hours.xp + quests.xp,
     trophies,
     steam,
     more,
     xbox,
     hours,
     quests,
+    rarity,
   };
 }
 

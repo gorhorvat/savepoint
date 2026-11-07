@@ -33,7 +33,8 @@ import { WishlistButton } from '../components/WishlistButton';
 import { ProgressPanel } from '../components/ProgressPanel';
 import { GameFacts, Screenshots } from '../components/GameInfo';
 import { LiveStreams } from '../components/LiveStreams';
-import { AchievementList, type AchievementSource } from '../components/AchievementList';
+import { AchievementList } from '../components/AchievementList';
+import { achievementSources, type AchievementSource } from '../lib/achievementSources';
 import { useGameInfo } from '../lib/gameInfo';
 import { PLATFORMS } from '../data/platforms';
 import { formatHoursNumber, formatLastPlayed, formatPlaytime, upcomingLabel } from '../lib/format';
@@ -239,36 +240,10 @@ export function GamePage() {
   const achievements = useStore((s) => s.achievements[id]);
   const entries = useStore((s) => s.entries);
   // A tab for each platform that has achievements for this game, and the address of its list.
-  const achievementSources = useMemo(() => {
-    if (!game) return [];
-    const out: AchievementSource[] = [];
-    for (const e of entries.filter((x) => x.gameId === id)) {
-      if (!achievements?.[e.platform]?.total || out.some((s) => s.platform === e.platform)) continue;
-      const ref = e.ref ? encodeURIComponent(e.ref) : null;
-      // PlayStation: the lists of each version (PS4, PS5) the counts were matched to.
-      const sets = e.source === 'psn' ? (achievements[e.platform]?.psnLists ?? []) : [];
-      if (sets.length) {
-        const versions = sets.map((s) => ({
-          label: s.label,
-          url: `/api/psn/trophies/list?ids=${s.ids.map(encodeURIComponent).join(',')}`,
-        }));
-        out.push({ platform: e.platform, url: versions[0].url, ...(versions.length > 1 && { versions }) });
-        continue;
-      }
-      const url =
-        e.source === 'steam' && game.steamAppId
-          ? `/api/steam/achievements/list?appid=${game.steamAppId}`
-          : e.source === 'psn'
-            ? `/api/psn/trophies/list?title=${encodeURIComponent(game.title)}`
-            : ref && e.source === 'xbox'
-              ? `/api/xbox/achievements/list?ref=${ref}`
-              : ref && (e.source === 'epic' || e.source === 'gog' || e.source === 'retro')
-                ? `/api/${e.source}/achievements?ref=${ref}`
-                : null;
-      if (url) out.push({ platform: e.platform, url });
-    }
-    return out;
-  }, [entries, achievements, game, id]);
+  const sources = useMemo<AchievementSource[]>(
+    () => (game ? achievementSources(game, entries, achievements) : []),
+    [entries, achievements, game],
+  );
   const info = useGameInfo(game && !isApp(game) ? game : undefined);
   const [editing, setEditing] = useState(false);
 
@@ -521,7 +496,7 @@ export function GamePage() {
         )}
       </Grid>
 
-      {!app && achievementSources.length > 0 && <AchievementList key={game.id} sources={achievementSources} />}
+      {!app && sources.length > 0 && <AchievementList key={game.id} sources={sources} />}
 
       {!app && <LiveStreams title={game.title} />}
 

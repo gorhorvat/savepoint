@@ -106,6 +106,30 @@ export interface AchievementProgress {
   totalGamerscore?: number;
   /** Total play minutes when this was checked, to skip unchanged games. */
   minutesAt?: number;
+  /** How rare the earned ones are (lib/rarity.ts); kept when the counts are refreshed. */
+  rarity?: RarityInfo;
+  checkedAt: string;
+}
+
+/** One earned achievement and the share of players who have it. */
+export interface RareUnlock {
+  name: string;
+  icon: string | null;
+  /** % of players. */
+  rarity: number;
+  earnedAt?: string;
+}
+
+/** The rarity of one game's earned achievements on one platform. */
+export interface RarityInfo {
+  /** Achievements earned when this was checked; checked again when that changes. */
+  earned: number;
+  /** Earned achievements under 5%, 5–10% and 10–20% of players. */
+  ultra: number;
+  very: number;
+  rare: number;
+  /** The rarest earned ones, rarest first (up to 3). */
+  rarest: RareUnlock[];
   checkedAt: string;
 }
 

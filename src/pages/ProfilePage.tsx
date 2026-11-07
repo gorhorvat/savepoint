@@ -16,11 +16,13 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconPhoto, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
+import { MyRarestUnlocks } from '../components/RarestUnlocks';
 import { changePassword, fetchAccount, fetchTaxonomy, type Account, type Taxonomy } from '../lib/api';
 import { setShareStats } from '../lib/compare';
 import { favoriteFranchise, favoriteGenresOf, makeFavorites, seriesInLibrary } from '../lib/favorites';
 import { useLibrary } from '../lib/library';
 import { loadQuests, useQuests } from '../lib/quests';
+import { RARITY_XP } from '../lib/rarity';
 import { useStore } from '../lib/store';
 import { LIKE_STEAM, nextRank, useXp, XP } from '../lib/xp';
 
@@ -248,6 +250,15 @@ function LevelSection() {
           },
         ]
       : []),
+    ...(xp.rarity.ultra + xp.rarity.very + xp.rarity.rare
+      ? [
+          {
+            label: 'Rare achievements',
+            detail: `${fmt(xp.rarity.ultra)} ultra rare, ${fmt(xp.rarity.very)} very rare, ${fmt(xp.rarity.rare)} rare`,
+            xp: xp.rarity.xp,
+          },
+        ]
+      : []),
     {
       label: 'Play time',
       detail: `${fmt(xp.hours.confirmed)} hours your platforms confirmed`,
@@ -310,7 +321,8 @@ function LevelSection() {
         {XP.silver}, gold {XP.gold}, platinum {XP.platinum}), Steam achievements {XP.steamAchievement} each plus{' '}
         {XP.steamPerfect} for completing a game (achievements from {listOf(LIKE_STEAM.map((p) => p.label))} count the
         same way), Xbox achievements their gamerscore, {XP.perHour} per hour played, and quests on Home their XP for the
-        same confirmed play.
+        same confirmed play. Rare achievements earn extra on any platform: {RARITY_XP.ultra} when fewer than 5% of
+        players have one, {RARITY_XP.very} under 10% and {RARITY_XP.rare} under 20%.
         {xp.hours.unconfirmed >= 1 &&
           ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand don't count, and neither do apps.`}
       </Text>
@@ -440,6 +452,7 @@ export function ProfilePage() {
       </div>
       <PictureSection />
       <LevelSection />
+      <MyRarestUnlocks />
       <FavoritesSection />
       <AccountSection />
     </Stack>

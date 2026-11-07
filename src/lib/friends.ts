@@ -80,6 +80,21 @@ export interface PublicProfile {
   recentGames?: ProfileGame[];
   wishlist: ProfileGame[];
   physicalWants?: ProfileWant[];
+  /** Their rarest earned achievements, rarest first. */
+  rarest?: ProfileRare[];
+}
+
+/** One rare achievement as friends see it. */
+export interface ProfileRare {
+  name: string;
+  icon: string | null;
+  /** % of players. */
+  rarity: number;
+  earnedAt?: string;
+  title: string;
+  imageUrl?: string;
+  steamAppId?: number;
+  platform: string;
 }
 
 export interface FriendProfile {

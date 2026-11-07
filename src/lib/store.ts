@@ -13,6 +13,7 @@ import type {
   PlayEntry,
   PlayLogEntry,
   Progress,
+  RarityInfo,
   StreamTaste,
   WishlistItem,
 } from '../types';
@@ -146,6 +147,8 @@ interface State {
     results: Record<string, Omit<AchievementProgress, 'checkedAt'>>,
     finished?: boolean,
   ) => void;
+  /** Save how rare each game's earned achievements are (lib/rarity.ts). */
+  applyRarity: (results: { gameId: string; platform: PlatformId; info: RarityInfo }[]) => void;
   /** Save a game found by search (if it isn't known yet) and wishlist it. Returns its id. */
   addFoundToWishlist: (found: FoundGame) => string;
   /** Mirror the Steam wishlist: add new items, drop ones removed on Steam. Returns counts. */
@@ -521,13 +524,27 @@ export const useStore = create<State>()(
         const achievements = { ...get().achievements };
         const checkedAt = new Date().toISOString();
         for (const [gameId, r] of Object.entries(results)) {
-          achievements[gameId] = { ...achievements[gameId], [platform]: { ...r, checkedAt } };
+          // Rarity is checked separately (lib/rarity.ts), so a refresh of the counts keeps it.
+          const rarity = achievements[gameId]?.[platform]?.rarity;
+          achievements[gameId] = {
+            ...achievements[gameId],
+            [platform]: { ...r, ...(rarity && { rarity }), checkedAt },
+          };
         }
         set({
           achievements,
           ...(finished && { achievementsSync: checkedAt }),
           ...(finished && platform === 'playstation' && { psnTrophiesVersion: 2 }),
         });
+      },
+
+      applyRarity: (results) => {
+        const achievements = { ...get().achievements };
+        for (const { gameId, platform, info } of results) {
+          const a = achievements[gameId]?.[platform];
+          if (a) achievements[gameId] = { ...achievements[gameId], [platform]: { ...a, rarity: info } };
+        }
+        set({ achievements });
       },
 
       setSuggested: (key, found) => {

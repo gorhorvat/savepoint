@@ -14,17 +14,12 @@ import {
 import { IconLock, IconTrophy } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { PLATFORM_BY_ID } from '../data/platforms';
+import type { AchievementSource } from '../lib/achievementSources';
 import { fetchAchievementList, type AchievementItem } from '../lib/api';
+import { bandOf, RARITY_XP } from '../lib/rarity';
 import type { PlatformId } from '../types';
 import { PlatformIcon } from './PlatformBadge';
-
-export interface AchievementSource {
-  platform: PlatformId;
-  /** The server address of this platform's list for the game. */
-  url: string;
-  /** Versions with lists of their own (PS4 and PS5), the one counted first. */
-  versions?: { label: string; url: string }[];
-}
+import { RarityBadge } from './RarestUnlocks';
 
 const SHOWN = 24;
 
@@ -53,9 +48,11 @@ function sorted(items: AchievementItem[]) {
   });
 }
 
-function Row({ a }: { a: AchievementItem }) {
+function Row({ a, rated }: { a: AchievementItem; rated: boolean }) {
   const earned = a.earnedAt !== null;
   const secret = a.hidden && !earned;
+  const band = rated ? bandOf(a.rarity)?.band : undefined;
+  const bonus = earned && band && band in RARITY_XP ? RARITY_XP[band as keyof typeof RARITY_XP] : 0;
   return (
     <Group gap="sm" wrap="nowrap" align="flex-start" py={8} style={{ borderTop: '1px solid var(--sp-line)' }}>
       <Avatar
@@ -89,11 +86,21 @@ function Row({ a }: { a: AchievementItem }) {
         <Text size="xs" fw={earned ? 600 : 400} c={earned ? undefined : 'dimmed'}>
           {earned ? (a.earnedAt ? dateOf(a.earnedAt) : 'Earned') : 'Locked'}
         </Text>
-        <Text size="xs" c="dimmed" className="num">
-          {[a.points ? `${a.points} pts` : null, a.rarity != null ? `${a.rarity}% of players` : null]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
+        {a.points ? (
+          <Text size="xs" c="dimmed" className="num">
+            {a.points} pts
+          </Text>
+        ) : null}
+        {rated && a.rarity != null && (
+          <Group gap={4} justify="flex-end" wrap="nowrap" mt={2}>
+            <RarityBadge pct={a.rarity} size="xs" />
+          </Group>
+        )}
+        {bonus > 0 && (
+          <Text size="xs" c="dimmed" className="num" mt={2}>
+            +{bonus} XP
+          </Text>
+        )}
       </div>
     </Group>
   );
@@ -122,6 +129,8 @@ export function AchievementList({ sources }: { sources: AchievementSource[] }) {
   }, [url, lists]);
 
   const items = useMemo(() => (Array.isArray(list) ? sorted(list) : []), [list]);
+  // A game nobody has data for yet reports 0% for everything: no bands then.
+  const rated = items.some((a) => a.rarity != null && a.rarity > 0);
   if (!current) return null;
   const earned = items.filter((a) => a.earnedAt !== null).length;
 
@@ -194,7 +203,7 @@ export function AchievementList({ sources }: { sources: AchievementSource[] }) {
                   {a.group}
                 </Text>
               )}
-              <Row a={a} />
+              <Row a={a} rated={rated} />
             </div>
           ))}
           {items.length > SHOWN && (

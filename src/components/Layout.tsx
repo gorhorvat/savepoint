@@ -42,6 +42,7 @@ import { useStreamTasteSync } from '../lib/streaming';
 import { useDetailsBackfill } from '../lib/details';
 import { usePlayHistory } from '../lib/history';
 import { useAchievementsSync } from '../lib/achievements';
+import { useRaritySync } from '../lib/rarity';
 import { useQuestCheck } from '../lib/quests';
 import { useLengthBackfill } from '../lib/lengths';
 import { usePriceAlertsSync } from '../lib/alerts';
@@ -291,6 +292,7 @@ export function Layout({ children }: { children: ReactNode }) {
   useDetailsBackfill();
   usePlayHistory();
   useAchievementsSync();
+  useRaritySync();
   useQuestCheck();
   useLengthBackfill();
   usePriceAlertsSync();

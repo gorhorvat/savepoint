@@ -8,6 +8,7 @@ import { Cover } from '../components/Cover';
 import { GiftWantModal, GiftWishModal } from '../components/GiftModal';
 import { PlatformIcon } from '../components/PlatformBadge';
 import { FriendAvatar } from '../components/ProfileAvatar';
+import { RarestUnlocks } from '../components/RarestUnlocks';
 import { PLATFORM_BY_ID } from '../data/platforms';
 import {
   describePresence,
@@ -403,6 +404,12 @@ export function FriendProfilePage() {
         onOpen={openGame}
       />
       <Shelf title="Most played" games={p.topGames ?? []} meta={(g) => `${fmt(g.hours ?? 0)} h`} onOpen={openGame} />
+      <RarestUnlocks
+        items={p.rarest ?? []}
+        onOpen={(r) =>
+          openGame({ title: r.title, imageUrl: r.imageUrl, steamAppId: r.steamAppId, platforms: [r.platform] })
+        }
+      />
       <WishlistShelf
         wishlist={p.wishlist ?? []}
         wants={p.physicalWants ?? []}
