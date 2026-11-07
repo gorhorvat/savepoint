@@ -44,7 +44,7 @@ async function between(a, b) {
   return rows[0] ?? null;
 }
 
-/** Picture, level and rank from a public profile, for lists. */
+/** Picture, level, rank and badge ids from a public profile, for lists. */
 const card = (u) => ({
   id: u.id,
   username: u.username,
@@ -53,6 +53,7 @@ const card = (u) => ({
   rank: u.data?.rank ?? null,
   into: u.data?.into ?? null,
   needed: u.data?.needed ?? null,
+  badges: Array.isArray(u.data?.badges) ? u.data.badges.map((b) => b?.id).filter((id) => typeof id === 'string') : [],
 });
 
 export const friendsRouter = express.Router();

@@ -28,6 +28,8 @@ export interface FriendCard {
   rank: string | null;
   into: number | null;
   needed: number | null;
+  /** Ids of the badges they've earned. */
+  badges?: string[];
 }
 
 export interface Friend extends FriendCard {
@@ -82,6 +84,8 @@ export interface PublicProfile {
   physicalWants?: ProfileWant[];
   /** Their rarest earned achievements, rarest first. */
   rarest?: ProfileRare[];
+  /** Badges they've earned, newest first. */
+  badges?: { id: string; earnedAt: string }[];
 }
 
 /** One rare achievement as friends see it. */

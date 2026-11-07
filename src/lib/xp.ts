@@ -80,7 +80,7 @@ export interface Level {
 /** XP to go from `level` to the next: each level asks a little more than the last. */
 export const xpToNext = (level: number) => Math.round(100 * Math.pow(level, 1.2));
 
-const RANKS: [minLevel: number, name: string][] = [
+export const RANKS: [minLevel: number, name: string][] = [
   [90, 'Legend'],
   [70, 'Master'],
   [50, 'Elite'],

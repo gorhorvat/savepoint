@@ -11,7 +11,7 @@ let lastSent = '';
 
 /**
  * Keeps what friends see of you up to date: level and rank, picture,
- * favourites, top games and hours, recently played games, rarest unlocks and wishlist. Sent a few seconds after it
+ * favourites, top games and hours, recently played games, rarest unlocks, badges and wishlist. Sent a few seconds after it
  * changes, and only when it did.
  */
 export function usePublicProfileSync() {
@@ -24,6 +24,7 @@ export function usePublicProfileSync() {
   const details = useStore((s) => s.details);
   const wants = useStore((s) => s.physicalWants);
   const rarest = useRarestUnlocks(5);
+  const badges = useStore((s) => s.badges);
 
   const snapshot = useMemo<PublicProfile>(() => {
     const totals = platformTotals(lib);
@@ -75,6 +76,9 @@ export function usePublicProfileSync() {
         steamAppId: r.steamAppId,
         platform: r.platform,
       })),
+      badges: Object.entries(badges ?? {})
+        .sort((a, b) => b[1].localeCompare(a[1]))
+        .map(([id, earnedAt]) => ({ id, earnedAt })),
       wishlist: wishlist
         .map((w) => resolveGame(w.gameId, customGames, overrides, details))
         .filter((g) => !!g)
@@ -92,7 +96,7 @@ export function usePublicProfileSync() {
         return { title: w.title, platform: w.platform, edition: w.edition, imageUrl: g?.imageUrl };
       }),
     };
-  }, [xp, lib, profile, wishlist, customGames, overrides, details, wants, rarest]);
+  }, [xp, lib, profile, wishlist, customGames, overrides, details, wants, rarest, badges]);
 
   useEffect(() => {
     const json = JSON.stringify(snapshot);

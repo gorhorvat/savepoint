@@ -118,6 +118,8 @@ interface State {
   messageAlerts?: MessageAlerts;
   /** XP from finished quests and how many (the server keeps the quests; lib/quests.ts). */
   questXp?: { xp: number; done: number };
+  /** Badges earned (lib/badges.ts): id -> when. */
+  badges?: Record<string, string>;
 
   importLibrary: (
     platform: PlatformId,
@@ -178,6 +180,8 @@ interface State {
   /** Steam said the Game details are private (true), or shared achievements again (false). */
   setSteamAchievementsPrivate: (hidden: boolean) => void;
   setQuestXp: (xp: number, done: number) => void;
+  /** Mark badges as earned now (ones already earned keep their date). */
+  addBadges: (ids: string[]) => void;
 }
 
 function ensureGame(
@@ -608,6 +612,13 @@ export const useStore = create<State>()(
       setStreamTaste: (streamTaste) => set({ streamTaste }),
       setHomepage: (homepage) => set({ homepage }),
       setMessageAlerts: (patch) => set((s) => ({ messageAlerts: { ...messageAlerts(s.messageAlerts), ...patch } })),
+      addBadges: (ids) => {
+        const badges = { ...get().badges };
+        const now = new Date().toISOString();
+        for (const id of ids) badges[id] ??= now;
+        set({ badges });
+      },
+
       setQuestXp: (xp, done) => {
         const now = get().questXp;
         if (now?.xp !== xp || now?.done !== done) set({ questXp: { xp, done } });

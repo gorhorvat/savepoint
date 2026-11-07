@@ -43,6 +43,7 @@ import { useDetailsBackfill } from '../lib/details';
 import { usePlayHistory } from '../lib/history';
 import { useAchievementsSync } from '../lib/achievements';
 import { useRaritySync } from '../lib/rarity';
+import { useBadgeSync } from '../lib/badges';
 import { useQuestCheck } from '../lib/quests';
 import { useLengthBackfill } from '../lib/lengths';
 import { usePriceAlertsSync } from '../lib/alerts';
@@ -293,6 +294,7 @@ export function Layout({ children }: { children: ReactNode }) {
   usePlayHistory();
   useAchievementsSync();
   useRaritySync();
+  useBadgeSync();
   useQuestCheck();
   useLengthBackfill();
   usePriceAlertsSync();

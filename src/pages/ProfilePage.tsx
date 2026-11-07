@@ -16,6 +16,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconPhoto, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
+import { BadgesSection } from '../components/Badges';
 import { MyRarestUnlocks } from '../components/RarestUnlocks';
 import { changePassword, fetchAccount, fetchTaxonomy, type Account, type Taxonomy } from '../lib/api';
 import { setShareStats } from '../lib/compare';
@@ -453,6 +454,7 @@ export function ProfilePage() {
       <PictureSection />
       <LevelSection />
       <MyRarestUnlocks />
+      <BadgesSection />
       <FavoritesSection />
       <AccountSection />
     </Stack>

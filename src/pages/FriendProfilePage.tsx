@@ -4,6 +4,7 @@ import { IconArrowLeft, IconDisc, IconGift, IconHeartFilled, IconMessage, IconUs
 import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AddOnPlatforms } from '../components/AddOnPlatforms';
+import { BadgeRow } from '../components/Badges';
 import { Cover } from '../components/Cover';
 import { GiftWantModal, GiftWishModal } from '../components/GiftModal';
 import { PlatformIcon } from '../components/PlatformBadge';
@@ -375,6 +376,15 @@ export function FriendProfilePage() {
       )}
 
       <AddOnPlatforms friend={friend} />
+
+      {(p.badges?.length ?? 0) > 0 && (
+        <section aria-label="Badges">
+          <Title order={2} mb="sm">
+            Badges
+          </Title>
+          <BadgeRow items={(p.badges ?? []).slice(0, 8)} />
+        </section>
+      )}
 
       {favourites.length > 0 && (
         <Stack gap="sm">

@@ -5,6 +5,7 @@ import { StateGate } from './components/StateGate';
 import { AssistantPage } from './pages/AssistantPage';
 import { AddFriendPage } from './pages/AddFriendPage';
 import { AdminPage } from './pages/AdminPage';
+import { BadgesPage } from './pages/BadgesPage';
 import { DiscoverPage } from './pages/DiscoverPage';
 import { FriendProfilePage } from './pages/FriendProfilePage';
 import { FriendsPage } from './pages/FriendsPage';
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/physical" element={<PhysicalPage />} />
           <Route path="/stores" element={<Navigate to="/wishlist#stores" replace />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/badges" element={<BadgesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/friends" element={<FriendsPage />} />

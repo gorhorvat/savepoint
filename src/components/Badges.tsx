@@ -1,0 +1,183 @@
+import { Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title, Tooltip } from '@mantine/core';
+import {
+  IconCircleCheck,
+  IconClock,
+  IconCrown,
+  IconDiamond,
+  IconFlame,
+  IconHeart,
+  IconLock,
+  IconMap,
+  IconMedal,
+  IconSparkles,
+  IconStar,
+  IconTarget,
+  IconTrophy,
+  IconWorld,
+  type Icon,
+} from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
+import {
+  BADGE_BY_ID,
+  earnedBadges,
+  useBadges,
+  type BadgeDef,
+  type BadgeIconName,
+  type BadgeStatus,
+} from '../lib/badges';
+
+const ICONS: Record<BadgeIconName, Icon> = {
+  trophy: IconTrophy,
+  crown: IconCrown,
+  check: IconCircleCheck,
+  target: IconTarget,
+  clock: IconClock,
+  heart: IconHeart,
+  flame: IconFlame,
+  map: IconMap,
+  world: IconWorld,
+  gem: IconDiamond,
+  diamond: IconSparkles,
+  star: IconStar,
+  medal: IconMedal,
+};
+
+/** Bronze, silver, gold, like trophy grades. */
+const TIER_COLOR = { 1: '#c0804a', 2: '#a7b1bd', 3: '#e3b23c' } as const;
+
+const dateOf = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** A badge's round icon, in its tier's colour; grey with a lock while locked. */
+export function BadgeIcon({ badge, earned, size = 56 }: { badge: BadgeDef; earned: boolean; size?: number }) {
+  const Glyph = ICONS[badge.icon];
+  const color = TIER_COLOR[badge.tier];
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: 'relative',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: '50%',
+        display: 'grid',
+        placeItems: 'center',
+        border: `2px solid ${earned ? color : 'var(--sp-line)'}`,
+        background: earned ? `color-mix(in srgb, ${color} 18%, transparent)` : 'transparent',
+        color: earned ? color : 'var(--mantine-color-dimmed)',
+        opacity: earned ? 1 : 0.6,
+      }}
+    >
+      <Glyph size={size * 0.46} stroke={1.8} />
+      {!earned && (
+        <IconLock
+          size={size * 0.28}
+          style={{
+            position: 'absolute',
+            right: -2,
+            bottom: -2,
+            background: 'var(--mantine-color-body)',
+            borderRadius: '50%',
+            padding: 2,
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** A row of earned badges (newest first), each named in a tooltip. */
+export function BadgeRow({ items }: { items: { id: string; earnedAt: string }[] }) {
+  const known = items.filter((b) => BADGE_BY_ID.has(b.id));
+  if (!known.length) return null;
+  return (
+    <Group gap="md" align="flex-start">
+      {known.map((b) => {
+        const def = BADGE_BY_ID.get(b.id)!;
+        return (
+          <Tooltip key={b.id} label={`${def.name} · ${dateOf(b.earnedAt)}`} withArrow>
+            <Stack gap={4} align="center" w={72} tabIndex={0} aria-label={`${def.name}, earned ${dateOf(b.earnedAt)}`}>
+              <BadgeIcon badge={def} earned size={52} />
+              <Text size="xs" fw={600} ta="center" lineClamp={2} lh={1.2}>
+                {def.name}
+              </Text>
+            </Stack>
+          </Tooltip>
+        );
+      })}
+    </Group>
+  );
+}
+
+/** Your latest badges on Profile, with a link to all of them. */
+export function BadgesSection() {
+  const all = useBadges();
+  const earned = earnedBadges(all);
+  return (
+    <section aria-label="Badges">
+      <Group justify="space-between" align="baseline" mb="sm">
+        <Title order={2}>Badges</Title>
+        <Button component={Link} to="/badges" variant="subtle" size="xs">
+          All badges ({earned.length} of {all.length})
+        </Button>
+      </Group>
+      {earned.length ? (
+        <BadgeRow items={earned.slice(0, 8).map((b) => ({ id: b.id, earnedAt: b.earnedAt! }))} />
+      ) : (
+        <Text c="dimmed">No badges yet. Open All badges to see what earns them.</Text>
+      )}
+    </section>
+  );
+}
+
+/** One badge on the Badges page: earned date, or how far along you are. */
+export function BadgeCard({ b, friends }: { b: BadgeStatus; friends: number | null }) {
+  const earned = !!b.earnedAt;
+  return (
+    <Paper p="md">
+      <Group gap="md" wrap="nowrap" align="flex-start">
+        <BadgeIcon badge={b} earned={earned} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <Text fw={700}>{b.name}</Text>
+          <Text size="sm" c="dimmed">
+            {b.hint}
+          </Text>
+          {earned ? (
+            <Text size="sm" fw={600} mt={6}>
+              Earned {dateOf(b.earnedAt!)}
+            </Text>
+          ) : b.have != null && b.need != null && b.need > 1 ? (
+            <Stack gap={4} mt={8}>
+              <Progress value={(b.have / b.need) * 100} size="sm" radius="xl" aria-hidden />
+              <Text size="xs" c="dimmed" className="num">
+                {b.have.toLocaleString()} of {b.need.toLocaleString()}
+              </Text>
+            </Stack>
+          ) : null}
+          {friends != null && friends > 0 && (
+            <Text size="xs" c="dimmed" mt={4}>
+              {friends === 1 ? '1 friend has it' : `${friends} friends have it`}
+            </Text>
+          )}
+        </div>
+      </Group>
+    </Paper>
+  );
+}
+
+export function BadgeGrid({
+  items,
+  friendCount,
+}: {
+  items: BadgeStatus[];
+  friendCount: (id: string) => number | null;
+}) {
+  return (
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+      {items.map((b) => (
+        <BadgeCard key={b.id} b={b} friends={friendCount(b.id)} />
+      ))}
+    </SimpleGrid>
+  );
+}
