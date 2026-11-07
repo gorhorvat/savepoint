@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { AchievementProgress, Game, PlatformId, PlayEntry } from '../types';
 import { isApp } from './apps';
+import { badgeXpTotal } from './badges';
 import { levelFor, type Level } from './levels';
 import { RARITY_XP } from './rarity';
 import { resolveGame, useStore } from './store';
@@ -18,6 +19,8 @@ import { resolveGame, useStore } from './store';
 //   shares none); hours added by hand and non-game apps earn nothing.
 // - Quests (lib/quests.ts) earn their XP for the same confirmed play and
 //   achievements; the server keeps the total.
+// - Badges (lib/badges.ts) give XP by tier once earned, also counted for
+//   badges earned before badges had XP.
 // - Rare achievements earn a bonus on top, on every platform alike: under 5%
 //   of players, 5–10% and 10–20% (lib/rarity.ts has the bands).
 
@@ -68,6 +71,8 @@ export interface XpBreakdown {
   quests: { done: number; xp: number };
   /** The bonus for rare earned achievements, by band. */
   rarity: { ultra: number; very: number; rare: number; xp: number };
+  /** Badges earned and the XP they give (lib/badges.ts). */
+  badges: { earned: number; xp: number };
 }
 
 export { levelFor, MAX_LEVEL, nextRank, RANKS, rankFor, xpToNext, type Level } from './levels';
@@ -77,6 +82,7 @@ export function computeXp(
   achievements: Record<string, Partial<Record<PlatformId, AchievementProgress>>>,
   gameOf: (id: string) => Game | undefined,
   quests: { done: number; xp: number } = { done: 0, xp: 0 },
+  badges: Record<string, string> = {},
 ): XpBreakdown {
   const isGame = (id: string) => {
     const g = gameOf(id);
@@ -140,6 +146,8 @@ export function computeXp(
     moreXp += m.xp;
   }
 
+  const badgeXp = badgeXpTotal(badges);
+
   let confirmed = 0;
   let unconfirmed = 0;
   for (const e of entries) {
@@ -154,7 +162,7 @@ export function computeXp(
   };
 
   return {
-    total: trophies.xp + steam.xp + moreXp + xbox.xp + rarity.xp + hours.xp + quests.xp,
+    total: trophies.xp + steam.xp + moreXp + xbox.xp + rarity.xp + hours.xp + quests.xp + badgeXp.xp,
     trophies,
     steam,
     more,
@@ -162,6 +170,7 @@ export function computeXp(
     hours,
     quests,
     rarity,
+    badges: badgeXp,
   };
 }
 
@@ -173,8 +182,15 @@ export function useXp(): XpBreakdown & Level {
   const overrides = useStore((s) => s.genreOverrides);
   const details = useStore((s) => s.details);
   const quests = useStore((s) => s.questXp);
+  const badges = useStore((s) => s.badges);
   return useMemo(() => {
-    const xp = computeXp(entries, achievements, (id) => resolveGame(id, customGames, overrides, details), quests);
+    const xp = computeXp(
+      entries,
+      achievements,
+      (id) => resolveGame(id, customGames, overrides, details),
+      quests,
+      badges,
+    );
     return { ...xp, ...levelFor(xp.total) };
-  }, [entries, achievements, customGames, overrides, details, quests]);
+  }, [entries, achievements, customGames, overrides, details, quests, badges]);
 }

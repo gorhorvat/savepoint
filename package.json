@@ -31,6 +31,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
     "@types/react": "^19.2.18",

@@ -53,7 +53,9 @@ const card = (u) => ({
   rank: u.data?.rank ?? null,
   into: u.data?.into ?? null,
   needed: u.data?.needed ?? null,
-  badges: Array.isArray(u.data?.badges) ? u.data.badges.map((b) => b?.id).filter((id) => typeof id === 'string') : [],
+  badges: (Array.isArray(u.data?.badgeIds) ? u.data.badgeIds : (u.data?.badges ?? []).map((b) => b?.id)).filter(
+    (id) => typeof id === 'string',
+  ),
 });
 
 export const friendsRouter = express.Router();

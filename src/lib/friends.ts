@@ -84,8 +84,10 @@ export interface PublicProfile {
   physicalWants?: ProfileWant[];
   /** Their rarest earned achievements, rarest first. */
   rarest?: ProfileRare[];
-  /** Badges they've earned, newest first. */
+  /** Their latest badges, newest first. */
   badges?: { id: string; earnedAt: string }[];
+  /** Every badge they've earned. */
+  badgeIds?: string[];
 }
 
 /** One rare achievement as friends see it. */

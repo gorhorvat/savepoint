@@ -76,9 +76,12 @@ export function usePublicProfileSync() {
         steamAppId: r.steamAppId,
         platform: r.platform,
       })),
+      // The latest few with dates for the profile; every id for "N friends have it".
       badges: Object.entries(badges ?? {})
         .sort((a, b) => b[1].localeCompare(a[1]))
+        .slice(0, 8)
         .map(([id, earnedAt]) => ({ id, earnedAt })),
+      badgeIds: Object.keys(badges ?? {}),
       wishlist: wishlist
         .map((w) => resolveGame(w.gameId, customGames, overrides, details))
         .filter((g) => !!g)

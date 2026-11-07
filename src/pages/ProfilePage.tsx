@@ -17,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPhoto, IconTrash } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BadgesSection } from '../components/Badges';
+import { TIER_XP } from '../lib/badges';
 import { MyRarestUnlocks } from '../components/RarestUnlocks';
 import { changePassword, fetchAccount, fetchTaxonomy, type Account, type Taxonomy } from '../lib/api';
 import { setShareStats } from '../lib/compare';
@@ -261,6 +262,11 @@ function LevelSection() {
         ]
       : []),
     {
+      label: 'Badges',
+      detail: `${fmt(xp.badges.earned)} ${xp.badges.earned === 1 ? 'badge' : 'badges'} earned`,
+      xp: xp.badges.xp,
+    },
+    {
       label: 'Play time',
       detail: `${fmt(xp.hours.confirmed)} hours your platforms confirmed`,
       xp: xp.hours.xp,
@@ -323,7 +329,8 @@ function LevelSection() {
         {XP.steamPerfect} for completing a game (achievements from {listOf(LIKE_STEAM.map((p) => p.label))} count the
         same way), Xbox achievements their gamerscore, {XP.perHour} per hour played, and quests on Home their XP for the
         same confirmed play. Rare achievements earn extra on any platform: {RARITY_XP.ultra} when fewer than 5% of
-        players have one, {RARITY_XP.very} under 10% and {RARITY_XP.rare} under 20%.
+        players have one, {RARITY_XP.very} under 10% and {RARITY_XP.rare} under 20%. Badges give {TIER_XP[1]} (bronze),{' '}
+        {TIER_XP[2]} (silver), {TIER_XP[3]} (gold) or {TIER_XP[4]} (platinum).
         {xp.hours.unconfirmed >= 1 &&
           ` The ${fmt(xp.hours.unconfirmed)} hours you added by hand don't count, and neither do apps.`}
       </Text>

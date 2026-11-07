@@ -1,78 +1,43 @@
-import { Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title, Tooltip } from '@mantine/core';
-import {
-  IconBolt,
-  IconBooks,
-  IconCalendar,
-  IconCircleCheck,
-  IconCoin,
-  IconCompass,
-  IconDeviceGamepad2,
-  IconDevices,
-  IconClock,
-  IconCrown,
-  IconDiamond,
-  IconFlame,
-  IconHeart,
-  IconHourglass,
-  IconLock,
-  IconMap,
-  IconMasksTheater,
-  IconMedal,
-  IconMoon,
-  IconSparkles,
-  IconStar,
-  IconSun,
-  IconTarget,
-  IconTrophy,
-  IconWorld,
-  type Icon,
-} from '@tabler/icons-react';
+import { Badge, Button, Group, Paper, Progress, SimpleGrid, Stack, Text, Title, Tooltip } from '@mantine/core';
+import { IconLock } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
+import ICON_SET from '../data/badgeIcons.json';
 import {
   BADGE_BY_ID,
   earnedBadges,
+  TIER_NAME,
+  TIER_XP,
   useBadges,
   type BadgeDef,
-  type BadgeIconName,
   type BadgeStatus,
 } from '../lib/badges';
 
-const ICONS: Record<BadgeIconName, Icon> = {
-  trophy: IconTrophy,
-  crown: IconCrown,
-  check: IconCircleCheck,
-  target: IconTarget,
-  clock: IconClock,
-  heart: IconHeart,
-  flame: IconFlame,
-  map: IconMap,
-  world: IconWorld,
-  gem: IconDiamond,
-  diamond: IconSparkles,
-  star: IconStar,
-  medal: IconMedal,
-  books: IconBooks,
-  compass: IconCompass,
-  masks: IconMasksTheater,
-  hourglass: IconHourglass,
-  calendar: IconCalendar,
-  moon: IconMoon,
-  sun: IconSun,
-  devices: IconDevices,
-  joystick: IconDeviceGamepad2,
-  bolt: IconBolt,
-  coin: IconCoin,
-};
+const ICONS = ICON_SET.icons as Record<string, string>;
 
-/** Bronze, silver, gold, like trophy grades. */
-const TIER_COLOR = { 1: '#c0804a', 2: '#a7b1bd', 3: '#e3b23c' } as const;
+/** Bronze, silver, gold, platinum, like trophy grades. */
+const TIER_COLOR = { 1: '#c0804a', 2: '#a7b1bd', 3: '#e3b23c', 4: '#8fd3f0' } as const;
 
 const dateOf = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
+/** A game-icons.net icon, drawn in the current text colour. */
+function GameIcon({ name, size }: { name: string; size: number }) {
+  const body = ICONS[name];
+  if (!body) return null;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${ICON_SET.size} ${ICON_SET.size}`}
+      aria-hidden
+      // Static paths from the bundled icon set (scripts/badge-icons.mjs), not user input.
+      dangerouslySetInnerHTML={{ __html: body }}
+    />
+  );
+}
+
 /** A badge's round icon, in its tier's colour; grey with a lock while locked. */
 export function BadgeIcon({ badge, earned, size = 56 }: { badge: BadgeDef; earned: boolean; size?: number }) {
-  const Glyph = ICONS[badge.icon];
   const color = TIER_COLOR[badge.tier];
   return (
     <div
@@ -86,12 +51,15 @@ export function BadgeIcon({ badge, earned, size = 56 }: { badge: BadgeDef; earne
         display: 'grid',
         placeItems: 'center',
         border: `2px solid ${earned ? color : 'var(--sp-line)'}`,
-        background: earned ? `color-mix(in srgb, ${color} 18%, transparent)` : 'transparent',
+        background: earned
+          ? `radial-gradient(circle at 50% 35%, color-mix(in srgb, ${color} 34%, transparent), color-mix(in srgb, ${color} 10%, transparent) 70%)`
+          : 'transparent',
+        boxShadow: earned && badge.tier === 4 ? `0 0 12px color-mix(in srgb, ${color} 45%, transparent)` : undefined,
         color: earned ? color : 'var(--mantine-color-dimmed)',
         opacity: earned ? 1 : 0.6,
       }}
     >
-      <Glyph size={size * 0.46} stroke={1.8} />
+      <GameIcon name={badge.icon} size={Math.round(size * 0.58)} />
       {!earned && (
         <IconLock
           size={size * 0.28}
@@ -118,7 +86,7 @@ export function BadgeRow({ items }: { items: { id: string; earnedAt: string }[] 
       {known.map((b) => {
         const def = BADGE_BY_ID.get(b.id)!;
         return (
-          <Tooltip key={b.id} label={`${def.name} · ${dateOf(b.earnedAt)}`} withArrow>
+          <Tooltip key={b.id} label={`${def.name} · ${def.hint} · ${dateOf(b.earnedAt)}`} withArrow multiline maw={260}>
             <Stack gap={4} align="center" w={72} tabIndex={0} aria-label={`${def.name}, earned ${dateOf(b.earnedAt)}`}>
               <BadgeIcon badge={def} earned size={52} />
               <Text size="xs" fw={600} ta="center" lineClamp={2} lh={1.2}>
@@ -141,7 +109,7 @@ export function BadgesSection() {
       <Group justify="space-between" align="baseline" mb="sm">
         <Title order={2}>Badges</Title>
         <Button component={Link} to="/badges" variant="subtle" size="xs">
-          All badges ({earned.length} of {all.length})
+          All badges ({earned.length.toLocaleString()} of {all.length.toLocaleString()})
         </Button>
       </Group>
       {earned.length ? (
@@ -153,7 +121,7 @@ export function BadgesSection() {
   );
 }
 
-/** One badge on the Badges page: earned date, or how far along you are. */
+/** One badge on the Badges page: tier and XP, earned date or how far along you are. */
 export function BadgeCard({ b, friends }: { b: BadgeStatus; friends: number | null }) {
   const earned = !!b.earnedAt;
   return (
@@ -161,7 +129,26 @@ export function BadgeCard({ b, friends }: { b: BadgeStatus; friends: number | nu
       <Group gap="md" wrap="nowrap" align="flex-start">
         <BadgeIcon badge={b} earned={earned} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <Text fw={700}>{b.name}</Text>
+          <Group gap={6} wrap="nowrap" justify="space-between" align="flex-start">
+            <Text fw={700} style={{ minWidth: 0 }}>
+              {b.name}
+            </Text>
+            <Badge
+              size="xs"
+              radius="xs"
+              variant="light"
+              tt="none"
+              className="num"
+              style={{
+                flexShrink: 0,
+                color: TIER_COLOR[b.tier],
+                background: 'transparent',
+                border: `1px solid ${TIER_COLOR[b.tier]}`,
+              }}
+            >
+              {TIER_NAME[b.tier]} · {TIER_XP[b.tier]} XP
+            </Badge>
+          </Group>
           <Text size="sm" c="dimmed">
             {b.hint}
           </Text>
