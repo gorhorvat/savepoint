@@ -9,12 +9,13 @@ import {
   NumberInput,
   Paper,
   SegmentedControl,
+  Select,
   Stack,
   Text,
   Title,
   Tooltip,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconChevronDown, IconDisc, IconPencil, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -43,10 +44,35 @@ import { amountForInput, currencyAffix, currencyDecimals, toUsd, useCurrency } f
 import { formatLastPlayed, formatPrice, upcomingLabel } from '../lib/format';
 import { normalizeTitle } from '../lib/match';
 import { gotIt, useCoverGame, wantOf, type Editing } from '../lib/physicalWants';
+import { compareTitles } from '../lib/sort';
 import { useGameResolver, useStore } from '../lib/store';
 import type { Game, PhysicalWant, WishlistItem } from '../types';
 
 type Show = 'all' | 'digital' | 'physical';
+type WishSort = 'title' | 'title-desc' | 'added' | 'release';
+
+const WISH_SORTS: { value: WishSort; label: string }[] = [
+  { value: 'title', label: 'A to Z' },
+  { value: 'title-desc', label: 'Z to A' },
+  { value: 'added', label: 'Recently added' },
+  { value: 'release', label: 'Release date' },
+];
+
+function wishCompare(sort: WishSort) {
+  const byTitle = (a: WishCard, b: WishCard) => compareTitles(a.game.title, b.game.title);
+  const released = (c: WishCard) => c.game.releaseDate ?? (c.game.comingSoon ? '9999' : '');
+  switch (sort) {
+    case 'title-desc':
+      return (a: WishCard, b: WishCard) => byTitle(b, a);
+    case 'added':
+      return (a: WishCard, b: WishCard) => b.addedAt.localeCompare(a.addedAt) || byTitle(a, b);
+    case 'release':
+      // Newest first, so upcoming games lead (undated upcoming ones first); other games without a date go last.
+      return (a: WishCard, b: WishCard) => released(b).localeCompare(released(a)) || byTitle(a, b);
+    default:
+      return byTitle;
+  }
+}
 
 /** One game on the wishlist: wanted digitally (with prices), as physical copies, or both. */
 interface WishCard {
@@ -518,6 +544,8 @@ export function WishlistPage() {
   const [params, setParams] = useSearchParams();
   const showParam = params.get('show');
   const show: Show = showParam === 'digital' || showParam === 'physical' ? showParam : 'all';
+  const [sortValue, setSort] = useLocalStorage<string>({ key: 'savepoint-sort-wishlist', defaultValue: 'title' });
+  const sort: WishSort = WISH_SORTS.some((s) => s.value === sortValue) ? (sortValue as WishSort) : 'title';
 
   // One card per game: its digital wishlist entry and the physical copies wanted.
   const cards = useMemo(() => {
@@ -541,8 +569,8 @@ export function WishlistPage() {
       card.wants.push(w);
       if (w.addedAt > card.addedAt) card.addedAt = w.addedAt;
     }
-    return [...byId.values()].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
-  }, [wishlist, wants, resolve, coverGame]);
+    return [...byId.values()].sort(wishCompare(sort));
+  }, [wishlist, wants, resolve, coverGame, sort]);
 
   const counts: Record<Show, number> = {
     all: cards.length,
@@ -672,7 +700,18 @@ export function WishlistPage() {
               }))}
               aria-label="Show"
             />
-            <ShareExport list={exported} />
+            <Group gap="sm" wrap="nowrap">
+              <Select
+                aria-label="Sort"
+                size="xs"
+                data={WISH_SORTS}
+                value={sort}
+                onChange={(v) => setSort(v ?? 'title')}
+                allowDeselect={false}
+                w={150}
+              />
+              <ShareExport list={exported} />
+            </Group>
           </Group>
           {shown.map((card) => (
             <WishCardView key={card.game.id} card={card} show={show} open={setEditing} />

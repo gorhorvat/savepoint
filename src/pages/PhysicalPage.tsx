@@ -11,6 +11,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
+import { useLocalStorage } from '@mantine/hooks';
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -22,8 +23,38 @@ import { CONDITIONS, PHYSICAL_PLATFORM_GROUPS, PHYSICAL_PLATFORMS } from '../dat
 import { formatPrice } from '../lib/format';
 import { toUsd, useCurrency } from '../lib/currency';
 import { useCoverGame, type Editing } from '../lib/physicalWants';
+import { compareTitles } from '../lib/sort';
 import { useStore } from '../lib/store';
 import type { Game, PhysicalItem, PhysicalPlatform } from '../types';
+
+type ShelfSort = 'title' | 'title-desc' | 'added' | 'platform' | 'price';
+
+const SHELF_SORTS: { value: ShelfSort; label: string }[] = [
+  { value: 'title', label: 'A to Z' },
+  { value: 'title-desc', label: 'Z to A' },
+  { value: 'added', label: 'Recently added' },
+  { value: 'platform', label: 'Platform' },
+  { value: 'price', label: 'Price paid' },
+];
+
+function shelfCompare(sort: ShelfSort) {
+  const byTitle = (a: PhysicalItem, b: PhysicalItem) =>
+    compareTitles(a.title, b.title) || compareTitles(a.platform, b.platform);
+  const price = (p: PhysicalItem) => (p.pricePaid === undefined ? -1 : toUsd(p.pricePaid, p.currency));
+  switch (sort) {
+    case 'title-desc':
+      return (a: PhysicalItem, b: PhysicalItem) => byTitle(b, a);
+    case 'added':
+      return (a: PhysicalItem, b: PhysicalItem) => b.addedAt.localeCompare(a.addedAt) || byTitle(a, b);
+    case 'platform':
+      return (a: PhysicalItem, b: PhysicalItem) =>
+        PHYSICAL_PLATFORMS.indexOf(a.platform) - PHYSICAL_PLATFORMS.indexOf(b.platform) || byTitle(a, b);
+    case 'price':
+      return (a: PhysicalItem, b: PhysicalItem) => price(b) - price(a) || byTitle(a, b);
+    default:
+      return byTitle;
+  }
+}
 
 function matchesFilter(x: { title: string; platform: PhysicalPlatform }, platform: string | null, query: string) {
   return (!platform || x.platform === platform) && x.title.toLowerCase().includes(query.trim().toLowerCase());
@@ -90,9 +121,12 @@ export function PhysicalPage() {
   const [platform, setPlatform] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
+  const [sortValue, setSort] = useLocalStorage<string>({ key: 'savepoint-sort-shelf', defaultValue: 'title' });
+  const sort: ShelfSort = SHELF_SORTS.some((s) => s.value === sortValue) ? (sortValue as ShelfSort) : 'title';
+
   const items = useMemo(
-    () => physical.filter((x) => matchesFilter(x, platform, query)).sort((a, b) => a.title.localeCompare(b.title)),
-    [physical, platform, query],
+    () => physical.filter((x) => matchesFilter(x, platform, query)).sort(shelfCompare(sort)),
+    [physical, platform, query, sort],
   );
   useCurrency();
   const spent = physical.reduce((n, p) => n + (p.pricePaid ? toUsd(p.pricePaid, p.currency) : 0), 0);
@@ -146,6 +180,14 @@ export function PhysicalPage() {
           onChange={setPlatform}
           clearable
           style={{ flex: '0 1 200px' }}
+        />
+        <Select
+          aria-label="Sort"
+          data={SHELF_SORTS}
+          value={sort}
+          onChange={(v) => setSort(v ?? 'title')}
+          allowDeselect={false}
+          style={{ flex: '0 1 170px' }}
         />
         <Button leftSection={<IconPlus size={18} />} onClick={() => setEditing({ kind: 'new-item' })}>
           Add a game
