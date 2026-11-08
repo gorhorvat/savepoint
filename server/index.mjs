@@ -19,6 +19,7 @@ import { discoverPool } from './discover.mjs';
 import { howLongToBeat } from './hltb.mjs';
 import { criticScore } from './opencritic.mjs';
 import { igdbConfigured, igdbGame, lookupIgdb } from './igdb.mjs';
+import { exchangeRates } from './currency.mjs';
 import { itadDeal } from './itad.mjs';
 import {
   alertTopic,
@@ -797,6 +798,15 @@ app.get('/api/prices', async (req, res) => {
     itad,
   };
   priceCache.set(key, { at: Date.now(), data });
+  res.json(data);
+});
+
+// Exchange rates from US dollars, for showing prices in your own currency.
+// -> { base: 'USD', date, rates } (502 when none could be loaded yet)
+app.get('/api/currency/rates', async (_req, res) => {
+  const data = await exchangeRates();
+  if (!data) return res.status(502).json({ error: "Couldn't load exchange rates" });
+  res.set('Cache-Control', 'private, max-age=3600');
   res.json(data);
 });
 

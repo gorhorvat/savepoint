@@ -39,6 +39,7 @@ import {
   type Account,
   type AlertSettings,
 } from '../lib/api';
+import { amountForInput, currencyAffix, currencyDecimals, toUsd, useCurrency } from '../lib/currency';
 import { formatLastPlayed, formatPrice, upcomingLabel } from '../lib/format';
 import { normalizeTitle } from '../lib/match';
 import { gotIt, useCoverGame, wantOf, type Editing } from '../lib/physicalWants';
@@ -62,11 +63,14 @@ function DigitalPart({ item, game }: { item: WishlistItem; game: Game }) {
   const { prices, loading, keyshops, itad } = usePrices(game);
   const update = useStore((s) => s.updateWishlist);
   const [open, { toggle: toggleOpen }] = useDisclosure(false);
+  const currency = useCurrency();
   const best = prices[0];
-  const hit = best && item.targetPrice !== undefined && best.price <= item.targetPrice;
-  const keyshopHit = keyshops && item.targetPrice !== undefined && keyshops.price <= item.targetPrice;
+  // Prices are in dollars; the target is in the currency it was typed in.
+  const target = item.targetPrice === undefined ? undefined : toUsd(item.targetPrice, item.targetCurrency);
+  const hit = best && target !== undefined && best.price <= target;
+  const keyshopHit = keyshops && target !== undefined && keyshops.price <= target;
   const deal = itad?.current;
-  const dealHit = deal && item.targetPrice !== undefined && deal.price <= item.targetPrice;
+  const dealHit = deal && target !== undefined && deal.price <= target;
 
   return (
     <>
@@ -147,13 +151,18 @@ function DigitalPart({ item, game }: { item: WishlistItem; game: Game }) {
           <NumberInput
             label="Target price"
             placeholder="Any"
-            prefix="$"
+            {...currencyAffix(currency)}
             min={0}
-            decimalScale={2}
+            decimalScale={currencyDecimals(currency)}
             size="xs"
-            w={110}
-            value={item.targetPrice ?? ''}
-            onChange={(v) => update(game.id, { targetPrice: v === '' ? undefined : Number(v) })}
+            w={120}
+            value={amountForInput(item.targetPrice, item.targetCurrency) ?? ''}
+            onChange={(v) =>
+              update(game.id, {
+                targetPrice: v === '' ? undefined : Number(v),
+                targetCurrency: v === '' ? undefined : currency,
+              })
+            }
           />
           <Button
             variant="subtle"
@@ -184,6 +193,7 @@ function DigitalPart({ item, game }: { item: WishlistItem; game: Game }) {
 /** A physical copy you want: console, edition, most you'd pay, and where to look. */
 function WantLine({ want, onEdit, onGotIt }: { want: PhysicalWant; onEdit: () => void; onGotIt: () => void }) {
   const removeWant = useStore((s) => s.removeWant);
+  useCurrency();
   return (
     <Group justify="space-between" align="flex-start" wrap="nowrap" gap="xs" className="wish-want">
       <Stack gap={4} style={{ minWidth: 0 }}>
@@ -196,7 +206,7 @@ function WantLine({ want, onEdit, onGotIt }: { want: PhysicalWant; onEdit: () =>
           )}
           {want.maxPrice !== undefined && (
             <Text size="sm" c="dimmed" className="num">
-              Up to {formatPrice(want.maxPrice)}
+              Up to {formatPrice(want.maxPrice, want.currency)}
             </Text>
           )}
         </Group>
@@ -503,6 +513,7 @@ export function WishlistPage() {
   const addFound = useStore((s) => s.addFoundToWishlist);
   const resolve = useGameResolver();
   const coverGame = useCoverGame();
+  const currency = useCurrency();
   const [editing, setEditing] = useState<Editing>(null);
   const [params, setParams] = useSearchParams();
   const showParam = params.get('show');
@@ -553,21 +564,33 @@ export function WishlistPage() {
     filename: 'savepoint-wishlist',
     lines: lines.map(({ game, digital, want }) => {
       if (want) {
-        const max = want.maxPrice !== undefined ? `, up to ${formatPrice(want.maxPrice)}` : '';
+        const max = want.maxPrice !== undefined ? `, up to ${formatPrice(want.maxPrice, want.currency)}` : '';
         return `${want.title} (physical, ${want.platform}${want.edition ? `, ${want.edition}` : ''})${max}`;
       }
       const on = game.availableOn.map((p) => PLATFORM_BY_ID[p].short).join(', ');
-      const target = digital?.targetPrice !== undefined ? `, target ${formatPrice(digital.targetPrice)}` : '';
+      const target =
+        digital?.targetPrice !== undefined
+          ? `, target ${formatPrice(digital.targetPrice, digital.targetCurrency)}`
+          : '';
       return `${game.title}${on ? ` (${on})` : ''}${target}`;
     }),
-    columns: ['Title', 'Copy', 'Platforms', "Target or most you'd pay (USD)", 'Edition', 'Note', 'Added', 'From'],
+    columns: [
+      'Title',
+      'Copy',
+      'Platforms',
+      `Target or most you'd pay (${currency})`,
+      'Edition',
+      'Note',
+      'Added',
+      'From',
+    ],
     rows: lines.map(({ game, digital, want }) =>
       want
         ? [
             want.title,
             'Physical',
             want.platform,
-            want.maxPrice,
+            amountForInput(want.maxPrice, want.currency),
             want.edition,
             want.notes,
             want.addedAt.slice(0, 10),
@@ -577,7 +600,7 @@ export function WishlistPage() {
             game.title,
             'Digital',
             game.availableOn.map((p) => PLATFORM_BY_ID[p].name).join(', '),
-            digital?.targetPrice,
+            amountForInput(digital?.targetPrice, digital?.targetCurrency),
             undefined,
             digital?.note,
             digital?.addedAt.slice(0, 10),

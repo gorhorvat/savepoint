@@ -1,4 +1,5 @@
 import type { AchievementProgress, PhysicalItem, PhysicalPlatform, PlatformId, PlayLogEntry, Progress } from '../types';
+import { toUsd } from './currency';
 import { platformTotals, type LibraryGame } from './library';
 
 export interface Share {
@@ -208,7 +209,7 @@ export function computeStats(
     collection: {
       copies: physical.length,
       byPlatform: [...copiesBy].map(([platform, copies]) => ({ platform, copies })).sort((a, b) => b.copies - a.copies),
-      spent: physical.reduce((n, p) => n + (p.pricePaid ?? 0), 0),
+      spent: physical.reduce((n, p) => n + (p.pricePaid ? toUsd(p.pricePaid, p.currency) : 0), 0),
       unplayed: games.filter((l) => l.physical.length && l.totalMinutes === 0),
     },
   };

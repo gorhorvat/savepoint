@@ -2,11 +2,13 @@ import { Anchor, Badge, Group, Loader, Stack, Text, Tooltip } from '@mantine/cor
 import { IconExternalLink } from '@tabler/icons-react';
 import { MARKETPLACES, STORE_BY_ID, STORE_DELIVERS } from '../data/stores';
 import { usePrices } from '../lib/api';
+import { useCurrency } from '../lib/currency';
 import { formatPrice } from '../lib/format';
 import type { Game } from '../types';
 
 export function PriceTable({ game, compact }: { game: Game; compact?: boolean }) {
   const { prices, loading, historicalLow, keyshops } = usePrices(game);
+  const currency = useCurrency();
 
   const marketplaces = MARKETPLACES.filter((m) => m.sellsFor.some((p) => game.availableOn.includes(p)));
   const keyshopRow = keyshops && (
@@ -119,7 +121,8 @@ export function PriceTable({ game, compact }: { game: Game; compact?: boolean })
       )}
       {!loading && !!historicalLow && (
         <Text size="xs" c="dimmed" pt={8}>
-          Lowest PC price on record: {formatPrice(historicalLow)}. Prices in USD.
+          Lowest PC price on record: {formatPrice(historicalLow)}.{' '}
+          {currency === 'USD' ? 'Prices in USD.' : "Converted from US dollars at today's rate."}
         </Text>
       )}
       {marketLinks}

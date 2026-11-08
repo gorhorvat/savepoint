@@ -11,6 +11,7 @@ import { LeaderboardRow } from '../components/LeaderboardRow';
 import { fetchAccount, fetchBigDeals, fetchFreeGames, type BigDeal, type FreeGiveaway } from '../lib/api';
 import { useFavorites } from '../lib/favorites';
 import { formatLastPlayed, formatPlaytime, formatPrice, upcomingLabel } from '../lib/format';
+import { useCurrency } from '../lib/currency';
 import {
   describePresence,
   fetchFriends,
@@ -285,7 +286,14 @@ function FriendActivity() {
   );
 }
 
+/** GamerPower's worth ("$19.99") in your currency; other text as it is. */
+function worthOf(worth?: string) {
+  const usd = Number(String(worth ?? '').replace(/^\$/, ''));
+  return worth && /^\$/.test(worth) && Number.isFinite(usd) && usd > 0 ? formatPrice(usd) : worth;
+}
+
 function FreeGames() {
+  useCurrency();
   const homepage = useStore((s) => s.homepage);
   const wanted = useMemo(() => normalizeHomepage(homepage).freeGames, [homepage]);
   const games = useLoad(() => fetchFreeGames(wanted), [wanted]);
@@ -313,7 +321,7 @@ function FreeGames() {
                 {g.title}
               </Text>
               <Text size="sm" c="dimmed" truncate>
-                {[g.worth && `${g.worth} value`, g.platforms].filter(Boolean).join(' · ')}
+                {[g.worth && `${worthOf(g.worth)} value`, g.platforms].filter(Boolean).join(' · ')}
               </Text>
               {g.endsAt && (
                 <Text size="xs" c="dimmed">
@@ -342,6 +350,7 @@ function FreeGames() {
 }
 
 function BigDeals() {
+  useCurrency();
   const deals = useLoad(fetchBigDeals);
   return (
     <Section title="Big deals">

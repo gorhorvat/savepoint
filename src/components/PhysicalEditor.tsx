@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CONDITIONS, DIGITAL, PHYSICAL_PLATFORM_GROUPS } from '../data/physical';
 import type { FoundGame } from '../lib/api';
+import { amountForInput, currencyAffix, currencyDecimals, currentCurrency, useCurrency } from '../lib/currency';
 import { defaultPlatform, wantOf, type Editing, type FormValues } from '../lib/physicalWants';
 import { useStore } from '../lib/store';
 import { vendorSearchUrl } from '../lib/vendors';
@@ -83,6 +84,7 @@ function PhysicalForm({
   onCancel: () => void;
 }) {
   const saveFound = useStore((s) => s.saveFound);
+  const currency = useCurrency();
   const [v, setV] = useState<FormValues>(initial ?? { title: '', platform: null });
   const set = (patch: Partial<FormValues>) => setV((prev) => ({ ...prev, ...patch }));
   const [searching, setSearching] = useState(!initial?.title);
@@ -148,9 +150,9 @@ function PhysicalForm({
         ) : (
           <NumberInput
             label="Most you'd pay"
-            prefix="$"
+            {...currencyAffix(currency)}
             min={0}
-            decimalScale={2}
+            decimalScale={currencyDecimals(currency)}
             value={v.price ?? ''}
             onChange={(p) => set({ price: p })}
             placeholder="Optional"
@@ -190,9 +192,9 @@ function PhysicalForm({
         <Group grow>
           <NumberInput
             label="Price paid"
-            prefix="$"
+            {...currencyAffix(currency)}
             min={0}
-            decimalScale={2}
+            decimalScale={currencyDecimals(currency)}
             value={v.price ?? ''}
             onChange={(p) => set({ price: p })}
             placeholder="Optional"
@@ -256,6 +258,7 @@ export function PhysicalEditorModal({ editing, onClose }: { editing: Editing; on
       condition: v.condition ?? undefined,
       edition: v.edition?.trim() || undefined,
       pricePaid: toNumber(v.price),
+      currency: toNumber(v.price) === undefined ? undefined : currentCurrency(),
       acquiredAt: v.acquiredAt || undefined,
       notes: v.notes?.trim() || undefined,
     };
@@ -275,6 +278,7 @@ export function PhysicalEditorModal({ editing, onClose }: { editing: Editing; on
       title: v.title.trim(),
       platform: v.platform!,
       maxPrice: toNumber(v.price),
+      currency: toNumber(v.price) === undefined ? undefined : currentCurrency(),
       edition: v.edition?.trim() || undefined,
       notes: v.notes?.trim() || undefined,
     };
@@ -294,7 +298,7 @@ export function PhysicalEditorModal({ editing, onClose }: { editing: Editing; on
     platform: p.platform,
     condition: p.condition,
     edition: p.edition,
-    price: p.pricePaid,
+    price: amountForInput(p.pricePaid, p.currency),
     acquiredAt: p.acquiredAt,
     notes: p.notes,
   });
@@ -303,7 +307,7 @@ export function PhysicalEditorModal({ editing, onClose }: { editing: Editing; on
     title: w.title,
     platform: w.platform,
     edition: w.edition,
-    price: w.maxPrice,
+    price: amountForInput(w.maxPrice, w.currency),
     notes: w.notes,
   });
   const isItemForm = editing?.kind === 'new-item' || editing?.kind === 'edit-item';

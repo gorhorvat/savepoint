@@ -9,6 +9,7 @@
 //
 // Every item is sent to an account once (deal_alerts_sent); several new items
 // in one check go out as one notification.
+import { moneyFor } from './currency.mjs';
 import { query } from './db.mjs';
 import { notify } from './alerts.mjs';
 import { itadConfigured } from './itad.mjs';
@@ -168,8 +169,6 @@ export async function bigDeals({ minCut, historicalLow, wellReviewed }) {
 
 // ---------------------------------------------------------------- checking
 
-const money = (n) => (Number.isFinite(n) ? `$${n.toFixed(2)}` : '');
-
 async function alreadySent(userId, keys) {
   if (!keys.length) return new Set();
   const { rows } = await query(
@@ -221,6 +220,12 @@ export async function checkDealAlerts({ userId = null } = {}) {
   for (const row of rows) {
     const s = clean(row.data);
     try {
+      const money = await moneyFor(row.user_id);
+      // GamerPower gives worth as text in dollars ("$19.99").
+      const worthOf = (g) => {
+        const usd = Number(String(g.worth ?? '').replace(/^\$/, ''));
+        return g.worth && Number.isFinite(usd) && usd > 0 ? money(usd) : null;
+      };
       if (s.freeGames.enabled) {
         giveaways ??= await freeGiveaways().catch(() => []);
         const wanted = matchingGiveaways(giveaways, s.freeGames);
@@ -229,8 +234,8 @@ export async function checkDealAlerts({ userId = null } = {}) {
         sent += await send(row.topic, fresh, {
           one: (g, short) =>
             short
-              ? `${g.title}${g.worth ? ` (${g.worth})` : ''}`
-              : `Free to keep${g.worth ? ` (usually ${g.worth})` : ''} on ${g.platforms}.` +
+              ? `${g.title}${worthOf(g) ? ` (${worthOf(g)})` : ''}`
+              : `Free to keep${worthOf(g) ? ` (usually ${worthOf(g)})` : ''} on ${g.platforms}.` +
                 (g.endsAt ? ` Ends ${new Date(g.endsAt).toUTCString().slice(5, 16)}.` : ''),
           many: (n) => `${n} free games`,
           url: 'https://www.gamerpower.com',

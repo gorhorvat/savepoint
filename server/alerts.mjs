@@ -8,6 +8,7 @@
 // name works like a password (anyone who knows it can read the alerts), so
 // it's long and random, and can be replaced with a new one at any time.
 import { randomBytes } from 'node:crypto';
+import { moneyFor } from './currency.mjs';
 import { query } from './db.mjs';
 import { itadDeal } from './itad.mjs';
 import { nintendoPrice } from './search.mjs';
@@ -120,9 +121,10 @@ export async function checkAlerts({ userId = null } = {}) {
       lastSent = null;
     } else if (lastSent == null || best.price < lastSent) {
       // Only notify again if the price fell further since the last alert.
+      const money = await moneyFor(item.user_id);
       const ok = await notify(item.topic, {
-        title: `${item.title}: $${best.price.toFixed(2)}`,
-        message: `${item.title} is $${best.price.toFixed(2)} at ${best.where}, at or below your $${item.target.toFixed(2)} target.`,
+        title: `${item.title}: ${money(best.price)}`,
+        message: `${item.title} is ${money(best.price)} at ${best.where}, at or below your ${money(item.target)} target.`,
         url: best.url,
       }).then(
         () => true,

@@ -104,6 +104,8 @@ interface State {
   profile: Profile;
   /** Shops searched for physical wants, as domains ("amazon.de", "vinted.hr"). */
   vendors: string[];
+  /** The currency prices are shown in (lib/currency.ts); unset = US dollars. */
+  currency?: string;
   /** Game-specific stats in My Stats: on or off, and the games with a tab of their own. */
   gameStats: { enabled: boolean; games: GameStatsId[] };
   /** When the linked Steam account's library was first imported on its own (see lib/autoSync.ts). */
@@ -172,6 +174,7 @@ interface State {
   removeWant: (id: string) => void;
   updateProfile: (patch: Partial<Profile>) => void;
   setVendors: (vendors: string[]) => void;
+  setCurrency: (currency: string) => void;
   setGameStats: (patch: Partial<State['gameStats']>) => void;
   setKickChannels: (slugs: string[]) => void;
   setStreamTaste: (taste: StreamTaste | null) => void;
@@ -607,6 +610,7 @@ export const useStore = create<State>()(
       removeWant: (id) => set({ physicalWants: get().physicalWants.filter((w) => w.id !== id) }),
       updateProfile: (patch) => set({ profile: { ...get().profile, ...patch } }),
       setVendors: (vendors) => set({ vendors }),
+      setCurrency: (currency) => set({ currency }),
       setGameStats: (patch) => set((s) => ({ gameStats: { ...s.gameStats, ...patch } })),
       setKickChannels: (kickChannels) => set({ kickChannels }),
       setStreamTaste: (streamTaste) => set({ streamTaste }),

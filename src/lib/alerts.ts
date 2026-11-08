@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { syncAlerts, type AlertItem } from './api';
+import { toUsd, useRatesDate } from './currency';
 import { resolveGame, useStore } from './store';
 
 let lastSent = '';
@@ -11,6 +12,8 @@ let lastSent = '';
  */
 export function usePriceAlertsSync() {
   const wishlist = useStore((s) => s.wishlist);
+  // Targets typed in another currency are sent in dollars, so wait for the rates.
+  const { date: ratesDate } = useRatesDate();
   useEffect(() => {
     const timer = setTimeout(() => {
       const { customGames, genreOverrides, details } = useStore.getState();
@@ -26,7 +29,7 @@ export function usePriceAlertsSync() {
           nsuid: g.nsuid,
           pc: g.availableOn.includes('steam') || g.availableOn.includes('epic'),
           switch: g.availableOn.includes('switch'),
-          target: w.targetPrice,
+          target: toUsd(w.targetPrice, w.targetCurrency),
         });
       }
       const key = JSON.stringify(items);
@@ -38,5 +41,5 @@ export function usePriceAlertsSync() {
         .catch(() => {});
     }, 1500); // Wait for typing in the target field to settle.
     return () => clearTimeout(timer);
-  }, [wishlist]);
+  }, [wishlist, ratesDate]);
 }

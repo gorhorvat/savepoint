@@ -148,8 +148,10 @@ export interface PlayEntry {
 export interface WishlistItem {
   gameId: string;
   addedAt: string;
-  /** Alert me when the best price drops to this (USD). */
+  /** Alert me when the best price drops to this (in targetCurrency). */
   targetPrice?: number;
+  /** The currency targetPrice was typed in; unset = US dollars. */
+  targetCurrency?: string;
   note?: string;
   /** 'steam' for items copied from the Steam wishlist; they follow it on each sync. */
   source?: 'steam' | 'manual';
@@ -225,6 +227,8 @@ export interface PhysicalItem {
   condition?: Condition;
   edition?: string;
   pricePaid?: number;
+  /** The currency pricePaid was typed in; unset = US dollars. */
+  currency?: string;
   acquiredAt?: string;
   notes?: string;
   addedAt: string;
@@ -237,6 +241,8 @@ export interface PhysicalWant {
   title: string;
   platform: PhysicalPlatform;
   maxPrice?: number;
+  /** The currency maxPrice was typed in; unset = US dollars. */
+  currency?: string;
   edition?: string;
   notes?: string;
   addedAt: string;

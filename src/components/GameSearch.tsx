@@ -3,6 +3,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { IconCheck, IconHeart, IconSearch } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { searchGames, type FoundGame } from '../lib/api';
+import { useCurrency } from '../lib/currency';
 import { formatPrice } from '../lib/format';
 import type { Game, PlatformId } from '../types';
 import { Cover } from './Cover';
@@ -33,6 +34,7 @@ export function GameSearch({
   isDone?: (game: FoundGame) => boolean;
   placeholder?: string;
 }) {
+  useCurrency();
   const [query, setQuery] = useState('');
   const [debounced] = useDebouncedValue(query.trim(), 350);
   const [state, setState] = useState<{ q: string; results: FoundGame[]; error?: string } | null>(null);

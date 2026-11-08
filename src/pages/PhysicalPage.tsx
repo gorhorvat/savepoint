@@ -20,6 +20,7 @@ import { PhysicalPlatformIcon } from '../components/PhysicalPlatformIcon';
 import { PhysicalEditorModal, PlatformTag } from '../components/PhysicalEditor';
 import { CONDITIONS, PHYSICAL_PLATFORM_GROUPS, PHYSICAL_PLATFORMS } from '../data/physical';
 import { formatPrice } from '../lib/format';
+import { toUsd, useCurrency } from '../lib/currency';
 import { useCoverGame, type Editing } from '../lib/physicalWants';
 import { useStore } from '../lib/store';
 import type { Game, PhysicalItem, PhysicalPlatform } from '../types';
@@ -29,6 +30,7 @@ function matchesFilter(x: { title: string; platform: PhysicalPlatform }, platfor
 }
 
 function ItemCard({ item, game, actions }: { item: PhysicalItem; game: Game; actions: React.ReactNode }) {
+  useCurrency();
   return (
     <div className="tile">
       <Stack gap={8}>
@@ -64,7 +66,7 @@ function ItemCard({ item, game, actions }: { item: PhysicalItem; game: Game; act
           )}
           {item.pricePaid !== undefined && (
             <Text size="sm" c="dimmed" className="num">
-              {formatPrice(item.pricePaid)}
+              {formatPrice(item.pricePaid, item.currency)}
             </Text>
           )}
         </Group>
@@ -92,7 +94,8 @@ export function PhysicalPage() {
     () => physical.filter((x) => matchesFilter(x, platform, query)).sort((a, b) => a.title.localeCompare(b.title)),
     [physical, platform, query],
   );
-  const spent = physical.reduce((n, p) => n + (p.pricePaid ?? 0), 0);
+  useCurrency();
+  const spent = physical.reduce((n, p) => n + (p.pricePaid ? toUsd(p.pricePaid, p.currency) : 0), 0);
   const platformCounts = PHYSICAL_PLATFORMS.map(
     (p) => [p, physical.filter((x) => x.platform === p).length] as const,
   ).filter(([, n]) => n > 0);

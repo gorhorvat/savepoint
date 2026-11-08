@@ -1,3 +1,5 @@
+import { formatMoney } from './currency';
+
 export function hours(minutes: number): number {
   return minutes / 60;
 }
@@ -30,9 +32,13 @@ export function formatLastPlayed(iso: string | null): string {
   return monthYear.format(d);
 }
 
-export function formatPrice(usd: number): string {
-  if (usd === 0) return 'Free';
-  return `$${usd.toFixed(2)}`;
+/**
+ * A price in the currency picked in Settings: "€17.19", "Free". Amounts are
+ * in dollars unless `from` says otherwise. Components that show prices call
+ * useCurrency() (lib/currency.ts) so they update when the currency changes.
+ */
+export function formatPrice(amount: number, from?: string): string {
+  return formatMoney(amount, from);
 }
 
 /**

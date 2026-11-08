@@ -18,6 +18,7 @@ import { PlatformIcon } from '../components/PlatformBadge';
 import { PhysicalPlatformIcon } from '../components/PhysicalPlatformIcon';
 import { PLATFORMS } from '../data/platforms';
 import { formatHoursNumber, formatPlaytime, formatPrice } from '../lib/format';
+import { useCurrency } from '../lib/currency';
 import { useLibrary } from '../lib/library';
 import { STATS_GAMES } from '../lib/gameStats';
 import { computeStats } from '../lib/stats';
@@ -49,6 +50,7 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 const hours = (m: number) => formatPlaytime(m);
 
 function OverviewStats() {
+  useCurrency();
   const all = useLibrary({ includeApps: true });
   const physical = useStore((s) => s.physical);
   const wishlist = useStore((s) => s.wishlist);
