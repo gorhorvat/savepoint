@@ -55,7 +55,12 @@ interface Snapshot {
   platforms: string[];
   games: Record<
     string,
-    { l?: string; b?: 1; h?: number; p: Partial<Record<PlatformId, { m: number; e?: number; t?: number; d?: 1 }>> }
+    {
+      l?: string;
+      b?: 1;
+      h?: number;
+      p: Partial<Record<PlatformId, { m: number; l?: string; e?: number; t?: number; d?: 1 }>>;
+    }
   >;
 }
 
@@ -73,6 +78,8 @@ export function questSnapshot(): Snapshot {
     const g = (games[e.gameId] ??= { p: {} });
     const p = (g.p[e.platform] ??= { m: 0 });
     p.m += e.minutes;
+    // Per platform too: the server uses it to keep yesterday's play out of today.
+    if (e.lastPlayed && e.lastPlayed > (p.l ?? '')) p.l = e.lastPlayed;
     if (e.lastPlayed && e.lastPlayed > (g.l ?? '')) g.l = e.lastPlayed;
   }
   for (const [id, per] of Object.entries(achievements)) {
@@ -196,6 +203,30 @@ export function useQuestCheck() {
     }, 4000);
     return () => clearTimeout(t);
   }, [entries, achievements, progress]);
+
+  // A new day (week, month) starts at midnight: check again then, so the app
+  // doesn't keep showing yesterday's quests. Timers sleep with the computer,
+  // so coming back to the tab checks too.
+  const endsAt = useQuests((s) =>
+    s.data ? Math.min(...Object.values(s.data.periods).map((p) => Date.parse(p.endsAt))) : null,
+  );
+  useEffect(() => {
+    if (!endsAt || !entries.length) return;
+    const recheck = () => {
+      if (Date.now() >= endsAt) checkQuests().catch(() => {});
+    };
+    const t = setTimeout(recheck, Math.min(Math.max(endsAt - Date.now() + 5000, 1000), 2 ** 31 - 1));
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') recheck();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', recheck);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', recheck);
+    };
+  }, [endsAt, entries.length]);
 }
 
 // ---------------------------------------------------------------- display

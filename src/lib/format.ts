@@ -24,7 +24,9 @@ const dayMonth = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'sh
 export function formatLastPlayed(iso: string | null): string {
   if (!iso) return 'never';
   const d = new Date(iso);
-  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  // Calendar days, not 24-hour spans: 23:00 last night is "yesterday" at 10:00.
+  const midnight = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  const days = Math.max(0, Math.round((midnight(new Date()) - midnight(d)) / 86_400_000));
   if (days < 1) return 'today';
   if (days === 1) return 'yesterday';
   if (days < 7) return `${days} days ago`;

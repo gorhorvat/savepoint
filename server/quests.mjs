@@ -4,7 +4,9 @@
 // so the app sends a small snapshot of those totals (src/lib/quests.ts) and
 // progress is "totals now minus totals when the period started". When a new
 // day, week or month starts, the last totals saved before it become its
-// starting point, so play from before the app was opened still counts.
+// starting point, so play from before the app was opened still counts. Play
+// the platforms date before the period started is moved into the starting
+// point (see earlier()), so last night's session doesn't count for today.
 // Periods follow Europe/Zagreb time: days at midnight, weeks on Monday,
 // months on the 1st.
 //
@@ -352,7 +354,7 @@ export const questInfo = (key) => QUESTS[key] ?? SHARED[key] ?? RETIRED[key];
 //       l?: '2026-10-30T…',                          last played, as the platform reports it
 //       b?: 1,                                       in Backlog
 //       h?: 12.5,                                    HowLongToBeat main story, hours
-//       p: { [platform]: { m, e?, t?, d? } } } } }   minutes, achievements earned / total, done
+//       p: { [platform]: { m, l?, e?, t?, d? } } } } }   minutes, last played there, achievements earned / total, done
 
 const MAX_GAMES = 20000;
 const num = (v, max = 1e9) => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), max) : 0);
@@ -371,6 +373,7 @@ export function cleanSnapshot(raw) {
     for (const [platform, v] of Object.entries(g.p)) {
       if (!PLATFORM.test(platform) || !v || typeof v !== 'object') continue;
       const row = { m: num(v.m) };
+      if (typeof v.l === 'string' && v.l.length < 40 && !Number.isNaN(Date.parse(v.l))) row.l = v.l;
       if (v.t) {
         row.t = num(v.t, 100000);
         row.e = Math.min(num(v.e, 100000), row.t);
@@ -419,7 +422,12 @@ export function measure(base, now, start, length) {
       if (was) {
         dm = Math.max(0, v.m - was.m);
         de = Math.max(0, (v.e ?? 0) - (was.e ?? 0));
-      } else if (base.platforms.includes(platform) && v.m <= length && g.l && Date.parse(g.l) >= start) {
+      } else if (
+        base.platforms.includes(platform) &&
+        v.m <= length &&
+        (v.l ?? g.l) &&
+        Date.parse(v.l ?? g.l) >= start
+      ) {
         // New on a platform that was already connected and played this period (a game
         // bought this period): all of it is new. Lifetime totals from a newly connected
         // platform, or an old game turning up again, aren't.
@@ -533,19 +541,44 @@ async function baselines(userId, periods, previous, now) {
   const out = {};
   for (const [period, p] of Object.entries(periods)) {
     const row = byPeriod[period];
-    if (row?.period_key === p.key) {
-      out[period] = row.totals;
-      continue;
+    const kept = row?.period_key === p.key;
+    // A copy: the periods can start from the same totals, and earlier() changes them.
+    const totals = structuredClone(kept ? row.totals : (previous ?? now));
+    const moved = earlier(totals, now, p.start);
+    if (!kept || moved) {
+      await query(
+        `INSERT INTO quest_baselines ("user_id", "period", "period_key", "totals") VALUES ($1, $2, $3, $4)
+         ON CONFLICT ("user_id", "period") DO UPDATE SET "period_key" = EXCLUDED."period_key", "totals" = EXCLUDED."totals"`,
+        [userId, period, p.key, JSON.stringify(totals)],
+      );
     }
-    const start = previous ?? now;
-    await query(
-      `INSERT INTO quest_baselines ("user_id", "period", "period_key", "totals") VALUES ($1, $2, $3, $4)
-       ON CONFLICT ("user_id", "period") DO UPDATE SET "period_key" = EXCLUDED."period_key", "totals" = EXCLUDED."totals"`,
-      [userId, period, p.key, JSON.stringify(start)],
-    );
-    out[period] = start;
+    out[period] = totals;
   }
   return out;
+}
+
+/**
+ * Play the platform dates before the period started belongs to an earlier
+ * period, even when the app only saw it after midnight (played last night,
+ * opened Savepoint this morning). Moves those numbers into the starting point
+ * so they don't count. Returns whether anything moved.
+ */
+export function earlier(base, now, start) {
+  let moved = false;
+  for (const [id, g] of Object.entries(now.games)) {
+    const before = base.games?.[id];
+    if (!before) continue;
+    for (const [platform, v] of Object.entries(g.p)) {
+      const was = before.p[platform];
+      const last = Date.parse(v.l ?? g.l ?? '');
+      if (!was || !(last < start)) continue;
+      if (was.m === v.m && (was.e ?? 0) === (v.e ?? 0) && !!was.d === !!v.d) continue;
+      before.p[platform] = { ...v };
+      if (g.l && Date.parse(g.l) < start && (!before.l || g.l > before.l)) before.l = g.l;
+      moved = true;
+    }
+  }
+  return moved;
 }
 
 /** The shared monthly quest, created by whoever checks first that month. */
